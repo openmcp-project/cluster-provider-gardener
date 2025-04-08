@@ -1,0 +1,50 @@
+version: 3
+
+includes:
+  shared:
+    taskfile: hack/common/Taskfile_controller.yaml
+    flatten: true
+    excludes: # put task names in here which are overwritten in this file
+    - generate:code
+    - build:img:build:bin:gen:code
+    vars:
+      NESTED_MODULES: api
+      API_DIRS: '{{.ROOT_DIR}}/api/clusters/v1alpha1/...'
+      MANIFEST_OUT: '{{.ROOT_DIR}}/api/crds/manifests'
+      CODE_DIRS: '{{.ROOT_DIR}}/cmd/... {{.ROOT_DIR}}/internal/... {{.ROOT_DIR}}/api/clusters/...'
+      COMPONENTS: 'cluster-provider-gardener'
+      REPO_URL: 'https://github.com/openmcp-project/cluster-provider-gardener'
+  common: # imported a second time so that overwriting task definitions can call the overwritten task with a 'c:' prefix
+    taskfile: hack/common/Taskfile_controller.yaml
+    internal: true
+    aliases:
+    - c
+    vars:
+      NESTED_MODULES: api
+      API_DIRS: '{{.ROOT_DIR}}/api/clusters/v1alpha1/...'
+      MANIFEST_OUT: '{{.ROOT_DIR}}/api/crds/manifests'
+      CODE_DIRS: '{{.ROOT_DIR}}/cmd/... {{.ROOT_DIR}}/internal/... {{.ROOT_DIR}}/api/clusters/...'
+      COMPONENTS: 'cluster-provider-gardener'
+      REPO_URL: 'https://github.com/openmcp-project/cluster-provider-gardener'
+
+tasks:
+  generate:code: # overwrites shared code task to add external API fetching
+    desc: "  Generate code (mainly DeepCopy functions) and fetches external APIs."
+    aliases:
+    - gen:code
+    - g:code
+    - build:img:build:bin:gen:code
+    run: once
+    cmds:
+    - task: external-apis
+    - task: c:generate:code
+
+  external-apis:
+    desc: "  Fetch external APIs."
+    run: once
+    method: checksum
+    sources:
+    - hack/external-apis/*
+    cmds:
+    - 'go run {{.ROOT_DIR}}/hack/external-apis/main.go'
+    internal: true

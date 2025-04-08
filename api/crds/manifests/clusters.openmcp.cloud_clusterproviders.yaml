@@ -1,0 +1,172 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.4
+  name: clusterproviders.clusters.openmcp.cloud
+spec:
+  group: clusters.openmcp.cloud
+  names:
+    kind: ClusterProvider
+    listKind: ClusterProviderList
+    plural: clusterproviders
+    singular: clusterprovider
+  scope: Cluster
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: ClusterProvider is the Schema for the providers API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: ClusterProviderSpec defines the desired state of Provider.
+            properties:
+              image:
+                description: Image is the name of the image that contains the provider.
+                minLength: 1
+                type: string
+              imagePullSecrets:
+                description: |-
+                  ImagePullSecrets are named secrets in the same namespace that can be used
+                  to fetch provider images from private registries.
+                items:
+                  properties:
+                    name:
+                      description: Name is the name of the referenced resource.
+                      minLength: 1
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
+            required:
+            - image
+            type: object
+          status:
+            description: ClusterProviderStatus defines the observed state of Provider.
+            properties:
+              conditions:
+                description: Conditions contains the conditions.
+                items:
+                  properties:
+                    lastTransitionTime:
+                      description: LastTransitionTime specifies the time when this
+                        condition's status last changed.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        Message contains further details regarding the condition.
+                        It is meant for human users, Reason should be used for programmatic evaluation instead.
+                        It is optional, but should be filled at least when Status is not "True".
+                      type: string
+                    reason:
+                      description: |-
+                        Reason is expected to contain a CamelCased string that provides further information regarding the condition.
+                        It should have a fixed value set (like an enum) to be machine-readable. The value set depends on the condition type.
+                        It is optional, but should be filled at least when Status is not "True".
+                      type: string
+                    status:
+                      description: Status is the status of the condition.
+                      type: string
+                    type:
+                      description: |-
+                        Type is the type of the condition.
+                        Must be unique within the resource.
+                      type: string
+                  required:
+                  - status
+                  - type
+                  type: object
+                type: array
+              lastReconcileTime:
+                description: LastReconcileTime is the time when the resource was last
+                  reconciled by the controller.
+                format: date-time
+                type: string
+              message:
+                description: Message contains further details in a human-readable
+                  format.
+                type: string
+              observedGeneration:
+                description: ObservedGeneration is the generation of this resource
+                  that was last reconciled by the controller.
+                format: int64
+                type: integer
+              phase:
+                description: Phase is the current phase of the provider.
+                type: string
+              profiles:
+                description: Profiles contains information about the available profiles.
+                items:
+                  properties:
+                    name:
+                      description: Name is the name of the profile.
+                      minLength: 1
+                      type: string
+                    providerConfigRef:
+                      description: ProviderConfigRef is a reference to the provider-specific
+                        configuration.
+                      properties:
+                        name:
+                          description: Name is the name of the referenced resource.
+                          minLength: 1
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    supportedVersions:
+                      description: SupportedVersions are the supported Kubernetes
+                        versions.
+                      items:
+                        properties:
+                          deprecated:
+                            description: Deprecated indicates whether this version
+                              is deprecated.
+                            type: boolean
+                          version:
+                            description: Version is the Kubernetes version.
+                            minLength: 5
+                            type: string
+                        required:
+                        - version
+                        type: object
+                      type: array
+                  required:
+                  - name
+                  - providerConfigRef
+                  - supportedVersions
+                  type: object
+                type: array
+              reason:
+                description: Reason is expected to contain a CamelCased string that
+                  provides further information in a machine-readable format.
+                type: string
+            required:
+            - lastReconcileTime
+            - observedGeneration
+            - phase
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

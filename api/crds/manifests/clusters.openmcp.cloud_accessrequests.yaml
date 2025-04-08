@@ -1,0 +1,197 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.4
+  name: accessrequests.clusters.openmcp.cloud
+spec:
+  group: clusters.openmcp.cloud
+  names:
+    kind: AccessRequest
+    listKind: AccessRequestList
+    plural: accessrequests
+    singular: accessrequest
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: AccessRequest is the Schema for the accessrequests API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              clusterRef:
+                description: |-
+                  ClusterRef is the reference to the Cluster for which access is requested.
+                  Exactly one of clusterRef or requestRef must be set.
+                  This value is immutable.
+                properties:
+                  name:
+                    description: Name is the name of the referenced resource.
+                    minLength: 1
+                    type: string
+                  namespace:
+                    description: Namespace is the namespace of the referenced resource.
+                    type: string
+                required:
+                - name
+                - namespace
+                type: object
+                x-kubernetes-validations:
+                - message: clusterRef is immutable
+                  rule: self == oldSelf
+              permissions:
+                description: Permissions are the requested permissions.
+                items:
+                  properties:
+                    namespace:
+                      description: |-
+                        Namespace is the namespace for which the permissions are requested.
+                        If empty, this will result in a ClusterRole, otherwise in a Role in the respective namespace.
+                        Note that for a Role, the namespace needs to either exist or a permission to create it must be included in the requested permissions (it will be created automatically then), otherwise the request will be rejected.
+                      type: string
+                    rules:
+                      description: Rules are the requested RBAC rules.
+                      items:
+                        description: |-
+                          PolicyRule holds information that describes a policy rule, but does not contain information
+                          about who the rule applies to or which namespace the rule applies to.
+                        properties:
+                          apiGroups:
+                            description: |-
+                              APIGroups is the name of the APIGroup that contains the resources.  If multiple API groups are specified, any action requested against one of
+                              the enumerated resources in any API group will be allowed. "" represents the core API group and "*" represents all API groups.
+                            items:
+                              type: string
+                            type: array
+                            x-kubernetes-list-type: atomic
+                          nonResourceURLs:
+                            description: |-
+                              NonResourceURLs is a set of partial urls that a user should have access to.  *s are allowed, but only as the full, final step in the path
+                              Since non-resource URLs are not namespaced, this field is only applicable for ClusterRoles referenced from a ClusterRoleBinding.
+                              Rules can either apply to API resources (such as "pods" or "secrets") or non-resource URL paths (such as "/api"),  but not both.
+                            items:
+                              type: string
+                            type: array
+                            x-kubernetes-list-type: atomic
+                          resourceNames:
+                            description: ResourceNames is an optional white list of
+                              names that the rule applies to.  An empty set means
+                              that everything is allowed.
+                            items:
+                              type: string
+                            type: array
+                            x-kubernetes-list-type: atomic
+                          resources:
+                            description: Resources is a list of resources this rule
+                              applies to. '*' represents all resources.
+                            items:
+                              type: string
+                            type: array
+                            x-kubernetes-list-type: atomic
+                          verbs:
+                            description: Verbs is a list of Verbs that apply to ALL
+                              the ResourceKinds contained in this rule. '*' represents
+                              all verbs.
+                            items:
+                              type: string
+                            type: array
+                            x-kubernetes-list-type: atomic
+                        required:
+                        - verbs
+                        type: object
+                      type: array
+                  required:
+                  - rules
+                  type: object
+                type: array
+            required:
+            - clusterRef
+            - permissions
+            type: object
+          status:
+            description: AccessRequestStatus defines the observed state of AccessRequest
+            properties:
+              conditions:
+                description: Conditions contains the conditions.
+                items:
+                  properties:
+                    lastTransitionTime:
+                      description: LastTransitionTime specifies the time when this
+                        condition's status last changed.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        Message contains further details regarding the condition.
+                        It is meant for human users, Reason should be used for programmatic evaluation instead.
+                        It is optional, but should be filled at least when Status is not "True".
+                      type: string
+                    reason:
+                      description: |-
+                        Reason is expected to contain a CamelCased string that provides further information regarding the condition.
+                        It should have a fixed value set (like an enum) to be machine-readable. The value set depends on the condition type.
+                        It is optional, but should be filled at least when Status is not "True".
+                      type: string
+                    status:
+                      description: Status is the status of the condition.
+                      type: string
+                    type:
+                      description: |-
+                        Type is the type of the condition.
+                        Must be unique within the resource.
+                      type: string
+                  required:
+                  - status
+                  - type
+                  type: object
+                type: array
+              lastReconcileTime:
+                description: LastReconcileTime is the time when the resource was last
+                  reconciled by the controller.
+                format: date-time
+                type: string
+              message:
+                description: Message contains further details in a human-readable
+                  format.
+                type: string
+              observedGeneration:
+                description: ObservedGeneration is the generation of this resource
+                  that was last reconciled by the controller.
+                format: int64
+                type: integer
+              phase:
+                description: Phase is the current phase of the request.
+                type: string
+              reason:
+                description: Reason is expected to contain a CamelCased string that
+                  provides further information in a machine-readable format.
+                type: string
+            required:
+            - lastReconcileTime
+            - observedGeneration
+            - phase
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

@@ -1,6 +1,6 @@
 [![REUSE status](https://api.reuse.software/badge/github.com/openmcp-project/cluster-provider-gardener)](https://api.reuse.software/info/github.com/openmcp-project/cluster-provider-gardener)
 
-# cluster-provider-gardener
+# ClusterProvider: Gardener
 
 ## About this project
 

@@ -62,6 +62,7 @@ type ClusterPhase string
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:metadata:labels="openmcp.cloud/cluster=onboarding"
 
 // Cluster is the Schema for the clusters API
 type Cluster struct {

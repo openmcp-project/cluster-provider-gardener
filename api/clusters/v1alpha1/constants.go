@@ -54,3 +54,8 @@ const (
 	// TENANCY_EXCLUSIVE means the cluster is dedicated to a single tenant.
 	TENANCY_EXCLUSIVE Tenancy = "exclusive"
 )
+
+const (
+	// ClusterLabel can be used on CRDs to indicate onto which cluster they should be deployed.
+	ClusterLabel = "openmcp.cloud/cluster"
+)

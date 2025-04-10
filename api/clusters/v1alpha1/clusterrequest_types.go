@@ -28,6 +28,7 @@ type RequestPhase string
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:metadata:labels="openmcp.cloud/cluster=onboarding"
 
 // ClusterRequest is the Schema for the clusters API
 type ClusterRequest struct {

@@ -18,13 +18,16 @@ import (
 
 	"github.com/openmcp-project/controller-utils/pkg/logging"
 
-	clusterscheme "github.com/openmcp-project/cluster-provider-gardener/api/clusters/install"
+	// clusterscheme "github.com/openmcp-project/cluster-provider-gardener/api/clusters/install"
+	providerscheme "github.com/openmcp-project/cluster-provider-gardener/api/install"
 )
 
 var setupLog logging.Logger
 
-func NewRunCommand() *cobra.Command {
-	opts := &RunOptions{}
+func NewRunCommand(so *SharedOptions) *cobra.Command {
+	opts := &RunOptions{
+		SharedOptions: so,
+	}
 	cmd := &cobra.Command{
 		Use:   "run",
 		Short: "Run the Gardener ClusterProvider",
@@ -43,6 +46,8 @@ func NewRunCommand() *cobra.Command {
 }
 
 type RunOptions struct {
+	*SharedOptions
+
 	metricsAddr                                      string
 	metricsCertPath, metricsCertName, metricsCertKey string
 	webhookCertPath, webhookCertName, webhookCertKey string
@@ -54,7 +59,6 @@ type RunOptions struct {
 	tlsOpts                                          []func(*tls.Config)
 
 	// fields filled in Complete()
-	Log                  logging.Logger
 	WebhookTLSOpts       []func(*tls.Config)
 	MetricsServerOptions metricsserver.Options
 	MetricsCertWatcher   *certwatcher.CertWatcher
@@ -62,9 +66,6 @@ type RunOptions struct {
 }
 
 func (o *RunOptions) AddFlags(cmd *cobra.Command) {
-	// logging flags
-	logging.InitFlags(cmd.Flags())
-
 	// kubebuilder default flags
 	cmd.Flags().StringVar(&o.metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
 	cmd.Flags().StringVar(&o.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -81,14 +82,9 @@ func (o *RunOptions) AddFlags(cmd *cobra.Command) {
 }
 
 func (o *RunOptions) Complete(ctx context.Context) error {
-	// build logger
-	log, err := logging.GetLogger()
-	if err != nil {
+	if err := o.SharedOptions.Complete(); err != nil {
 		return err
 	}
-	o.Log = log
-	ctrl.SetLogger(o.Log.Logr())
-	setupLog = o.Log.WithName("setup")
 
 	// kubebuilder default stuff
 
@@ -173,15 +169,13 @@ func (o *RunOptions) Complete(ctx context.Context) error {
 }
 
 func (o *RunOptions) Run(ctx context.Context) error {
-	sc := runtime.NewScheme()
-	clusterscheme.Install(sc)
 
 	webhookServer := webhook.NewServer(webhook.Options{
 		TLSOpts: o.WebhookTLSOpts,
 	})
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                 sc,
+		Scheme:                 providerscheme.InstallProviderAPIs(runtime.NewScheme()),
 		Metrics:                o.MetricsServerOptions,
 		WebhookServer:          webhookServer,
 		HealthProbeBindAddress: o.probeAddr,

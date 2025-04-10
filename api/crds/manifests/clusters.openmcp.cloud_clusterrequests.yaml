@@ -4,6 +4,8 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.4
+  labels:
+    openmcp.cloud/cluster: onboarding
   name: clusterrequests.clusters.openmcp.cloud
 spec:
   group: clusters.openmcp.cloud

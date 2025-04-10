@@ -27,30 +27,10 @@ type ClusterProviderStatus struct {
 	Profiles []ClusterProfile `json:"profiles"`
 }
 
-type ClusterProfile struct {
-	// Name is the name of the profile.
-	// +kubebuilder:validation:MinLength=1
-	Name string `json:"name"`
-
-	// ProviderConfigRef is a reference to the provider-specific configuration.
-	ProviderConfigRef ObjectReference `json:"providerConfigRef"`
-
-	// SupportedVersions are the supported Kubernetes versions.
-	SupportedVersions []SupportedK8sVersion `json:"supportedVersions"`
-}
-
-type SupportedK8sVersion struct {
-	// Version is the Kubernetes version.
-	// +kubebuilder:validation:MinLength=5
-	Version string `json:"version"`
-
-	// Deprecated indicates whether this version is deprecated.
-	Deprecated bool `json:"deprecated,omitempty"`
-}
-
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:metadata:labels="openmcp.cloud/cluster=platform"
 
 // ClusterProvider is the Schema for the providers API.
 type ClusterProvider struct {

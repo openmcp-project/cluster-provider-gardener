@@ -39,6 +39,7 @@ type AccessRequestStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:metadata:labels="openmcp.cloud/cluster=onboarding"
 
 // AccessRequest is the Schema for the accessrequests API
 type AccessRequest struct {

@@ -1,0 +1,115 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.4
+  labels:
+    openmcp.cloud/cluster: onboarding
+  name: clusterprofiles.clusters.openmcp.cloud
+spec:
+  group: clusters.openmcp.cloud
+  names:
+    kind: ClusterProfile
+    listKind: ClusterProfileList
+    plural: clusterprofiles
+    singular: clusterprofile
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.name
+      name: Name
+      type: string
+    - jsonPath: .spec.environment
+      name: Env
+      type: string
+    - jsonPath: .spec.providerRef.name
+      name: Provider
+      type: string
+    - jsonPath: .spec.providerConfigRef.name
+      name: Config
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: ClusterProfileSpec defines the desired state of Provider.
+            properties:
+              environment:
+                description: Environment is the environment in which the ClusterProvider
+                  resides.
+                type: string
+              name:
+                description: Name is the name of the profile.
+                minLength: 1
+                type: string
+              providerConfigRef:
+                description: ProviderConfigRef is a reference to the provider-specific
+                  configuration.
+                properties:
+                  name:
+                    description: Name is the name of the referenced resource.
+                    minLength: 1
+                    type: string
+                required:
+                - name
+                type: object
+              providerRef:
+                description: ProviderRef is a reference to the ClusterProvider
+                properties:
+                  name:
+                    description: Name is the name of the referenced resource.
+                    minLength: 1
+                    type: string
+                required:
+                - name
+                type: object
+              supportedVersions:
+                description: SupportedVersions are the supported Kubernetes versions.
+                items:
+                  properties:
+                    deprecated:
+                      description: Deprecated indicates whether this version is deprecated.
+                      type: boolean
+                    version:
+                      description: Version is the Kubernetes version.
+                      minLength: 5
+                      type: string
+                  required:
+                  - version
+                  type: object
+                type: array
+            required:
+            - environment
+            - name
+            - providerConfigRef
+            - providerRef
+            - supportedVersions
+            type: object
+        type: object
+    selectableFields:
+    - jsonPath: .spec.name
+    - jsonPath: .spec.environment
+    - jsonPath: .spec.providerRef.name
+    - jsonPath: .spec.providerConfigRef.name
+    served: true
+    storage: true
+    subresources: {}

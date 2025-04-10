@@ -3,25 +3,26 @@ package app
 import (
 	"context"
 	"errors"
-	goflag "flag"
 	"fmt"
 
 	"github.com/spf13/cobra"
 
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/openmcp-project/controller-utils/pkg/logging"
+	ctrlutil "github.com/openmcp-project/controller-utils/pkg/controller"
 
+	clustersv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/clusters/v1alpha1"
 	"github.com/openmcp-project/cluster-provider-gardener/api/crds"
+	providerscheme "github.com/openmcp-project/cluster-provider-gardener/api/install"
 )
 
-func NewInitCommand() *cobra.Command {
-	opts := &InitOptions{}
+func NewInitCommand(so *SharedOptions) *cobra.Command {
+	opts := &InitOptions{
+		SharedOptions: so,
+	}
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Initialize the Gardener ClusterProvider",
@@ -40,37 +41,26 @@ func NewInitCommand() *cobra.Command {
 }
 
 type InitOptions struct {
-	Log logging.Logger
+	*SharedOptions
 }
 
 func (o *InitOptions) AddFlags(cmd *cobra.Command) {
-	// logging flags
-	logging.InitFlags(cmd.Flags())
-
-	// add '--kubeconfig' flag
-	cmd.Flags().AddGoFlagSet(goflag.CommandLine)
-	// and modify its help text to match the rest of the project
-	cmd.Flag("kubeconfig").Usage = "path to the kubeconfig file to use (only required if out-of-cluster)"
 }
 
 func (o *InitOptions) Complete(ctx context.Context) error {
-	// build logger
-	log, err := logging.GetLogger()
-	if err != nil {
+	if err := o.SharedOptions.Complete(); err != nil {
 		return err
 	}
-	o.Log = log
-	ctrl.SetLogger(o.Log.Logr())
+
 	return nil
 }
 
 func (o *InitOptions) Run(ctx context.Context) error {
-	sc := runtime.NewScheme()
-	utilruntime.Must(clientgoscheme.AddToScheme(sc))
-	utilruntime.Must(apiextv1.AddToScheme(sc))
-	k8sClient, err := client.New(ctrl.GetConfigOrDie(), client.Options{Scheme: sc})
-	if err != nil {
-		return fmt.Errorf("failed to create k8s client: %w", err)
+	if err := o.Clusters.Onboarding.InitializeClient(providerscheme.InstallCRDAPIs(runtime.NewScheme())); err != nil {
+		return err
+	}
+	if err := o.Clusters.Platform.InitializeClient(providerscheme.InstallCRDAPIs(runtime.NewScheme())); err != nil {
+		return err
 	}
 
 	log := o.Log.WithName("main")
@@ -79,10 +69,20 @@ func (o *InitOptions) Run(ctx context.Context) error {
 	crdList := crds.CRDs()
 	var errs error
 	for _, crd := range crdList {
+		var c client.Client
+		clusterLabel, _ := ctrlutil.GetLabel(crd, clustersv1alpha1.ClusterLabel)
+		switch clusterLabel {
+		case clustersv1alpha1.PURPOSE_ONBOARDING:
+			c = o.Clusters.Onboarding.Client()
+		case clustersv1alpha1.PURPOSE_PLATFORM:
+			c = o.Clusters.Platform.Client()
+		default:
+			return fmt.Errorf("missing cluster label '%s' or unsupported value '%s' for CRD '%s'", clustersv1alpha1.ClusterLabel, clusterLabel, crd.Name)
+		}
 		actual := &apiextv1.CustomResourceDefinition{}
 		actual.Name = crd.Name
-		log.Info("creating/updating CRD", "name", crd.Name)
-		_, err := ctrl.CreateOrUpdate(ctx, k8sClient, actual, func() error {
+		log.Info("creating/updating CRD", "name", crd.Name, "cluster", clusterLabel)
+		_, err := ctrl.CreateOrUpdate(ctx, c, actual, func() error {
 			crd.Spec.DeepCopyInto(&actual.Spec)
 			return nil
 		})

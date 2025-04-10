@@ -85,6 +85,8 @@ func (o *RunOptions) Complete(ctx context.Context) error {
 	if err := o.SharedOptions.Complete(); err != nil {
 		return err
 	}
+	setupLog = o.Log.WithName("setup")
+	ctrl.SetLogger(o.Log.Logr())
 
 	// kubebuilder default stuff
 
@@ -169,6 +171,12 @@ func (o *RunOptions) Complete(ctx context.Context) error {
 }
 
 func (o *RunOptions) Run(ctx context.Context) error {
+	if err := o.Clusters.Onboarding.InitializeClient(providerscheme.InstallCRDAPIs(runtime.NewScheme())); err != nil {
+		return err
+	}
+	if err := o.Clusters.Platform.InitializeClient(providerscheme.InstallCRDAPIs(runtime.NewScheme())); err != nil {
+		return err
+	}
 
 	webhookServer := webhook.NewServer(webhook.Options{
 		TLSOpts: o.WebhookTLSOpts,

@@ -1,6 +1,6 @@
 module github.com/openmcp-project/cluster-provider-gardener/api
 
-go 1.23.0
+go 1.24.2
 
 require (
 	k8s.io/api v0.32.3

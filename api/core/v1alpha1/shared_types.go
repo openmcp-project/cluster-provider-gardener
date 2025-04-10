@@ -136,3 +136,12 @@ type CommonStatus struct {
 	// +optional
 	Conditions ConditionList `json:"conditions,omitempty"`
 }
+
+const (
+	// CONDITION_UNKNOWN represents an unknown status for the condition.
+	CONDITION_UNKNOWN ConditionStatus = "Unknown"
+	// CONDITION_TRUE marks the condition as true.
+	CONDITION_TRUE ConditionStatus = "True"
+	// CONDITION_FALSE marks the condition as false.
+	CONDITION_FALSE ConditionStatus = "False"
+)

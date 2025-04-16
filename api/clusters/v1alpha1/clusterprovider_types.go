@@ -22,9 +22,10 @@ type ClusterProviderStatus struct {
 	// Phase is the current phase of the provider.
 	Phase string `json:"phase"` // TODO: use phase type?
 
-	// Profiles contains information about the available profiles.
+	// Profiles lists the available profiles.
+	// The profile itself is a separate resource.
 	// +optional
-	Profiles []ClusterProfile `json:"profiles"`
+	Profiles []string `json:"profiles"`
 }
 
 // +kubebuilder:object:root=true

@@ -361,10 +361,8 @@ func (in *ClusterProviderStatus) DeepCopyInto(out *ClusterProviderStatus) {
 	in.CommonStatus.DeepCopyInto(&out.CommonStatus)
 	if in.Profiles != nil {
 		in, out := &in.Profiles, &out.Profiles
-		*out = make([]ClusterProfile, len(*in))
-		for i := range *in {
-			(*in)[i].DeepCopyInto(&(*out)[i])
-		}
+		*out = make([]string, len(*in))
+		copy(*out, *in)
 	}
 }
 

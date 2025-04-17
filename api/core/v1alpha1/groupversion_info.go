@@ -7,9 +7,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/scheme"
 )
 
+const (
+	// GroupName is the group name used in this package
+	GroupName = "gardener.clusters.openmcp.cloud"
+)
+
 var (
 	// GroupVersion is group version used to register these objects
-	GroupVersion = schema.GroupVersion{Group: "gardener.clusters.openmcp.cloud", Version: "v1alpha1"}
+	GroupVersion = schema.GroupVersion{Group: GroupName, Version: "v1alpha1"}
 
 	// SchemeBuilder is used to add go types to the GroupVersionKind scheme
 	SchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}

@@ -1,0 +1,154 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.4
+  labels:
+    openmcp.cloud/cluster: platform
+  name: landscapes.gardener.clusters.openmcp.cloud
+spec:
+  group: gardener.clusters.openmcp.cloud
+  names:
+    kind: Landscape
+    listKind: LandscapeList
+    plural: landscapes
+    shortNames:
+    - gpls
+    singular: landscape
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.reason
+      name: Reason
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              access:
+                description: Access holds the access information for this Gardener
+                  Landscape.
+                properties:
+                  inline:
+                    description: |-
+                      Inline holds an inline kubeconfig.
+                      Only one of the fields in this struct may be set.
+                    type: string
+                  secretRef:
+                    description: |-
+                      SecretRef is a reference to a secret containing the kubeconfig.
+                      Only one of the fields in this struct may be set.
+                    properties:
+                      name:
+                        description: Name is the name of the referenced resource.
+                        minLength: 1
+                        type: string
+                      namespace:
+                        description: Namespace is the namespace of the referenced
+                          resource.
+                        type: string
+                    required:
+                    - name
+                    - namespace
+                    type: object
+                type: object
+            required:
+            - access
+            type: object
+          status:
+            properties:
+              conditions:
+                description: Conditions contains the conditions.
+                items:
+                  properties:
+                    lastTransitionTime:
+                      description: LastTransitionTime specifies the time when this
+                        condition's status last changed.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        Message contains further details regarding the condition.
+                        It is meant for human users, Reason should be used for programmatic evaluation instead.
+                        It is optional, but should be filled at least when Status is not "True".
+                      type: string
+                    reason:
+                      description: |-
+                        Reason is expected to contain a CamelCased string that provides further information regarding the condition.
+                        It should have a fixed value set (like an enum) to be machine-readable. The value set depends on the condition type.
+                        It is optional, but should be filled at least when Status is not "True".
+                      type: string
+                    status:
+                      description: Status is the status of the condition.
+                      type: string
+                    type:
+                      description: |-
+                        Type is the type of the condition.
+                        Must be unique within the resource.
+                      type: string
+                  required:
+                  - status
+                  - type
+                  type: object
+                type: array
+              lastReconcileTime:
+                description: LastReconcileTime is the time when the resource was last
+                  reconciled by the controller.
+                format: date-time
+                type: string
+              message:
+                description: Message contains further details in a human-readable
+                  format.
+                type: string
+              observedGeneration:
+                description: ObservedGeneration is the generation of this resource
+                  that was last reconciled by the controller.
+                format: int64
+                type: integer
+              phase:
+                description: Phase is the current phase of the cluster.
+                type: string
+              projects:
+                description: Projects lists the available projects.
+                items:
+                  type: string
+                type: array
+              reason:
+                description: Reason is expected to contain a CamelCased string that
+                  provides further information in a machine-readable format.
+                type: string
+            required:
+            - lastReconcileTime
+            - observedGeneration
+            - phase
+            type: object
+        type: object
+    selectableFields:
+    - jsonPath: .status.phase
+    served: true
+    storage: true
+    subresources:
+      status: {}

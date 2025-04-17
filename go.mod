@@ -39,6 +39,7 @@ require (
 	k8s.io/client-go v0.32.3 // indirect
 	k8s.io/component-base v0.32.3 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.0 // indirect
+	sigs.k8s.io/multicluster-runtime v0.20.4-alpha.6 // indirect
 )
 
 require (

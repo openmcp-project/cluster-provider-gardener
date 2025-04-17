@@ -20,6 +20,8 @@ import (
 
 	// clusterscheme "github.com/openmcp-project/cluster-provider-gardener/api/clusters/install"
 	providerscheme "github.com/openmcp-project/cluster-provider-gardener/api/install"
+	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/landscape"
+	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/shared"
 )
 
 var setupLog logging.Logger
@@ -171,10 +173,10 @@ func (o *RunOptions) Complete(ctx context.Context) error {
 }
 
 func (o *RunOptions) Run(ctx context.Context) error {
-	if err := o.Clusters.Onboarding.InitializeClient(providerscheme.InstallCRDAPIs(runtime.NewScheme())); err != nil {
+	if err := o.Clusters.Onboarding.InitializeClient(providerscheme.InstallProviderAPIs(runtime.NewScheme())); err != nil {
 		return err
 	}
-	if err := o.Clusters.Platform.InitializeClient(providerscheme.InstallCRDAPIs(runtime.NewScheme())); err != nil {
+	if err := o.Clusters.Platform.InitializeClient(providerscheme.InstallProviderAPIs(runtime.NewScheme())); err != nil {
 		return err
 	}
 
@@ -182,7 +184,7 @@ func (o *RunOptions) Run(ctx context.Context) error {
 		TLSOpts: o.WebhookTLSOpts,
 	})
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	mgr, err := ctrl.NewManager(o.Clusters.Onboarding.RESTConfig(), ctrl.Options{
 		Scheme:                 providerscheme.InstallProviderAPIs(runtime.NewScheme()),
 		Metrics:                o.MetricsServerOptions,
 		WebhookServer:          webhookServer,
@@ -200,10 +202,23 @@ func (o *RunOptions) Run(ctx context.Context) error {
 		// the manager stops, so would be fine to enable this option. However,
 		// if you are doing or is intended to do any operation such as perform cleanups
 		// after the manager stops then its usage might be unsafe.
-		// LeaderElectionReleaseOnCancel: true,
+		LeaderElectionReleaseOnCancel: true,
 	})
 	if err != nil {
-		return fmt.Errorf("unable to start manager: %w", err)
+		return fmt.Errorf("unable to create manager: %w", err)
+	}
+	// add platform cluster to manager
+	if err := mgr.Add(o.Clusters.Platform.Cluster()); err != nil {
+		return fmt.Errorf("unable to add platform cluster to manager: %w", err)
+	}
+
+	// construct shared runtime configuration
+	rc := shared.NewRuntimeConfiguration(o.Clusters.Platform, o.Clusters.Onboarding)
+
+	// add Landscape controller to manager
+	lsRec := landscape.NewLandscapeReconciler(rc)
+	if err := lsRec.SetupWithManager(mgr); err != nil {
+		return fmt.Errorf("error registering Landscape controller: %w", err)
 	}
 
 	if o.MetricsCertWatcher != nil {

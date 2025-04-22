@@ -233,10 +233,6 @@ func (r *LandscapeReconciler) reconcile(ctx context.Context, log logging.Logger,
 				ls.Status.Projects = append(ls.Status.Projects, rule.ResourceNames...)
 			}
 		}
-
-		if rr.ReconcileError == nil {
-			lsInt.Available = true
-		}
 	} else {
 		// DELETE
 		log.Info("Deleting resource")

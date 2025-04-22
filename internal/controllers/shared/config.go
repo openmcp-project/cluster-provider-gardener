@@ -7,6 +7,7 @@ import (
 
 	"github.com/openmcp-project/controller-utils/pkg/clusters"
 
+	"github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
 	providerv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
 )
 
@@ -82,7 +83,7 @@ func (rc *RuntimeConfiguration) GetProfiles() map[string]map[string]*Profile {
 	for k, v := range rc.profiles {
 		res[k] = make(map[string]*Profile, len(v))
 		for k2, v2 := range v {
-			res[k][k2] = v2.Copy()
+			res[k][k2] = v2.DeepCopy()
 		}
 	}
 	return res
@@ -129,7 +130,7 @@ func (rc *RuntimeConfiguration) SetProfiles(profiles map[string]map[string]*Prof
 	for k, v := range profiles {
 		rc.profiles[k] = make(map[string]*Profile, len(v))
 		for k2, v2 := range v {
-			rc.profiles[k][k2] = v2.Copy()
+			rc.profiles[k][k2] = v2.DeepCopy()
 		}
 	}
 }
@@ -142,22 +143,47 @@ func (rc *RuntimeConfiguration) SetProfilesForProviderConfiguration(providerConf
 	}
 	rc.profiles[providerConfigurationName] = make(map[string]*Profile, len(profiles))
 	for _, p := range profiles {
-		rc.profiles[providerConfigurationName][p.GetName()] = p.Copy()
+		rc.profiles[providerConfigurationName][p.GetName()] = p.DeepCopy()
 	}
 }
 
 type Landscape struct {
-	Name      string
-	Cluster   *clusters.Cluster
-	Available bool
+	Name     string
+	Cluster  *clusters.Cluster
+	Resource *providerv1alpha1.Landscape
+}
+
+func (l *Landscape) Available() bool {
+	return l != nil && l.Resource != nil && l.Resource.Status.Phase == providerv1alpha1.LANDSCAPE_PHASE_AVAILABLE
+}
+
+func (l *Landscape) Projects() []string {
+	if l == nil || l.Resource == nil {
+		return nil
+	}
+	projects := make([]string, len(l.Resource.Status.Projects))
+	copy(projects, l.Resource.Status.Projects)
+	return projects
+}
+
+func (l *Landscape) DeepCopy() *Landscape {
+	return &Landscape{
+		Name:     l.Name,
+		Cluster:  l.Cluster,
+		Resource: l.Resource.DeepCopy(),
+	}
+}
+
+type CompletedProfile struct {
+	RuntimeData
+	Raw       Profile
+	Config    *v1alpha1.ProviderConfig
+	Landscape *Landscape
 }
 
 type Profile struct {
-	RuntimeData
-	Config *providerv1alpha1.GardenerConfiguration
-
-	// Landscape is a reference to the Gardener landscape this configuration belongs to.
-	Landscape *Landscape
+	Config    string
+	Landscape string
 }
 
 // RuntimeData holds information that has been loaded during runtime.
@@ -189,16 +215,13 @@ func (rd *RuntimeData) DeepCopy() *RuntimeData {
 	}
 }
 
-// Copy deep-copies the runtime data and config but not the landscape.
-// This is because there should be only one landscape instance per actual landscape and also it is not modified anymore after creation.
-func (p *Profile) Copy() *Profile {
+func (p *Profile) DeepCopy() *Profile {
 	return &Profile{
-		RuntimeData: *p.RuntimeData.DeepCopy(),
-		Config:      p.Config.DeepCopy(),
-		Landscape:   p.Landscape,
+		Config:    p.Config,
+		Landscape: p.Landscape,
 	}
 }
 
 func (p *Profile) GetName() string {
-	return fmt.Sprintf("%s/%s", p.Landscape.Name, p.Config.Name)
+	return fmt.Sprintf("%s/%s", p.Landscape, p.Config)
 }

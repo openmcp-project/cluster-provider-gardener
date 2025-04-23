@@ -64,6 +64,8 @@ func (o *InitOptions) Run(ctx context.Context) error {
 	}
 
 	log := o.Log.WithName("main")
+	log.Info("Environment", "environment", o.Environment)
+	log.Info("ProviderName", "providerName", o.ProviderName)
 
 	// apply CRDs
 	crdList := crds.CRDs()

@@ -29,10 +29,6 @@ type GardenerConfiguration struct {
 	// +kubebuilder:validation:MinLength=1
 	Project string `json:"project"`
 
-	// CloudProfile is the name of the Gardener CloudProfile that should be used for this shoot.
-	// +kubebuilder:validation:MinLength=1
-	CloudProfile string `json:"cloudProfile"`
-
 	// ShootTemplate contains the shoot template for this configuration.
 	ShootTemplate gardenv1beta1.ShootTemplate `json:"shootTemplate"`
 }
@@ -47,8 +43,9 @@ type ProviderConfigStatus struct {
 type ProviderConfigPhase string
 
 const (
-	PROVIDER_CONFIG_PHASE_SUCCEEDED ProviderConfigPhase = "Succeeded"
-	PROVIDER_CONFIG_PHASE_FAILED    ProviderConfigPhase = "Failed"
+	PROVIDER_CONFIG_PHASE_AVAILABLE           ProviderConfigPhase = "Available"
+	PROVIDER_CONFIG_PHASE_UNAVAILABLE         ProviderConfigPhase = "Unavailable"
+	PROVIDER_CONFIG_PHASE_PARTIALLY_AVAILABLE ProviderConfigPhase = "Partially Available"
 )
 
 // +kubebuilder:object:root=true
@@ -74,4 +71,19 @@ type ProviderConfigList struct {
 
 func init() {
 	SchemeBuilder.Register(&ProviderConfig{}, &ProviderConfigList{})
+}
+
+func (gcfg *GardenerConfiguration) CloudProfile() string {
+	if gcfg == nil {
+		return ""
+	}
+	if gcfg.ShootTemplate.Spec.CloudProfile != nil {
+		if gcfg.ShootTemplate.Spec.CloudProfile.Kind != "" && gcfg.ShootTemplate.Spec.CloudProfile.Kind != "CloudProfile" {
+			return "" // we can only handle standard CloudProfiles at the moment
+		}
+		return gcfg.ShootTemplate.Spec.CloudProfile.Name
+	} else if gcfg.ShootTemplate.Spec.CloudProfileName != nil {
+		return *gcfg.ShootTemplate.Spec.CloudProfileName
+	}
+	return ""
 }

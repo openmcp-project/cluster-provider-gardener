@@ -47,11 +47,6 @@ spec:
                   description: GardenerConfiguration contains configuration for a
                     Gardener.
                   properties:
-                    cloudProfile:
-                      description: CloudProfile is the name of the Gardener CloudProfile
-                        that should be used for this shoot.
-                      minLength: 1
-                      type: string
                     landscapeRef:
                       description: LandscapeRef is a reference to the Landscape resource
                         this configuration belongs to.
@@ -2604,7 +2599,6 @@ spec:
                           type: object
                       type: object
                   required:
-                  - cloudProfile
                   - landscapeRef
                   - name
                   - project

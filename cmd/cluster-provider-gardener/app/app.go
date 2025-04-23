@@ -1,10 +1,13 @@
 package app
 
 import (
+	"fmt"
 	"slices"
 
 	"github.com/openmcp-project/controller-utils/pkg/clusters"
 	"github.com/openmcp-project/controller-utils/pkg/logging"
+
+	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/shared"
 
 	"github.com/spf13/cobra"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -30,7 +33,9 @@ func NewClusterProviderGardenerCommand() *cobra.Command {
 }
 
 type SharedOptions struct {
-	Clusters *Clusters
+	Clusters     *Clusters
+	Environment  string
+	ProviderName string
 
 	// fields filled in Complete()
 	Log logging.Logger
@@ -42,6 +47,9 @@ func (o *SharedOptions) AddPersistentFlags(cmd *cobra.Command) {
 	// clusters
 	o.Clusters.Onboarding.RegisterConfigPathFlag(cmd.PersistentFlags())
 	o.Clusters.Platform.RegisterConfigPathFlag(cmd.PersistentFlags())
+	// environment
+	cmd.PersistentFlags().StringVar(&o.Environment, "environment", "default", "Environment name. This is used to distinguish between different environments that are watching the same Onboarding cluster. Must be globally unique.")
+	cmd.PersistentFlags().StringVar(&o.ProviderName, "provider-name", "gardener", "Name of the ClusterProvider resource that created this operator instance. Expected to be unique per environment.")
 }
 
 const (
@@ -51,6 +59,15 @@ const (
 )
 
 func (o *SharedOptions) Complete(skipCompletion ...string) error {
+	if o.Environment == "" {
+		return fmt.Errorf("environment must not be empty")
+	}
+	shared.SetEnvironment(o.Environment)
+	if o.ProviderName == "" {
+		return fmt.Errorf("provider name must not be empty")
+	}
+	shared.SetProviderName(o.ProviderName)
+
 	if !slices.Contains(skipCompletion, SKIP_LOGGER) {
 		// build logger
 		log, err := logging.GetLogger()

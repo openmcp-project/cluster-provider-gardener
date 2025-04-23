@@ -74,7 +74,7 @@ func (r *LandscapeReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 			if lsInt.Cluster != nil && lsInt.Cluster.HasRESTConfig() {
 				apiServer = lsInt.Cluster.APIServerEndpoint()
 			}
-			log.Info("Registering landscape", "apiServer", apiServer, "available", lsInt.Available)
+			log.Info("Registering landscape", "apiServer", apiServer, "available", lsInt.Available())
 			r.SetLandscape(lsInt)
 		} else {
 			// remove internal representation of the Landscape

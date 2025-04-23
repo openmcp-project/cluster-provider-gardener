@@ -17,4 +17,10 @@ const (
 	ReasonConfigurationProblem = "ConfigurationProblem"
 	// ReasonWaitingForDeletion indicates that the resource is waiting for deletion.
 	ReasonWaitingForDeletion = "WaitingForDeletion"
+	// ReasonUnknownLandscape indicates that a referenced landscape has not been found.
+	ReasonUnknownLandscape = "UnknownLandscape"
+	// ReasonInvalidProject means that the specified project is not manageable by the referenced landscape.
+	ReasonInvalidProject = "InvalidProject"
+	// ReasonUnknownCloudProfile indicates that a referenced cloud profile has not been found.
+	ReasonUnknownCloudProfile = "UnknownCloudProfile"
 )

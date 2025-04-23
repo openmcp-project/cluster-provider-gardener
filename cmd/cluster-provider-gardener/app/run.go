@@ -180,6 +180,10 @@ func (o *RunOptions) Run(ctx context.Context) error {
 		return err
 	}
 
+	setupLog = o.Log.WithName("setup")
+	setupLog.Info("Environment", "environment", o.Environment)
+	setupLog.Info("ProviderName", "providerName", o.ProviderName)
+
 	webhookServer := webhook.NewServer(webhook.Options{
 		TLSOpts: o.WebhookTLSOpts,
 	})

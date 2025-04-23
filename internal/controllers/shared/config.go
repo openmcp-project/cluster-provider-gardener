@@ -7,9 +7,42 @@ import (
 
 	"github.com/openmcp-project/controller-utils/pkg/clusters"
 
-	"github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
+	clustersv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/clusters/v1alpha1"
 	providerv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
 )
+
+var (
+	environment  string
+	providerName string
+)
+
+func SetEnvironment(env string) {
+	if environment != "" {
+		panic("environment already set")
+	}
+	environment = env
+}
+
+func Environment() string {
+	if environment == "" {
+		panic("environment not set")
+	}
+	return environment
+}
+
+func SetProviderName(name string) {
+	if providerName != "" {
+		panic("provider name already set")
+	}
+	providerName = name
+}
+
+func ProviderName() string {
+	if providerName == "" {
+		panic("providerName not set")
+	}
+	return providerName
+}
 
 // RuntimeConfiguration is a struct that holds the loaded ProviderConfigurations, enriched with further information gathered during runtime.
 // For each instance of the ClusterProvider that is running, there should be one instance of this struct.
@@ -23,7 +56,6 @@ type RuntimeConfiguration struct {
 	// The landscape names are expected to be either unique or refer to the same landscape in case of the same name across all ProviderConfigurations.
 	landscapes map[string]*Landscape
 	// profiles is a map of all profiles derived from all ProviderConfigurations.
-	// Their Landscape references are expected to reference the same object in case of the same landscape.
 	// The first dimension is the name of the ProviderConfiguration that created this profile.
 	// The second dimension is the name of the profile itself.
 	profiles map[string]map[string]*Profile
@@ -98,6 +130,24 @@ func (rc *RuntimeConfiguration) SetProviderConfigurations(providerConfigurations
 	}
 }
 
+func (rc *RuntimeConfiguration) SetProviderConfiguration(name string, providerConfiguration *providerv1alpha1.ProviderConfig) {
+	rc.lock.Lock()
+	defer rc.lock.Unlock()
+	if rc.providerConfigurations == nil {
+		rc.providerConfigurations = make(map[string]*providerv1alpha1.ProviderConfig)
+	}
+	rc.providerConfigurations[name] = providerConfiguration.DeepCopy()
+}
+
+func (rc *RuntimeConfiguration) UnsetProviderConfiguration(name string) {
+	rc.lock.Lock()
+	defer rc.lock.Unlock()
+	if rc.providerConfigurations == nil {
+		return
+	}
+	delete(rc.providerConfigurations, name)
+}
+
 func (rc *RuntimeConfiguration) SetLandscapes(landscapes map[string]*Landscape) {
 	rc.lock.Lock()
 	defer rc.lock.Unlock()
@@ -135,16 +185,23 @@ func (rc *RuntimeConfiguration) SetProfiles(profiles map[string]map[string]*Prof
 	}
 }
 
-func (rc *RuntimeConfiguration) SetProfilesForProviderConfiguration(providerConfigurationName string, profiles []*Profile) {
+func (rc *RuntimeConfiguration) SetProfilesForProviderConfiguration(providerConfigurationName string, profiles map[string]*Profile) {
 	rc.lock.Lock()
 	defer rc.lock.Unlock()
 	if rc.profiles == nil {
 		rc.profiles = make(map[string]map[string]*Profile)
 	}
 	rc.profiles[providerConfigurationName] = make(map[string]*Profile, len(profiles))
-	for _, p := range profiles {
-		rc.profiles[providerConfigurationName][p.GetName()] = p.DeepCopy()
+	maps.Copy(rc.profiles[providerConfigurationName], profiles)
+}
+
+func (rc *RuntimeConfiguration) UnsetProfilesForProviderConfiguration(providerConfigurationName string) {
+	rc.lock.Lock()
+	defer rc.lock.Unlock()
+	if rc.profiles == nil {
+		return
 	}
+	delete(rc.profiles, providerConfigurationName)
 }
 
 type Landscape struct {
@@ -174,16 +231,10 @@ func (l *Landscape) DeepCopy() *Landscape {
 	}
 }
 
-type CompletedProfile struct {
-	RuntimeData
-	Raw       Profile
-	Config    *v1alpha1.ProviderConfig
-	Landscape *Landscape
-}
-
 type Profile struct {
-	Config    string
-	Landscape string
+	RuntimeData
+	Config               *providerv1alpha1.GardenerConfiguration
+	ProviderConfigSource string
 }
 
 // RuntimeData holds information that has been loaded during runtime.
@@ -196,6 +247,13 @@ type RuntimeData struct {
 type K8sVersion struct {
 	Version    string
 	Deprecated bool
+}
+
+func (v *K8sVersion) ToResourceRepresentation() *clustersv1alpha1.SupportedK8sVersion {
+	return &clustersv1alpha1.SupportedK8sVersion{
+		Version:    v.Version,
+		Deprecated: v.Deprecated,
+	}
 }
 
 func (v *K8sVersion) DeepCopy() *K8sVersion {
@@ -217,11 +275,11 @@ func (rd *RuntimeData) DeepCopy() *RuntimeData {
 
 func (p *Profile) DeepCopy() *Profile {
 	return &Profile{
-		Config:    p.Config,
-		Landscape: p.Landscape,
+		Config:               p.Config.DeepCopy(),
+		ProviderConfigSource: p.ProviderConfigSource,
 	}
 }
 
 func (p *Profile) GetName() string {
-	return fmt.Sprintf("%s/%s", p.Landscape, p.Config)
+	return fmt.Sprintf("%s/%s", p.Config.LandscapeRef.Name, p.Config.Name)
 }

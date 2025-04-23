@@ -63,6 +63,8 @@ func (r *LandscapeReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 	log := logging.FromContextOrPanic(ctx).WithName(ControllerName)
 	ctx = logging.NewContext(ctx, log)
 	log.Info("Starting reconcile")
+	r.Lock.Lock()
+	defer r.Lock.Unlock()
 	rr, lsInt := r.reconcile(ctx, log, req)
 	if lsInt == nil && rr.ReconcileError != nil && rr.ReconcileError.Reason() == cconst.ReasonPlatformClusterInteractionProblem {
 		// there was a problem communicating with the platform cluster which prevents us from determining the state of the Landscape
@@ -74,6 +76,9 @@ func (r *LandscapeReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 			if lsInt.Cluster != nil && lsInt.Cluster.HasRESTConfig() {
 				apiServer = lsInt.Cluster.APIServerEndpoint()
 			}
+			if lsInt.Resource == nil && rr.Object != nil {
+				lsInt.Resource = rr.Object.DeepCopy()
+			}
 			log.Info("Registering landscape", "apiServer", apiServer, "available", lsInt.Available())
 			r.SetLandscape(lsInt)
 		} else {
@@ -84,7 +89,7 @@ func (r *LandscapeReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 	}
 	// status update
 	log.Debug("Updating status")
-	return ctrlutils.NewStatusUpdaterBuilder[*providerv1alpha1.Landscape, providerv1alpha1.LandscapePhase, providerv1alpha1.ConditionStatus]().
+	res, err := ctrlutils.NewStatusUpdaterBuilder[*providerv1alpha1.Landscape, providerv1alpha1.LandscapePhase, providerv1alpha1.ConditionStatus]().
 		WithNestedStruct("CommonStatus").
 		WithFieldOverride(ctrlutils.STATUS_FIELD_PHASE, "Phase").
 		WithPhaseUpdateFunc(func(obj *providerv1alpha1.Landscape, rr ctrlutils.ReconcileResult[*providerv1alpha1.Landscape, providerv1alpha1.ConditionStatus]) (providerv1alpha1.LandscapePhase, error) {
@@ -108,6 +113,40 @@ func (r *LandscapeReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 		// }, true).
 		Build().
 		UpdateStatus(ctx, r.PlatformCluster.Client(), rr)
+
+	// try to notify ProviderConfigs that use the Landscape, if its Phase changed
+	if rr.Object != nil && rr.OldObject != nil && rr.Object.Status.Phase != rr.OldObject.Status.Phase {
+		log.Debug("Landscape phase changed, checking for referencing ProviderConfigs", "oldPhase", rr.OldObject.Status.Phase, "newPhase", rr.Object.Status.Phase)
+		referencingProviderConfigs := sets.New[string]()
+		pcs := r.GetProviderConfigurations()
+		for _, pc := range pcs {
+			for _, cfg := range pc.Spec.Configurations {
+				if cfg.LandscapeRef.Name == rr.Object.Name {
+					referencingProviderConfigs.Insert(pc.Name)
+				}
+			}
+		}
+		if referencingProviderConfigs.Len() > 0 {
+			log.Info("Notifying referencing ProviderConfigs due to Landscape phase change", "providerConfigs", strings.Join(sets.List(referencingProviderConfigs), ", "))
+			for pcName := range referencingProviderConfigs {
+				log.Debug("Notifying ProviderConfig", "providerConfig", pcName)
+				pc := pcs[pcName]
+				if pc == nil {
+					log.Error(nil, "unable to find ProviderConfig in internal cache", "providerConfig", pcName)
+					continue
+				}
+				if err := ctrlutils.EnsureAnnotation(ctx, r.PlatformCluster.Client(), pc, clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueReconcile, true); err != nil {
+					if !ctrlutils.IsMetadataEntryAlreadyExistsError(err) {
+						log.Error(err, "error adding reconcile operation annotation to ProviderConfig", "providerConfig", pcName)
+						continue
+					}
+					log.Debug("Operation annotation already exists on ProviderConfig", "providerConfig", pcName)
+				}
+			}
+		}
+	}
+
+	return res, err
 }
 
 func (r *LandscapeReconciler) reconcile(ctx context.Context, log logging.Logger, req reconcile.Request) (ReconcileResult, *shared.Landscape) {
@@ -237,17 +276,20 @@ func (r *LandscapeReconciler) reconcile(ctx context.Context, log logging.Logger,
 		// DELETE
 		log.Info("Deleting resource")
 
-		// check if there are any ProviderConfig finalizers left
-		pcfs := sets.New[string]()
-		for _, f := range ls.Finalizers {
-			if strings.HasPrefix(f, providerv1alpha1.ProviderConfigLandscapeFinalizerPrefix) {
-				pcfs.Insert(strings.TrimPrefix(f, providerv1alpha1.ProviderConfigLandscapeFinalizerPrefix))
+		// check if the landscape is still in use by any provider configs
+		referencingProviderConfigs := sets.New[string]()
+		pcs := r.GetProviderConfigurations()
+		for _, pc := range pcs {
+			for _, cfg := range pc.Spec.Configurations {
+				if cfg.LandscapeRef.Name == ls.Name {
+					referencingProviderConfigs.Insert(pc.Name)
+				}
 			}
 		}
-		if pcfs.Len() > 0 {
-			remainingFins := strings.Join(sets.List(pcfs), ", ")
-			log.Info("Waiting for ProviderConfig finalizers to be removed", "providerConfigs", remainingFins)
-			rr.Message = fmt.Sprintf("Landscape is still referenced by the following ProviderConfigs: %s.", remainingFins)
+		if referencingProviderConfigs.Len() > 0 {
+			refsPrint := strings.Join(sets.List(referencingProviderConfigs), ", ")
+			log.Info("Waiting for ProviderConfigs to stop referencing the Landscape", "providerConfigs", refsPrint)
+			rr.Message = fmt.Sprintf("Landscape is still referenced by the following ProviderConfigs: %s.", refsPrint)
 			rr.Reason = cconst.ReasonWaitingForDeletion
 			return rr, lsInt
 		}

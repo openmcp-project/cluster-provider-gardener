@@ -48,7 +48,7 @@ func ProviderName() string {
 // For each instance of the ClusterProvider that is running, there should be one instance of this struct.
 // It is important that it is shared between the ProviderConfiguration and the Cluster controllers. The former one will fill it with information that the latter one can use.
 type RuntimeConfiguration struct {
-	lock sync.RWMutex
+	Lock *sync.RWMutex
 
 	// providerConfigurations is a map of all providerConfigurations that are currently loaded, with their names as keys.
 	providerConfigurations map[string]*providerv1alpha1.ProviderConfig
@@ -67,14 +67,13 @@ type RuntimeConfiguration struct {
 
 func NewRuntimeConfiguration(platform, onboarding *clusters.Cluster) *RuntimeConfiguration {
 	return &RuntimeConfiguration{
+		Lock:              &sync.RWMutex{},
 		PlatformCluster:   platform,
 		OnboardingCluster: onboarding,
 	}
 }
 
 func (rc *RuntimeConfiguration) GetProviderConfigurations() map[string]*providerv1alpha1.ProviderConfig {
-	rc.lock.RLock()
-	defer rc.lock.RUnlock()
 	if rc.providerConfigurations == nil {
 		return nil
 	}
@@ -86,8 +85,6 @@ func (rc *RuntimeConfiguration) GetProviderConfigurations() map[string]*provider
 }
 
 func (rc *RuntimeConfiguration) GetLandscapes() map[string]*Landscape {
-	rc.lock.RLock()
-	defer rc.lock.RUnlock()
 	if rc.landscapes == nil {
 		return nil
 	}
@@ -97,8 +94,6 @@ func (rc *RuntimeConfiguration) GetLandscapes() map[string]*Landscape {
 }
 
 func (rc *RuntimeConfiguration) GetLandscape(name string) *Landscape {
-	rc.lock.RLock()
-	defer rc.lock.RUnlock()
 	if rc.landscapes == nil {
 		return nil
 	}
@@ -106,8 +101,6 @@ func (rc *RuntimeConfiguration) GetLandscape(name string) *Landscape {
 }
 
 func (rc *RuntimeConfiguration) GetProfiles() map[string]map[string]*Profile {
-	rc.lock.RLock()
-	defer rc.lock.RUnlock()
 	if rc.profiles == nil {
 		return nil
 	}
@@ -122,8 +115,6 @@ func (rc *RuntimeConfiguration) GetProfiles() map[string]map[string]*Profile {
 }
 
 func (rc *RuntimeConfiguration) SetProviderConfigurations(providerConfigurations map[string]*providerv1alpha1.ProviderConfig) {
-	rc.lock.Lock()
-	defer rc.lock.Unlock()
 	rc.providerConfigurations = make(map[string]*providerv1alpha1.ProviderConfig, len(providerConfigurations))
 	for k, v := range providerConfigurations {
 		rc.providerConfigurations[k] = v.DeepCopy()
@@ -131,8 +122,6 @@ func (rc *RuntimeConfiguration) SetProviderConfigurations(providerConfigurations
 }
 
 func (rc *RuntimeConfiguration) SetProviderConfiguration(name string, providerConfiguration *providerv1alpha1.ProviderConfig) {
-	rc.lock.Lock()
-	defer rc.lock.Unlock()
 	if rc.providerConfigurations == nil {
 		rc.providerConfigurations = make(map[string]*providerv1alpha1.ProviderConfig)
 	}
@@ -140,8 +129,6 @@ func (rc *RuntimeConfiguration) SetProviderConfiguration(name string, providerCo
 }
 
 func (rc *RuntimeConfiguration) UnsetProviderConfiguration(name string) {
-	rc.lock.Lock()
-	defer rc.lock.Unlock()
 	if rc.providerConfigurations == nil {
 		return
 	}
@@ -149,15 +136,11 @@ func (rc *RuntimeConfiguration) UnsetProviderConfiguration(name string) {
 }
 
 func (rc *RuntimeConfiguration) SetLandscapes(landscapes map[string]*Landscape) {
-	rc.lock.Lock()
-	defer rc.lock.Unlock()
 	rc.landscapes = make(map[string]*Landscape, len(landscapes))
 	maps.Copy(rc.landscapes, landscapes)
 }
 
 func (rc *RuntimeConfiguration) SetLandscape(ls *Landscape) {
-	rc.lock.Lock()
-	defer rc.lock.Unlock()
 	if rc.landscapes == nil {
 		rc.landscapes = make(map[string]*Landscape)
 	}
@@ -165,8 +148,6 @@ func (rc *RuntimeConfiguration) SetLandscape(ls *Landscape) {
 }
 
 func (rc *RuntimeConfiguration) UnsetLandscape(name string) {
-	rc.lock.Lock()
-	defer rc.lock.Unlock()
 	if rc.landscapes == nil {
 		return
 	}
@@ -174,8 +155,6 @@ func (rc *RuntimeConfiguration) UnsetLandscape(name string) {
 }
 
 func (rc *RuntimeConfiguration) SetProfiles(profiles map[string]map[string]*Profile) {
-	rc.lock.Lock()
-	defer rc.lock.Unlock()
 	rc.profiles = make(map[string]map[string]*Profile, len(profiles))
 	for k, v := range profiles {
 		rc.profiles[k] = make(map[string]*Profile, len(v))
@@ -186,8 +165,6 @@ func (rc *RuntimeConfiguration) SetProfiles(profiles map[string]map[string]*Prof
 }
 
 func (rc *RuntimeConfiguration) SetProfilesForProviderConfiguration(providerConfigurationName string, profiles map[string]*Profile) {
-	rc.lock.Lock()
-	defer rc.lock.Unlock()
 	if rc.profiles == nil {
 		rc.profiles = make(map[string]map[string]*Profile)
 	}
@@ -196,8 +173,6 @@ func (rc *RuntimeConfiguration) SetProfilesForProviderConfiguration(providerConf
 }
 
 func (rc *RuntimeConfiguration) UnsetProfilesForProviderConfiguration(providerConfigurationName string) {
-	rc.lock.Lock()
-	defer rc.lock.Unlock()
 	if rc.profiles == nil {
 		return
 	}

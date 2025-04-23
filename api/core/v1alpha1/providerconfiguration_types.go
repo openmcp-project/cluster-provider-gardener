@@ -51,6 +51,7 @@ const (
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster,shortName=gpcfg
+// +kubebuilder:printcolumn:JSONPath=".status.phase",name="Phase",type=string
 // +kubebuilder:metadata:labels="openmcp.cloud/cluster=platform"
 
 type ProviderConfig struct {

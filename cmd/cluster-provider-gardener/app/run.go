@@ -20,6 +20,7 @@ import (
 
 	// clusterscheme "github.com/openmcp-project/cluster-provider-gardener/api/clusters/install"
 	providerscheme "github.com/openmcp-project/cluster-provider-gardener/api/install"
+	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/config"
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/landscape"
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/shared"
 )
@@ -181,8 +182,8 @@ func (o *RunOptions) Run(ctx context.Context) error {
 	}
 
 	setupLog = o.Log.WithName("setup")
-	setupLog.Info("Environment", "environment", o.Environment)
-	setupLog.Info("ProviderName", "providerName", o.ProviderName)
+	setupLog.Info("Environment", "value", o.Environment)
+	setupLog.Info("ProviderName", "value", o.ProviderName)
 
 	webhookServer := webhook.NewServer(webhook.Options{
 		TLSOpts: o.WebhookTLSOpts,
@@ -223,6 +224,12 @@ func (o *RunOptions) Run(ctx context.Context) error {
 	lsRec := landscape.NewLandscapeReconciler(rc)
 	if err := lsRec.SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("error registering Landscape controller: %w", err)
+	}
+
+	// add ProviderConfig controller to manager
+	pcRec := config.NewGardenerProviderConfigReconciler(rc)
+	if err := pcRec.SetupWithManager(mgr); err != nil {
+		return fmt.Errorf("error registering ProviderConfig controller: %w", err)
 	}
 
 	if o.MetricsCertWatcher != nil {

@@ -34,6 +34,12 @@ import (
 const ControllerName = "ProviderConfig"
 const ProfileConditionPrefix = "Profile_"
 
+func NewGardenerProviderConfigReconciler(rc *shared.RuntimeConfiguration) *GardenerProviderConfigReconciler {
+	return &GardenerProviderConfigReconciler{
+		RuntimeConfiguration: rc,
+	}
+}
+
 type GardenerProviderConfigReconciler struct {
 	*shared.RuntimeConfiguration
 }
@@ -43,8 +49,10 @@ var _ reconcile.Reconciler = &GardenerProviderConfigReconciler{}
 type ReconcileResult = ctrlutils.ReconcileResult[*providerv1alpha1.ProviderConfig, providerv1alpha1.ConditionStatus]
 
 func (r *GardenerProviderConfigReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
-	log := logging.FromContextOrPanic(ctx)
+	log := logging.FromContextOrPanic(ctx).WithName(ControllerName)
 	log.Info("Starting reconcile")
+	r.Lock.Lock()
+	defer r.Lock.Unlock()
 	rr, profiles := r.reconcile(ctx, log, req)
 	// internal representation update
 	if profiles == nil && rr.ReconcileError != nil && rr.ReconcileError.Reason() == cconst.ReasonPlatformClusterInteractionProblem {
@@ -246,7 +254,7 @@ func (r *GardenerProviderConfigReconciler) reconcile(ctx context.Context, log lo
 				if err != nil {
 					return 0
 				}
-				return aParsed.Compare(bParsed)
+				return aParsed.Compare(bParsed) * (-1) // we want the newest version on the top
 			})
 
 			profiles[p.GetName()] = p
@@ -279,10 +287,10 @@ func (r *GardenerProviderConfigReconciler) reconcile(ctx context.Context, log lo
 			delete(existingProfiles, p.GetName()) // remove already processed profiles so we can determine leftovers later
 			if pCon.GetStatus() != providerv1alpha1.CONDITION_TRUE {
 				// profile is not valid, so we skip it
-				log.Debug("Skipping update of profile '%s' (provider: '%s' / env: '%s' / name: '%s') due to unhealthy condition", existing.Name, shared.ProviderName(), shared.Environment(), p.GetName())
+				log.Debug("Skipping update of profile due to unhealthy condition", "profileK8sName", existing.Name, "provider", shared.ProviderName(), "environment", shared.Environment(), "profileName", p.GetName())
 				continue
 			} else {
-				log.Debug("Creating/updating profile '%s' (provider: '%s' / env: '%s' / name: '%s')", existing.Name, shared.ProviderName(), shared.Environment(), p.GetName())
+				log.Debug("Creating/updating profile", "profileK8sName", existing.Name, "provider", shared.ProviderName(), "environment", shared.Environment(), "profileName", p.GetName())
 			}
 			// this shouldn't change anything for existing profiles
 			existing.Spec.Name = p.GetName()
@@ -315,7 +323,7 @@ func (r *GardenerProviderConfigReconciler) reconcile(ctx context.Context, log lo
 
 		// delete leftover profiles
 		for _, p := range existingProfiles {
-			log.Info("Deleting leftover profile '%s' (provider: '%s' / env: '%s' / name: '%s')", p.Name, shared.ProviderName(), shared.Environment(), p.Spec.Name)
+			log.Info("Deleting leftover profile", "profileK8sName", p.Name, "provider", shared.ProviderName(), "environment", shared.Environment(), "profileName", p.Spec.Name)
 			if err := r.OnboardingCluster.Client().Delete(ctx, p); err != nil {
 				if apierrors.IsNotFound(err) {
 					log.Debug("Profile '%s' already deleted", p.Name)

@@ -15,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/yaml"
 
 	"github.com/openmcp-project/controller-utils/pkg/logging"
 
@@ -35,8 +36,14 @@ func NewRunCommand(so *SharedOptions) *cobra.Command {
 		Use:   "run",
 		Short: "Run the Gardener ClusterProvider",
 		Run: func(cmd *cobra.Command, args []string) {
+			opts.PrintRawOptions(cmd)
 			if err := opts.Complete(cmd.Context()); err != nil {
 				panic(fmt.Errorf("error completing options: %w", err))
+			}
+			opts.PrintCompletedOptions(cmd)
+			if opts.DryRun {
+				cmd.Println("=== END OF DRY RUN ===")
+				return
 			}
 			if err := opts.Run(cmd.Context()); err != nil {
 				panic(err)
@@ -48,20 +55,28 @@ func NewRunCommand(so *SharedOptions) *cobra.Command {
 	return cmd
 }
 
+type RawRunOptions struct {
+	// kubebuilder default flags
+	MetricsAddr          string `json:"metrics-bind-address"`
+	MetricsCertPath      string `json:"metrics-cert-path"`
+	MetricsCertName      string `json:"metrics-cert-name"`
+	MetricsCertKey       string `json:"metrics-cert-key"`
+	WebhookCertPath      string `json:"webhook-cert-path"`
+	WebhookCertName      string `json:"webhook-cert-name"`
+	WebhookCertKey       string `json:"webhook-cert-key"`
+	EnableLeaderElection bool   `json:"leader-elect"`
+	ProbeAddr            string `json:"health-probe-bind-address"`
+	PprofAddr            string `json:"pprof-bind-address"`
+	SecureMetrics        bool   `json:"metrics-secure"`
+	EnableHTTP2          bool   `json:"enable-http2"`
+}
+
 type RunOptions struct {
 	*SharedOptions
-
-	metricsAddr                                      string
-	metricsCertPath, metricsCertName, metricsCertKey string
-	webhookCertPath, webhookCertName, webhookCertKey string
-	enableLeaderElection                             bool
-	probeAddr                                        string
-	pprofAddr                                        string
-	secureMetrics                                    bool
-	enableHTTP2                                      bool
-	tlsOpts                                          []func(*tls.Config)
+	RawRunOptions
 
 	// fields filled in Complete()
+	TLSOpts              []func(*tls.Config)
 	WebhookTLSOpts       []func(*tls.Config)
 	MetricsServerOptions metricsserver.Options
 	MetricsCertWatcher   *certwatcher.CertWatcher
@@ -70,18 +85,34 @@ type RunOptions struct {
 
 func (o *RunOptions) AddFlags(cmd *cobra.Command) {
 	// kubebuilder default flags
-	cmd.Flags().StringVar(&o.metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
-	cmd.Flags().StringVar(&o.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	cmd.Flags().StringVar(&o.pprofAddr, "pprof-bind-address", "", "The address the pprof endpoint binds to. Expected format is ':<port>'. Leave empty to disable pprof endpoint.")
-	cmd.Flags().BoolVar(&o.enableLeaderElection, "leader-elect", false, "Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
-	cmd.Flags().BoolVar(&o.secureMetrics, "metrics-secure", true, "If set, the metrics endpoint is served securely via HTTPS. Use --metrics-secure=false to use HTTP instead.")
-	cmd.Flags().StringVar(&o.webhookCertPath, "webhook-cert-path", "", "The directory that contains the webhook certificate.")
-	cmd.Flags().StringVar(&o.webhookCertName, "webhook-cert-name", "tls.crt", "The name of the webhook certificate file.")
-	cmd.Flags().StringVar(&o.webhookCertKey, "webhook-cert-key", "tls.key", "The name of the webhook key file.")
-	cmd.Flags().StringVar(&o.metricsCertPath, "metrics-cert-path", "", "The directory that contains the metrics server certificate.")
-	cmd.Flags().StringVar(&o.metricsCertName, "metrics-cert-name", "tls.crt", "The name of the metrics server certificate file.")
-	cmd.Flags().StringVar(&o.metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
-	cmd.Flags().BoolVar(&o.enableHTTP2, "enable-http2", false, "If set, HTTP/2 will be enabled for the metrics and webhook servers")
+	cmd.Flags().StringVar(&o.MetricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
+	cmd.Flags().StringVar(&o.ProbeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+	cmd.Flags().StringVar(&o.PprofAddr, "pprof-bind-address", "", "The address the pprof endpoint binds to. Expected format is ':<port>'. Leave empty to disable pprof endpoint.")
+	cmd.Flags().BoolVar(&o.EnableLeaderElection, "leader-elect", false, "Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
+	cmd.Flags().BoolVar(&o.SecureMetrics, "metrics-secure", true, "If set, the metrics endpoint is served securely via HTTPS. Use --metrics-secure=false to use HTTP instead.")
+	cmd.Flags().StringVar(&o.WebhookCertPath, "webhook-cert-path", "", "The directory that contains the webhook certificate.")
+	cmd.Flags().StringVar(&o.WebhookCertName, "webhook-cert-name", "tls.crt", "The name of the webhook certificate file.")
+	cmd.Flags().StringVar(&o.WebhookCertKey, "webhook-cert-key", "tls.key", "The name of the webhook key file.")
+	cmd.Flags().StringVar(&o.MetricsCertPath, "metrics-cert-path", "", "The directory that contains the metrics server certificate.")
+	cmd.Flags().StringVar(&o.MetricsCertName, "metrics-cert-name", "tls.crt", "The name of the metrics server certificate file.")
+	cmd.Flags().StringVar(&o.MetricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
+	cmd.Flags().BoolVar(&o.EnableHTTP2, "enable-http2", false, "If set, HTTP/2 will be enabled for the metrics and webhook servers")
+}
+
+func (o *RunOptions) PrintRaw(cmd *cobra.Command) {
+	data, err := yaml.Marshal(o.RawRunOptions)
+	if err != nil {
+		cmd.Println(fmt.Errorf("error marshalling raw options: %w", err).Error())
+		return
+	}
+	cmd.Print(string(data))
+}
+
+func (o *RunOptions) PrintRawOptions(cmd *cobra.Command) {
+	cmd.Println("########## RAW OPTIONS START ##########")
+	o.SharedOptions.PrintRaw(cmd)
+	o.PrintRaw(cmd)
+	cmd.Println("########## RAW OPTIONS END ##########")
 }
 
 func (o *RunOptions) Complete(ctx context.Context) error {
@@ -104,20 +135,20 @@ func (o *RunOptions) Complete(ctx context.Context) error {
 		c.NextProtos = []string{"http/1.1"}
 	}
 
-	if !o.enableHTTP2 {
-		o.tlsOpts = append(o.tlsOpts, disableHTTP2)
+	if !o.EnableHTTP2 {
+		o.TLSOpts = append(o.TLSOpts, disableHTTP2)
 	}
 
 	// Initial webhook TLS options
-	o.WebhookTLSOpts = o.tlsOpts
+	o.WebhookTLSOpts = o.TLSOpts
 
-	if len(o.webhookCertPath) > 0 {
-		setupLog.Info("Initializing webhook certificate watcher using provided certificates", "webhook-cert-path", o.webhookCertPath, "webhook-cert-name", o.webhookCertName, "webhook-cert-key", o.webhookCertKey)
+	if len(o.WebhookCertPath) > 0 {
+		setupLog.Info("Initializing webhook certificate watcher using provided certificates", "webhook-cert-path", o.WebhookCertPath, "webhook-cert-name", o.WebhookCertName, "webhook-cert-key", o.WebhookCertKey)
 
 		var err error
 		o.WebhookCertWatcher, err = certwatcher.New(
-			filepath.Join(o.webhookCertPath, o.webhookCertName),
-			filepath.Join(o.webhookCertPath, o.webhookCertKey),
+			filepath.Join(o.WebhookCertPath, o.WebhookCertName),
+			filepath.Join(o.WebhookCertPath, o.WebhookCertKey),
 		)
 		if err != nil {
 			return fmt.Errorf("failed to initialize webhook certificate watcher: %w", err)
@@ -132,12 +163,12 @@ func (o *RunOptions) Complete(ctx context.Context) error {
 	// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.2/pkg/metrics/server
 	// - https://book.kubebuilder.io/reference/metrics.html
 	o.MetricsServerOptions = metricsserver.Options{
-		BindAddress:   o.metricsAddr,
-		SecureServing: o.secureMetrics,
-		TLSOpts:       o.tlsOpts,
+		BindAddress:   o.MetricsAddr,
+		SecureServing: o.SecureMetrics,
+		TLSOpts:       o.TLSOpts,
 	}
 
-	if o.secureMetrics {
+	if o.SecureMetrics {
 		// FilterProvider is used to protect the metrics endpoint with authn/authz.
 		// These configurations ensure that only authorized users and service accounts
 		// can access the metrics endpoint. The RBAC are configured in 'config/rbac/kustomization.yaml'. More info:
@@ -153,13 +184,13 @@ func (o *RunOptions) Complete(ctx context.Context) error {
 	// - [METRICS-WITH-CERTS] at config/default/kustomization.yaml to generate and use certificates
 	// managed by cert-manager for the metrics server.
 	// - [PROMETHEUS-WITH-CERTS] at config/prometheus/kustomization.yaml for TLS certification.
-	if len(o.metricsCertPath) > 0 {
-		setupLog.Info("Initializing metrics certificate watcher using provided certificates", "metrics-cert-path", o.metricsCertPath, "metrics-cert-name", o.metricsCertName, "metrics-cert-key", o.metricsCertKey)
+	if len(o.MetricsCertPath) > 0 {
+		setupLog.Info("Initializing metrics certificate watcher using provided certificates", "metrics-cert-path", o.MetricsCertPath, "metrics-cert-name", o.MetricsCertName, "metrics-cert-key", o.MetricsCertKey)
 
 		var err error
 		o.MetricsCertWatcher, err = certwatcher.New(
-			filepath.Join(o.metricsCertPath, o.metricsCertName),
-			filepath.Join(o.metricsCertPath, o.metricsCertKey),
+			filepath.Join(o.MetricsCertPath, o.MetricsCertName),
+			filepath.Join(o.MetricsCertPath, o.MetricsCertKey),
 		)
 		if err != nil {
 			return fmt.Errorf("failed to initialize metrics certificate watcher: %w", err)
@@ -171,6 +202,15 @@ func (o *RunOptions) Complete(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (o *RunOptions) PrintCompleted(cmd *cobra.Command) {}
+
+func (o *RunOptions) PrintCompletedOptions(cmd *cobra.Command) {
+	cmd.Println("########## COMPLETED OPTIONS START ##########")
+	o.SharedOptions.PrintCompleted(cmd)
+	o.PrintCompleted(cmd)
+	cmd.Println("########## COMPLETED OPTIONS END ##########")
 }
 
 func (o *RunOptions) Run(ctx context.Context) error {
@@ -193,9 +233,9 @@ func (o *RunOptions) Run(ctx context.Context) error {
 		Scheme:                 providerscheme.InstallProviderAPIs(runtime.NewScheme()),
 		Metrics:                o.MetricsServerOptions,
 		WebhookServer:          webhookServer,
-		HealthProbeBindAddress: o.probeAddr,
-		PprofBindAddress:       o.pprofAddr,
-		LeaderElection:         o.enableLeaderElection,
+		HealthProbeBindAddress: o.ProbeAddr,
+		PprofBindAddress:       o.PprofAddr,
+		LeaderElection:         o.EnableLeaderElection,
 		LeaderElectionID:       "github.com/openmcp-project/cluster-provider-gardener",
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
 		// when the Manager ends. This requires the binary to immediately end when the

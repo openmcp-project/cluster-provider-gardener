@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"os"
 	"slices"
 
 	"github.com/openmcp-project/controller-utils/pkg/clusters"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/yaml"
 )
 
 func NewClusterProviderGardenerCommand() *cobra.Command {
@@ -18,8 +20,11 @@ func NewClusterProviderGardenerCommand() *cobra.Command {
 		Use:   "cluster-provider-gardener",
 		Short: "cluster-provider-gardener manages the Gardener ClusterProvider",
 	}
+	cmd.SetOut(os.Stdout)
+	cmd.SetErr(os.Stderr)
 
 	so := &SharedOptions{
+		RawSharedOptions: &RawSharedOptions{},
 		Clusters: &Clusters{
 			Onboarding: clusters.New("onboarding"),
 			Platform:   clusters.New("platform"),
@@ -32,10 +37,15 @@ func NewClusterProviderGardenerCommand() *cobra.Command {
 	return cmd
 }
 
+type RawSharedOptions struct {
+	Environment  string `json:"environment"`
+	ProviderName string `json:"provider-name"`
+	DryRun       bool   `json:"dry-run"`
+}
+
 type SharedOptions struct {
-	Clusters     *Clusters
-	Environment  string
-	ProviderName string
+	*RawSharedOptions
+	Clusters *Clusters
 
 	// fields filled in Complete()
 	Log logging.Logger
@@ -50,6 +60,31 @@ func (o *SharedOptions) AddPersistentFlags(cmd *cobra.Command) {
 	// environment
 	cmd.PersistentFlags().StringVar(&o.Environment, "environment", "default", "Environment name. This is used to distinguish between different environments that are watching the same Onboarding cluster. Must be globally unique.")
 	cmd.PersistentFlags().StringVar(&o.ProviderName, "provider-name", "gardener", "Name of the ClusterProvider resource that created this operator instance. Expected to be unique per environment.")
+	cmd.PersistentFlags().BoolVar(&o.DryRun, "dry-run", false, "If set, the command aborts after evaluation of the given flags.")
+}
+
+func (o *SharedOptions) PrintRaw(cmd *cobra.Command) {
+	data, err := yaml.Marshal(o.RawSharedOptions)
+	if err != nil {
+		cmd.Println(fmt.Errorf("error marshalling raw shared options: %w", err).Error())
+		return
+	}
+	cmd.Print(string(data))
+}
+
+func (o *SharedOptions) PrintCompleted(cmd *cobra.Command) {
+	raw := map[string]any{
+		"clusters": map[string]any{
+			"onboarding": o.Clusters.Onboarding.APIServerEndpoint(),
+			"platform":   o.Clusters.Platform.APIServerEndpoint(),
+		},
+	}
+	data, err := yaml.Marshal(raw)
+	if err != nil {
+		cmd.Println(fmt.Errorf("error marshalling completed shared options: %w", err).Error())
+		return
+	}
+	cmd.Print(string(data))
 }
 
 const (

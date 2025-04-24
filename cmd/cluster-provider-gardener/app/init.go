@@ -27,8 +27,14 @@ func NewInitCommand(so *SharedOptions) *cobra.Command {
 		Use:   "init",
 		Short: "Initialize the Gardener ClusterProvider",
 		Run: func(cmd *cobra.Command, args []string) {
+			opts.PrintRawOptions(cmd)
 			if err := opts.Complete(cmd.Context()); err != nil {
 				panic(fmt.Errorf("error completing options: %w", err))
+			}
+			opts.PrintCompletedOptions(cmd)
+			if opts.DryRun {
+				cmd.Println("=== END OF DRY RUN ===")
+				return
 			}
 			if err := opts.Run(cmd.Context()); err != nil {
 				panic(err)
@@ -44,7 +50,15 @@ type InitOptions struct {
 	*SharedOptions
 }
 
-func (o *InitOptions) AddFlags(cmd *cobra.Command) {
+func (o *InitOptions) AddFlags(cmd *cobra.Command) {}
+
+func (o *InitOptions) PrintRaw(cmd *cobra.Command) {}
+
+func (o *InitOptions) PrintRawOptions(cmd *cobra.Command) {
+	cmd.Println("########## RAW OPTIONS START ##########")
+	o.SharedOptions.PrintRaw(cmd)
+	o.PrintRaw(cmd)
+	cmd.Println("########## RAW OPTIONS END ##########")
 }
 
 func (o *InitOptions) Complete(ctx context.Context) error {
@@ -53,6 +67,15 @@ func (o *InitOptions) Complete(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (o *InitOptions) PrintCompleted(cmd *cobra.Command) {}
+
+func (o *InitOptions) PrintCompletedOptions(cmd *cobra.Command) {
+	cmd.Println("########## COMPLETED OPTIONS START ##########")
+	o.SharedOptions.PrintCompleted(cmd)
+	o.PrintCompleted(cmd)
+	cmd.Println("########## COMPLETED OPTIONS END ##########")
 }
 
 func (o *InitOptions) Run(ctx context.Context) error {

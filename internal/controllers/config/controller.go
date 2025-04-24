@@ -282,7 +282,7 @@ func (r *GardenerProviderConfigReconciler) reconcile(ctx context.Context, log lo
 			existing, exists := existingProfiles[p.GetName()]
 			if !exists {
 				existing = &clustersv1alpha1.ClusterProfile{}
-				existing.Name = ctrlutils.K8sNameHash(shared.ProviderName(), shared.Environment(), p.GetName())
+				existing.Name = ProfileK8sName(p.GetName())
 			}
 			delete(existingProfiles, p.GetName()) // remove already processed profiles so we can determine leftovers later
 			if pCon.GetStatus() != providerv1alpha1.CONDITION_TRUE {
@@ -401,4 +401,8 @@ func (r *GardenerProviderConfigReconciler) SetupWithManager(mgr ctrl.Manager) er
 			),
 		)))).
 		Complete(r)
+}
+
+func ProfileK8sName(profileName string) string {
+	return ctrlutils.K8sNameHash(shared.Environment(), shared.ProviderName(), profileName)
 }

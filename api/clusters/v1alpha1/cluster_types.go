@@ -7,9 +7,9 @@ import (
 
 // ClusterSpec defines the desired state of Cluster
 type ClusterSpec struct {
-	// ClusterProviderRef is a reference to the cluster provider.
-	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="clusterProviderRef is immutable"
-	ClusterProviderRef ClusterProviderRef `json:"clusterProviderRef"`
+	// ClusterProfileRef is a reference to the cluster provider.
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="clusterProfileRef is immutable"
+	ClusterProfileRef ObjectReference `json:"clusterProfileRef"`
 
 	// ClusterConfigRef is a reference to a cluster configuration.
 	// +optional

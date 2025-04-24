@@ -61,24 +61,18 @@ spec:
                 - apiGroup
                 - kind
                 type: object
-              clusterProviderRef:
-                description: ClusterProviderRef is a reference to the cluster provider.
+              clusterProfileRef:
+                description: ClusterProfileRef is a reference to the cluster provider.
                 properties:
                   name:
-                    description: Name of the referenced ClusterProvider.
-                    minLength: 1
-                    type: string
-                  profile:
-                    description: Profile is the profile of the referenced ClusterProvider
-                      that is used.
+                    description: Name is the name of the referenced resource.
                     minLength: 1
                     type: string
                 required:
                 - name
-                - profile
                 type: object
                 x-kubernetes-validations:
-                - message: clusterProviderRef is immutable
+                - message: clusterProfileRef is immutable
                   rule: self == oldSelf
               kubernetes:
                 description: Kubernetes configuration for the cluster.
@@ -102,7 +96,7 @@ spec:
                 - shared
                 type: string
             required:
-            - clusterProviderRef
+            - clusterProfileRef
             - kubernetes
             - purposes
             - tenancy

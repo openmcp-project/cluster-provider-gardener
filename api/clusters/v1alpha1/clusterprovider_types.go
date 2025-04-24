@@ -54,12 +54,3 @@ type ClusterProviderList struct {
 func init() {
 	SchemeBuilder.Register(&ClusterProvider{}, &ClusterProviderList{})
 }
-
-type ClusterProviderRef struct {
-	// Name of the referenced ClusterProvider.
-	// +kubebuilder:validation:MinLength=1
-	Name string `json:"name"`
-	// Profile is the profile of the referenced ClusterProvider that is used.
-	// +kubebuilder:validation:MinLength=1
-	Profile string `json:"profile"`
-}

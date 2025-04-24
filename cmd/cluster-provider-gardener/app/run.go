@@ -5,6 +5,8 @@ import (
 	"crypto/tls"
 	"fmt"
 	"path/filepath"
+	"slices"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -27,6 +29,11 @@ import (
 )
 
 var setupLog logging.Logger
+
+var allControllers = []string{
+	strings.ToLower(landscape.ControllerName),
+	strings.ToLower(config.ControllerName),
+}
 
 func NewRunCommand(so *SharedOptions) *cobra.Command {
 	opts := &RunOptions{
@@ -69,6 +76,8 @@ type RawRunOptions struct {
 	PprofAddr            string `json:"pprof-bind-address"`
 	SecureMetrics        bool   `json:"metrics-secure"`
 	EnableHTTP2          bool   `json:"enable-http2"`
+
+	Controllers []string `json:"controllers"`
 }
 
 type RunOptions struct {
@@ -97,6 +106,8 @@ func (o *RunOptions) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&o.MetricsCertName, "metrics-cert-name", "tls.crt", "The name of the metrics server certificate file.")
 	cmd.Flags().StringVar(&o.MetricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	cmd.Flags().BoolVar(&o.EnableHTTP2, "enable-http2", false, "If set, HTTP/2 will be enabled for the metrics and webhook servers")
+
+	cmd.Flags().StringSliceVar(&o.Controllers, "controllers", allControllers, "List of active controllers.")
 }
 
 func (o *RunOptions) PrintRaw(cmd *cobra.Command) {
@@ -261,15 +272,19 @@ func (o *RunOptions) Run(ctx context.Context) error {
 	rc := shared.NewRuntimeConfiguration(o.Clusters.Platform, o.Clusters.Onboarding)
 
 	// add Landscape controller to manager
-	lsRec := landscape.NewLandscapeReconciler(rc)
-	if err := lsRec.SetupWithManager(mgr); err != nil {
-		return fmt.Errorf("error registering Landscape controller: %w", err)
+	if slices.Contains(o.Controllers, strings.ToLower(landscape.ControllerName)) {
+		lsRec := landscape.NewLandscapeReconciler(rc)
+		if err := lsRec.SetupWithManager(mgr); err != nil {
+			return fmt.Errorf("error registering Landscape controller: %w", err)
+		}
 	}
 
 	// add ProviderConfig controller to manager
-	pcRec := config.NewGardenerProviderConfigReconciler(rc)
-	if err := pcRec.SetupWithManager(mgr); err != nil {
-		return fmt.Errorf("error registering ProviderConfig controller: %w", err)
+	if slices.Contains(o.Controllers, strings.ToLower(config.ControllerName)) {
+		pcRec := config.NewGardenerProviderConfigReconciler(rc)
+		if err := pcRec.SetupWithManager(mgr); err != nil {
+			return fmt.Errorf("error registering ProviderConfig controller: %w", err)
+		}
 	}
 
 	if o.MetricsCertWatcher != nil {

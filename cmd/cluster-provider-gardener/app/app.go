@@ -58,7 +58,7 @@ func (o *SharedOptions) AddPersistentFlags(cmd *cobra.Command) {
 	o.Clusters.Onboarding.RegisterConfigPathFlag(cmd.PersistentFlags())
 	o.Clusters.Platform.RegisterConfigPathFlag(cmd.PersistentFlags())
 	// environment
-	cmd.PersistentFlags().StringVar(&o.Environment, "environment", "default", "Environment name. This is used to distinguish between different environments that are watching the same Onboarding cluster. Must be globally unique.")
+	cmd.PersistentFlags().StringVar(&o.Environment, "environment", "", "Environment name. Required. This is used to distinguish between different environments that are watching the same Onboarding cluster. Must be globally unique.")
 	cmd.PersistentFlags().StringVar(&o.ProviderName, "provider-name", "gardener", "Name of the ClusterProvider resource that created this operator instance. Expected to be unique per environment.")
 	cmd.PersistentFlags().BoolVar(&o.DryRun, "dry-run", false, "If set, the command aborts after evaluation of the given flags.")
 }

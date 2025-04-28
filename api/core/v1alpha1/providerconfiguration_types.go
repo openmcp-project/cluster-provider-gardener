@@ -4,6 +4,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	gardenv1beta1 "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1"
+	gardenconstants "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1/constants"
 )
 
 type ProviderConfigSpec struct {
@@ -79,7 +80,7 @@ func (gcfg *GardenerConfiguration) CloudProfile() string {
 		return ""
 	}
 	if gcfg.ShootTemplate.Spec.CloudProfile != nil {
-		if gcfg.ShootTemplate.Spec.CloudProfile.Kind != "" && gcfg.ShootTemplate.Spec.CloudProfile.Kind != "CloudProfile" {
+		if gcfg.ShootTemplate.Spec.CloudProfile.Kind != "" && gcfg.ShootTemplate.Spec.CloudProfile.Kind != gardenconstants.CloudProfileReferenceKindCloudProfile {
 			return "" // we can only handle standard CloudProfiles at the moment
 		}
 		return gcfg.ShootTemplate.Spec.CloudProfile.Name

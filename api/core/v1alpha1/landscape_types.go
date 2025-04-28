@@ -28,14 +28,22 @@ type LandscapeStatus struct {
 	Phase LandscapePhase `json:"phase"`
 
 	// Projects lists the available projects.
-	Projects []string `json:"projects,omitempty"`
+	Projects []ProjectData `json:"projects,omitempty"`
+}
+
+type ProjectData struct {
+	// Name is the name of the project.
+	Name string `json:"name"`
+	// Namespace is the namespace that the project belongs to.
+	Namespace string `json:"namespace"`
 }
 
 type LandscapePhase string
 
 const (
-	LANDSCAPE_PHASE_AVAILABLE   LandscapePhase = "Available"
-	LANDSCAPE_PHASE_UNAVAILABLE LandscapePhase = "Unavailable"
+	LANDSCAPE_PHASE_AVAILABLE           LandscapePhase = "Available"
+	LANDSCAPE_PHASE_UNAVAILABLE         LandscapePhase = "Unavailable"
+	LANDSCAPE_PHASE_PARTIALLY_AVAILABLE LandscapePhase = "Partially Available"
 )
 
 // +kubebuilder:object:root=true

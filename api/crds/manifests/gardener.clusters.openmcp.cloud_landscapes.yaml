@@ -134,7 +134,18 @@ spec:
               projects:
                 description: Projects lists the available projects.
                 items:
-                  type: string
+                  properties:
+                    name:
+                      description: Name is the name of the project.
+                      type: string
+                    namespace:
+                      description: Namespace is the namespace that the project belongs
+                        to.
+                      type: string
+                  required:
+                  - name
+                  - namespace
+                  type: object
                 type: array
               reason:
                 description: Reason is expected to contain a CamelCased string that

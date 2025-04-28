@@ -23,16 +23,14 @@ import (
 
 	// clusterscheme "github.com/openmcp-project/cluster-provider-gardener/api/clusters/install"
 	providerscheme "github.com/openmcp-project/cluster-provider-gardener/api/install"
-	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/config"
-	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/landscape"
-	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/shared"
+	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers"
+	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/cluster"
 )
 
 var setupLog logging.Logger
 
 var allControllers = []string{
-	strings.ToLower(landscape.ControllerName),
-	strings.ToLower(config.ControllerName),
+	strings.ToLower(cluster.ControllerName),
 }
 
 func NewRunCommand(so *SharedOptions) *cobra.Command {
@@ -107,7 +105,7 @@ func (o *RunOptions) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&o.MetricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	cmd.Flags().BoolVar(&o.EnableHTTP2, "enable-http2", false, "If set, HTTP/2 will be enabled for the metrics and webhook servers")
 
-	cmd.Flags().StringSliceVar(&o.Controllers, "controllers", allControllers, "List of active controllers.")
+	cmd.Flags().StringSliceVar(&o.Controllers, "controllers", allControllers, fmt.Sprintf("List of active controllers. The '%s' controller actually consists of multiple controllers, but they rely on each other and cannot be disabled individually.", strings.ToLower(cluster.ControllerName)))
 }
 
 func (o *RunOptions) PrintRaw(cmd *cobra.Command) {
@@ -268,22 +266,10 @@ func (o *RunOptions) Run(ctx context.Context) error {
 		return fmt.Errorf("unable to add platform cluster to manager: %w", err)
 	}
 
-	// construct shared runtime configuration
-	rc := shared.NewRuntimeConfiguration(o.Clusters.Platform, o.Clusters.Onboarding)
-
-	// add Landscape controller to manager
-	if slices.Contains(o.Controllers, strings.ToLower(landscape.ControllerName)) {
-		lsRec := landscape.NewLandscapeReconciler(rc)
-		if err := lsRec.SetupWithManager(mgr); err != nil {
-			return fmt.Errorf("error registering Landscape controller: %w", err)
-		}
-	}
-
-	// add ProviderConfig controller to manager
-	if slices.Contains(o.Controllers, strings.ToLower(config.ControllerName)) {
-		pcRec := config.NewGardenerProviderConfigReconciler(rc)
-		if err := pcRec.SetupWithManager(mgr); err != nil {
-			return fmt.Errorf("error registering ProviderConfig controller: %w", err)
+	// setup cluster controllers
+	if slices.Contains(o.Controllers, strings.ToLower(cluster.ControllerName)) {
+		if _, _, _, err := controllers.SetupClusterControllersWithManager(mgr, o.Clusters.Platform, o.Clusters.Onboarding); err != nil {
+			return fmt.Errorf("unable to setup cluster controllers: %w", err)
 		}
 	}
 

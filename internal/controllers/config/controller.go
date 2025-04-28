@@ -61,7 +61,7 @@ func (r *GardenerProviderConfigReconciler) Reconcile(ctx context.Context, req re
 		if profiles != nil {
 			// update internal profiles
 			log.Info("Registering profiles", "profiles", strings.Join(sets.List(sets.KeySet(profiles)), ", "))
-			r.SetProfilesForProviderConfiguration(req.Name, profiles)
+			r.SetProfilesForProviderConfiguration(req.Name, mapValues(profiles)...)
 			// update internal ProviderConfiguration
 			if rr.Object != nil {
 				r.SetProviderConfiguration(req.Name, rr.Object)
@@ -197,13 +197,28 @@ func (r *GardenerProviderConfigReconciler) reconcile(ctx context.Context, log lo
 			}
 
 			// check if Project is known for Landscape
-			if !slices.Contains(ls.Resource.Status.Projects, p.Config.Project) {
+			var pData *providerv1alpha1.ProjectData
+			for _, project := range ls.Resource.Status.Projects {
+				if project.Name == p.Config.Project {
+					pData = &project
+					break
+				}
+			}
+			if pData == nil {
 				pCon.SetStatus(providerv1alpha1.CONDITION_FALSE)
 				pCon.SetReason(cconst.ReasonInvalidReference)
 				pCon.SetMessage(fmt.Sprintf("Landscape '%s' can not manage the project '%s'", p.Config.LandscapeRef.Name, p.Config.Project))
 				cons[p.GetName()] = pCon
 				continue
 			}
+			if pData.Namespace == "" {
+				pCon.SetStatus(providerv1alpha1.CONDITION_FALSE)
+				pCon.SetReason(cconst.ReasonInternalError)
+				pCon.SetMessage(fmt.Sprintf("Project '%s' does not have an assigned namespace", p.Config.Project))
+				cons[p.GetName()] = pCon
+				continue
+			}
+			p.ProjectNamespace = pData.Namespace
 
 			// fetch CloudProfile
 			cpName := p.Config.CloudProfile()
@@ -282,7 +297,7 @@ func (r *GardenerProviderConfigReconciler) reconcile(ctx context.Context, log lo
 			existing, exists := existingProfiles[p.GetName()]
 			if !exists {
 				existing = &clustersv1alpha1.ClusterProfile{}
-				existing.Name = ProfileK8sName(p.GetName())
+				existing.Name = shared.ProfileK8sName(p.GetName())
 			}
 			delete(existingProfiles, p.GetName()) // remove already processed profiles so we can determine leftovers later
 			if pCon.GetStatus() != providerv1alpha1.CONDITION_TRUE {
@@ -357,7 +372,7 @@ func (r *GardenerProviderConfigReconciler) reconcile(ctx context.Context, log lo
 		log.Debug("Profiles deleted")
 
 		// remove finalizer
-		if controllerutil.RemoveFinalizer(pc, providerv1alpha1.LandscapeFinalizer) {
+		if controllerutil.RemoveFinalizer(pc, providerv1alpha1.ProviderConfigFinalizer) {
 			log.Info("Removing finalizer")
 			if err := r.PlatformCluster.Client().Patch(ctx, pc, client.MergeFrom(rr.OldObject)); err != nil {
 				rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.NamespacedName.String(), err), cconst.ReasonPlatformClusterInteractionProblem)
@@ -403,6 +418,10 @@ func (r *GardenerProviderConfigReconciler) SetupWithManager(mgr ctrl.Manager) er
 		Complete(r)
 }
 
-func ProfileK8sName(profileName string) string {
-	return ctrlutils.K8sNameHash(shared.Environment(), shared.ProviderName(), profileName)
+func mapValues[K comparable, V any](m map[K]V) []V {
+	res := make([]V, 0, len(m))
+	for _, v := range m {
+		res = append(res, v)
+	}
+	return res
 }

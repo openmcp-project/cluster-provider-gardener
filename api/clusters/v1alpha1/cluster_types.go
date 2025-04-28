@@ -1,6 +1,8 @@
 package v1alpha1
 
 import (
+	"encoding/json"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -63,6 +65,15 @@ type ClusterPhase string
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:metadata:labels="openmcp.cloud/cluster=onboarding"
+// +kubebuilder:selectablefield:JSONPath=".spec.clusterProfileRef.name"
+// +kubebuilder:printcolumn:JSONPath=".spec.purposes",name="Purposes",type=string
+// +kubebuilder:printcolumn:JSONPath=`.metadata.labels["clusters.openmcp.cloud/k8sversion"]`,name="Version",type=string
+// +kubebuilder:printcolumn:JSONPath=`.metadata.labels["clusters.openmcp.cloud/profile"]`,name="Profile",type=string
+// +kubebuilder:printcolumn:JSONPath=`.metadata.labels["clusters.openmcp.cloud/environment"]`,name="Env",type=string,priority=10
+// +kubebuilder:printcolumn:JSONPath=`.metadata.labels["clusters.openmcp.cloud/provider"]`,name="Provider",type=string, priority=10
+// +kubebuilder:printcolumn:JSONPath=".spec.clusterProfileRef.name",name="ProfileRef",type=string,priority=10
+// +kubebuilder:printcolumn:JSONPath=`.metadata.labels["clusters.openmcp.cloud/providerinfo"]`,name="Info",type=string,priority=10
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // Cluster is the Schema for the clusters API
 type Cluster struct {
@@ -84,4 +95,19 @@ type ClusterList struct {
 
 func init() {
 	SchemeBuilder.Register(&Cluster{}, &ClusterList{})
+}
+
+// GetProviderStatus tries to unmarshal the provider status into the given variable.
+func (cs *ClusterStatus) GetProviderStatus(into any) error {
+	return json.Unmarshal(cs.ProviderStatus.Raw, into)
+}
+
+// SetProviderStatus marshals the given variable into the provider status.
+func (cs *ClusterStatus) SetProviderStatus(from any) error {
+	b, err := json.Marshal(from)
+	if err != nil {
+		return err
+	}
+	cs.ProviderStatus = &runtime.RawExtension{Raw: b}
+	return nil
 }

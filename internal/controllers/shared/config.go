@@ -1,14 +1,23 @@
 package shared
 
 import (
+	"context"
 	"fmt"
-	"maps"
+	"slices"
 	"sync"
 
 	"github.com/openmcp-project/controller-utils/pkg/clusters"
+	ctrlutils "github.com/openmcp-project/controller-utils/pkg/controller"
+
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+
+	"k8s.io/apimachinery/pkg/util/sets"
+	toolscache "k8s.io/client-go/tools/cache"
 
 	clustersv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/clusters/v1alpha1"
 	providerv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
+	gardenv1beta1 "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1"
 )
 
 var (
@@ -56,11 +65,11 @@ type RuntimeConfiguration struct {
 	// The landscape names are expected to be either unique or refer to the same landscape in case of the same name across all ProviderConfigurations.
 	landscapes map[string]*Landscape
 	// profiles is a map of all profiles derived from all ProviderConfigurations.
-	// The first dimension is the name of the ProviderConfiguration that created this profile.
-	// The second dimension is the name of the profile itself.
-	profiles map[string]map[string]*Profile
+	// The name of the k8s resource is used as key.
+	profiles map[string]*Profile
 
-	// not behind the lock because not modified after creation
+	// not modified after creation
+	ShootWatch        chan event.TypedGenericEvent[*gardenv1beta1.Shoot]
 	PlatformCluster   *clusters.Cluster
 	OnboardingCluster *clusters.Cluster
 }
@@ -68,6 +77,7 @@ type RuntimeConfiguration struct {
 func NewRuntimeConfiguration(platform, onboarding *clusters.Cluster) *RuntimeConfiguration {
 	return &RuntimeConfiguration{
 		Lock:              &sync.RWMutex{},
+		ShootWatch:        make(chan event.TypedGenericEvent[*gardenv1beta1.Shoot], 1024),
 		PlatformCluster:   platform,
 		OnboardingCluster: onboarding,
 	}
@@ -84,34 +94,18 @@ func (rc *RuntimeConfiguration) GetProviderConfigurations() map[string]*provider
 	return res
 }
 
-func (rc *RuntimeConfiguration) GetLandscapes() map[string]*Landscape {
-	if rc.landscapes == nil {
-		return nil
-	}
-	res := make(map[string]*Landscape, len(rc.landscapes))
-	maps.Copy(res, rc.landscapes)
-	return res
-}
-
 func (rc *RuntimeConfiguration) GetLandscape(name string) *Landscape {
 	if rc.landscapes == nil {
 		return nil
 	}
-	return rc.landscapes[name]
+	return rc.landscapes[name].DeepCopy()
 }
 
-func (rc *RuntimeConfiguration) GetProfiles() map[string]map[string]*Profile {
+func (rc *RuntimeConfiguration) GetProfile(k8sName string) *Profile {
 	if rc.profiles == nil {
 		return nil
 	}
-	res := make(map[string]map[string]*Profile, len(rc.profiles))
-	for k, v := range rc.profiles {
-		res[k] = make(map[string]*Profile, len(v))
-		for k2, v2 := range v {
-			res[k][k2] = v2.DeepCopy()
-		}
-	}
-	return res
+	return rc.profiles[k8sName].DeepCopy()
 }
 
 func (rc *RuntimeConfiguration) SetProviderConfigurations(providerConfigurations map[string]*providerv1alpha1.ProviderConfig) {
@@ -135,48 +129,118 @@ func (rc *RuntimeConfiguration) UnsetProviderConfiguration(name string) {
 	delete(rc.providerConfigurations, name)
 }
 
-func (rc *RuntimeConfiguration) SetLandscapes(landscapes map[string]*Landscape) {
-	rc.landscapes = make(map[string]*Landscape, len(landscapes))
-	maps.Copy(rc.landscapes, landscapes)
-}
-
-func (rc *RuntimeConfiguration) SetLandscape(ls *Landscape) {
+func (rc *RuntimeConfiguration) SetLandscape(ctx context.Context, ls *Landscape) error {
 	if rc.landscapes == nil {
 		rc.landscapes = make(map[string]*Landscape)
 	}
-	rc.landscapes[ls.Name] = ls
-}
-
-func (rc *RuntimeConfiguration) UnsetLandscape(name string) {
-	if rc.landscapes == nil {
-		return
+	if err := rc.UnsetLandscape(ctx, ls.Name); err != nil {
+		return fmt.Errorf("error removing old landscape: %w", err)
 	}
-	delete(rc.landscapes, name)
-}
-
-func (rc *RuntimeConfiguration) SetProfiles(profiles map[string]map[string]*Profile) {
-	rc.profiles = make(map[string]map[string]*Profile, len(profiles))
-	for k, v := range profiles {
-		rc.profiles[k] = make(map[string]*Profile, len(v))
-		for k2, v2 := range v {
-			rc.profiles[k][k2] = v2.DeepCopy()
+	if ls.Cluster != nil {
+		// construct a watch for the shoot resources in this landscape
+		enqueueReconcile := func(sh *gardenv1beta1.Shoot) {
+			rc.ShootWatch <- event.TypedGenericEvent[*gardenv1beta1.Shoot]{
+				Object: sh,
+			}
+		}
+		inf, err := ls.Cluster.Cluster().GetCache().GetInformer(ctx, &gardenv1beta1.Shoot{}, cache.BlockUntilSynced(true))
+		if err != nil {
+			return fmt.Errorf("error getting shoot informer: %w", err)
+		}
+		if _, err := inf.AddEventHandler(toolscache.FilteringResourceEventHandler{
+			FilterFunc: func(obj any) bool {
+				shoot, ok := obj.(*gardenv1beta1.Shoot)
+				if !ok {
+					return false
+				}
+				environment, ok := ctrlutils.GetLabel(shoot, providerv1alpha1.ClusterReferenceLabelEnvironment)
+				if !ok || environment != Environment() {
+					return false
+				}
+				provider, ok := ctrlutils.GetLabel(shoot, providerv1alpha1.ClusterReferenceLabelProvider)
+				if !ok || provider != ProviderName() {
+					return false
+				}
+				return true
+			},
+			Handler: toolscache.ResourceEventHandlerFuncs{
+				UpdateFunc: func(oldObj, newObj any) {
+					oldShoot, ok := oldObj.(*gardenv1beta1.Shoot)
+					if !ok {
+						return
+					}
+					newShoot, ok := newObj.(*gardenv1beta1.Shoot)
+					if !ok {
+						return
+					}
+					// we want to react on status changes only
+					if !slices.EqualFunc(oldShoot.Status.LastErrors, newShoot.Status.LastErrors, func(a, b gardenv1beta1.LastError) bool {
+						return slices.Equal(a.Codes, b.Codes)
+					}) || oldShoot.Status.LastOperation.State != newShoot.Status.LastOperation.State {
+						enqueueReconcile(newShoot)
+					}
+				},
+				DeleteFunc: func(obj any) {
+					shoot, ok := obj.(*gardenv1beta1.Shoot)
+					if !ok {
+						return
+					}
+					enqueueReconcile(shoot)
+				},
+			},
+		}); err != nil {
+			return fmt.Errorf("error adding event handler to shoot informer: %w", err)
 		}
 	}
+	rc.landscapes[ls.Name] = ls
+	return nil
 }
 
-func (rc *RuntimeConfiguration) SetProfilesForProviderConfiguration(providerConfigurationName string, profiles map[string]*Profile) {
-	if rc.profiles == nil {
-		rc.profiles = make(map[string]map[string]*Profile)
+// UnsetLandscape removes the shoot informer for the landscape and deletes it from the internal Landscapes list, if that was successful.
+func (rc *RuntimeConfiguration) UnsetLandscape(ctx context.Context, name string) error {
+	if rc.landscapes == nil {
+		return nil
 	}
-	rc.profiles[providerConfigurationName] = make(map[string]*Profile, len(profiles))
-	maps.Copy(rc.profiles[providerConfigurationName], profiles)
+	old := rc.landscapes[name]
+	if old != nil && old.Cluster != nil {
+		if err := old.Cluster.Cluster().GetCache().RemoveInformer(ctx, &gardenv1beta1.Shoot{}); err != nil {
+			return fmt.Errorf("error removing shoot informer: %w", err)
+		}
+	}
+	delete(rc.landscapes, name)
+	return nil
+}
+
+func (rc *RuntimeConfiguration) SetProfilesForProviderConfiguration(providerConfigurationName string, profiles ...*Profile) {
+	if rc.profiles == nil {
+		rc.profiles = make(map[string]*Profile)
+	}
+	seenProfileNames := sets.New[string]()
+	for _, profile := range profiles {
+		resName := ProfileK8sName(profile.GetName())
+		seenProfileNames.Insert(resName)
+		if profile.ProviderConfigSource == "" {
+			profile.ProviderConfigSource = providerConfigurationName
+		}
+		rc.profiles[resName] = profile.DeepCopy()
+	}
+	// remove profiles for this provider configuration that have been added previously but are not in the current set
+	for k, v := range rc.profiles {
+		if v.ProviderConfigSource == providerConfigurationName && !seenProfileNames.Has(k) {
+			delete(rc.profiles, k)
+		}
+	}
 }
 
 func (rc *RuntimeConfiguration) UnsetProfilesForProviderConfiguration(providerConfigurationName string) {
 	if rc.profiles == nil {
 		return
 	}
-	delete(rc.profiles, providerConfigurationName)
+	for k, v := range rc.profiles {
+		if v.ProviderConfigSource == providerConfigurationName {
+			delete(rc.profiles, k)
+		}
+	}
 }
 
 type Landscape struct {
@@ -186,14 +250,14 @@ type Landscape struct {
 }
 
 func (l *Landscape) Available() bool {
-	return l != nil && l.Resource != nil && l.Resource.Status.Phase == providerv1alpha1.LANDSCAPE_PHASE_AVAILABLE
+	return l != nil && l.Resource != nil && (l.Resource.Status.Phase == providerv1alpha1.LANDSCAPE_PHASE_AVAILABLE || l.Resource.Status.Phase == providerv1alpha1.LANDSCAPE_PHASE_PARTIALLY_AVAILABLE)
 }
 
-func (l *Landscape) Projects() []string {
+func (l *Landscape) Projects() []providerv1alpha1.ProjectData {
 	if l == nil || l.Resource == nil {
 		return nil
 	}
-	projects := make([]string, len(l.Resource.Status.Projects))
+	projects := make([]providerv1alpha1.ProjectData, len(l.Resource.Status.Projects))
 	copy(projects, l.Resource.Status.Projects)
 	return projects
 }
@@ -216,6 +280,7 @@ type Profile struct {
 // It belongs to a specific Gardener configuration.
 // This applies, for example, to every information received by reading a Gardener CloudProfile.
 type RuntimeData struct {
+	ProjectNamespace     string
 	SupportedK8sVersions []K8sVersion
 }
 
@@ -245,11 +310,13 @@ func (rd *RuntimeData) DeepCopy() *RuntimeData {
 	}
 	return &RuntimeData{
 		SupportedK8sVersions: versions,
+		ProjectNamespace:     rd.ProjectNamespace,
 	}
 }
 
 func (p *Profile) DeepCopy() *Profile {
 	return &Profile{
+		RuntimeData:          *p.RuntimeData.DeepCopy(),
 		Config:               p.Config.DeepCopy(),
 		ProviderConfigSource: p.ProviderConfigSource,
 	}
@@ -257,4 +324,15 @@ func (p *Profile) DeepCopy() *Profile {
 
 func (p *Profile) GetName() string {
 	return fmt.Sprintf("%s/%s", p.Config.LandscapeRef.Name, p.Config.Name)
+}
+
+func ProfileK8sName(profileName string) string {
+	return ctrlutils.K8sNameHash(Environment(), ProviderName(), profileName)
+}
+
+func ShootK8sName(clusterName, clusterNamespace string) string {
+	return ctrlutils.K8sNameHash(clusterNamespace, clusterName)
+}
+func ShootK8sNameFromCluster(c *clustersv1alpha1.Cluster) string {
+	return ShootK8sName(c.Name, c.Namespace)
 }

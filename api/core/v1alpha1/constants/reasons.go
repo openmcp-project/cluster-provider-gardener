@@ -23,4 +23,8 @@ const (
 	ReasonInvalidProject = "InvalidProject"
 	// ReasonUnknownCloudProfile indicates that a referenced cloud profile has not been found.
 	ReasonUnknownCloudProfile = "UnknownCloudProfile"
+	// ReasonUnknownProfile indicates that a referenced profile has not been found.
+	ReasonUnknownProfile = "UnknownProfile"
+	// ReasonInternalError indicates that something went wrong internally.
+	ReasonInternalError = "InternalError"
 )

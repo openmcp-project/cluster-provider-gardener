@@ -16,7 +16,36 @@ spec:
     singular: cluster
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.purposes
+      name: Purposes
+      type: string
+    - jsonPath: .metadata.labels["clusters.openmcp.cloud/k8sversion"]
+      name: Version
+      type: string
+    - jsonPath: .metadata.labels["clusters.openmcp.cloud/profile"]
+      name: Profile
+      type: string
+    - jsonPath: .metadata.labels["clusters.openmcp.cloud/environment"]
+      name: Env
+      priority: 10
+      type: string
+    - jsonPath: .metadata.labels["clusters.openmcp.cloud/provider"]
+      name: Provider
+      priority: 10
+      type: string
+    - jsonPath: .spec.clusterProfileRef.name
+      name: ProfileRef
+      priority: 10
+      type: string
+    - jsonPath: .metadata.labels["clusters.openmcp.cloud/providerinfo"]
+      name: Info
+      priority: 10
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: Cluster is the Schema for the clusters API
@@ -171,6 +200,8 @@ spec:
             - phase
             type: object
         type: object
+    selectableFields:
+    - jsonPath: .spec.clusterProfileRef.name
     served: true
     storage: true
     subresources:

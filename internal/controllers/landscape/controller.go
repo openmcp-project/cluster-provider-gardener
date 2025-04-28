@@ -16,7 +16,9 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -24,6 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	clusterutils "github.com/openmcp-project/controller-utils/pkg/clusters"
+	"github.com/openmcp-project/controller-utils/pkg/conditions"
 	ctrlutils "github.com/openmcp-project/controller-utils/pkg/controller"
 	errutils "github.com/openmcp-project/controller-utils/pkg/errors"
 	"github.com/openmcp-project/controller-utils/pkg/logging"
@@ -38,6 +41,7 @@ import (
 )
 
 const ControllerName = "Landscape"
+const ProjectConditionPrefix = "Project_"
 
 var gardenerScheme = install.InstallGardenerAPIs(runtime.NewScheme())
 
@@ -80,11 +84,15 @@ func (r *LandscapeReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 				lsInt.Resource = rr.Object.DeepCopy()
 			}
 			log.Info("Registering landscape", "apiServer", apiServer, "available", lsInt.Available())
-			r.SetLandscape(lsInt)
+			if err := r.SetLandscape(ctx, lsInt); err != nil {
+				rr.ReconcileError = errutils.Join(rr.ReconcileError, errutils.WithReason(fmt.Errorf("error setting internal Landscape representation: %w", err), cconst.ReasonInternalError))
+			}
 		} else {
 			// remove internal representation of the Landscape
 			log.Info("Unregistering landscape")
-			r.UnsetLandscape(req.Name)
+			if err := r.UnsetLandscape(ctx, req.Name); err != nil {
+				rr.ReconcileError = errutils.Join(rr.ReconcileError, errutils.WithReason(fmt.Errorf("error removing internal Landscape representation: %w", err), cconst.ReasonInternalError))
+			}
 		}
 	}
 	// status update
@@ -96,21 +104,27 @@ func (r *LandscapeReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 			if rr.ReconcileError != nil {
 				return providerv1alpha1.LANDSCAPE_PHASE_UNAVAILABLE, nil
 			}
-			// add code below if we start using conditions
-			// if len(rr.Conditions) > 0 {
-			// 	for _, con := range rr.Conditions {
-			// 		if con.GetStatus() != providerv1alpha1.CONDITION_TRUE {
-			// 			return providerv1alpha1.LANDSCAPE_PHASE_UNAVAILABLE, nil
-			// 		}
-			// 	}
-			// }
+			trueCount := 0
+			falseCount := 0
+			for _, con := range rr.Conditions {
+				if con.GetStatus() == providerv1alpha1.CONDITION_TRUE {
+					trueCount++
+				} else {
+					falseCount++
+				}
+			}
+			if trueCount > 0 && falseCount == 0 {
+				return providerv1alpha1.LANDSCAPE_PHASE_AVAILABLE, nil
+			} else if trueCount > 0 && falseCount > 0 {
+				return providerv1alpha1.LANDSCAPE_PHASE_PARTIALLY_AVAILABLE, nil
+			} else if trueCount == 0 && falseCount > 0 {
+				return providerv1alpha1.LANDSCAPE_PHASE_UNAVAILABLE, nil
+			}
 			return providerv1alpha1.LANDSCAPE_PHASE_AVAILABLE, nil
 		}).
-		// replace the following line with the commented-out code below it if we start using conditions
-		WithoutFields(ctrlutils.STATUS_FIELD_CONDITIONS).
-		// WithConditionUpdater(func() conditions.Condition[providerv1alpha1.ConditionStatus] {
-		// 	return &providerv1alpha1.Condition{}
-		// }, true).
+		WithConditionUpdater(func() conditions.Condition[providerv1alpha1.ConditionStatus] {
+			return &providerv1alpha1.Condition{}
+		}, true).
 		Build().
 		UpdateStatus(ctx, r.PlatformCluster.Client(), rr)
 
@@ -265,12 +279,60 @@ func (r *LandscapeReconciler) reconcile(ctx context.Context, log logging.Logger,
 			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error creating SelfSubjectRulesReview for Landscape '%s': %w", ls.Name, err), cconst.ReasonGardenClusterInteractionProblem)
 		}
 
-		ls.Status.Projects = []string{}
+		rr.Conditions = []conditions.Condition[providerv1alpha1.ConditionStatus]{}
+		ls.Status.Projects = []providerv1alpha1.ProjectData{}
 		for _, rule := range ssrr.Status.ResourceRules {
 			// search for projects where the user has admin access
-			if slices.Contains(rule.APIGroups, gardenv1beta1.GroupName) && slices.Contains(rule.Resources, "projects") && slices.Contains(rule.Verbs, "update") {
-				ls.Status.Projects = append(ls.Status.Projects, rule.ResourceNames...)
+			// Note that this is a somewhat hacky shortcut that abuses the fact that the permissions to manage shoots are coupled with the permissions to update the containing project in Gardener.
+			// Technically, we should check the permissions regarding shoots for all projects that we have access to, but this is a good enough approximation for now.
+			if slices.Contains(rule.APIGroups, gardenv1beta1.GroupName) && slices.Contains(rule.Resources, "projects") && slices.Contains(rule.Verbs, "update") && slices.Contains(rule.Verbs, "get") {
+				for _, prName := range rule.ResourceNames {
+					// fetch project to extract project namespace
+					log.Debug("Fetching project", "project", prName)
+					pr := &gardenv1beta1.Project{}
+					prCon := &providerv1alpha1.Condition{
+						Type: ProjectConditionPrefix + prName,
+					}
+					if err := lsInt.Cluster.Client().Get(ctx, ctrlutils.ObjectKey(prName, ""), pr); err != nil {
+						prCon.SetStatus(providerv1alpha1.CONDITION_FALSE)
+						prCon.SetReason(cconst.ReasonGardenClusterInteractionProblem)
+						prCon.SetMessage(fmt.Sprintf("Error getting project '%s': %s", prName, err.Error()))
+						log.Debug("Error getting project", "project", prName, "error", err)
+						rr.Conditions = append(rr.Conditions, prCon)
+						continue
+					}
+					prNamespace := pr.Spec.Namespace
+					if prNamespace == nil || *prNamespace == "" {
+						prCon.SetStatus(providerv1alpha1.CONDITION_FALSE)
+						prCon.SetReason(cconst.ReasonGardenClusterInteractionProblem)
+						prCon.SetMessage(fmt.Sprintf("Project '%s' has no namespace", prName))
+						log.Debug("Project has no namespace", "project", prName)
+						rr.Conditions = append(rr.Conditions, prCon)
+						continue
+					}
+					prCon.SetStatus(providerv1alpha1.CONDITION_TRUE)
+					rr.Conditions = append(rr.Conditions, prCon)
+					log.Debug("Project found", "project", prName, "projectNamespace", prNamespace)
+					ls.Status.Projects = append(ls.Status.Projects, providerv1alpha1.ProjectData{
+						Name:      prName,
+						Namespace: *prNamespace,
+					})
+				}
 			}
+		}
+		// we want to use the cluster's informer to watch for shoot changes
+		// but we only have watch permissions in the project namespaces
+		// so we set the default namespaces in the cluster cache
+		projectNamespaces := map[string]cache.Config{}
+		for _, pr := range ls.Status.Projects {
+			projectNamespaces[pr.Namespace] = cache.Config{}
+		}
+		lsInt.Cluster.WithClusterOptions(clusterutils.DefaultClusterOptions(gardenerScheme), func(o *cluster.Options) {
+			o.Cache.DefaultNamespaces = projectNamespaces
+		})
+		if err := lsInt.Cluster.InitializeClient(gardenerScheme); err != nil {
+			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error initializing client with cache options for Landscape '%s': %w", ls.Name, err), cconst.ReasonInternalError)
+			return rr, lsInt
 		}
 	} else {
 		// DELETE

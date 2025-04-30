@@ -70,24 +70,26 @@ func (r *LandscapeReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 	r.Lock.Lock()
 	defer r.Lock.Unlock()
 	rr, lsInt := r.reconcile(ctx, log, req)
+
+	apiServer := "<unknown>"
+	if lsInt != nil && lsInt.Cluster != nil && lsInt.Cluster.HasRESTConfig() {
+		apiServer = lsInt.Cluster.APIServerEndpoint()
+	}
+	oldLsInt := r.GetLandscape(req.Name)
 	if lsInt == nil && rr.ReconcileError != nil && rr.ReconcileError.Reason() == cconst.ReasonPlatformClusterInteractionProblem {
 		// there was a problem communicating with the platform cluster which prevents us from determining the state of the Landscape
 		// don't update the internal representation of the Landscape
 	} else {
 		if lsInt != nil {
 			// update internal representation of the Landscape
-			apiServer := "<unknown>"
-			if lsInt.Cluster != nil && lsInt.Cluster.HasRESTConfig() {
-				apiServer = lsInt.Cluster.APIServerEndpoint()
-			}
 			if lsInt.Resource == nil && rr.Object != nil {
 				lsInt.Resource = rr.Object.DeepCopy()
 			}
-			log.Info("Registering landscape", "apiServer", apiServer, "available", lsInt.Available())
+			log.Info("Registering landscape", "apiServer", apiServer)
 			if err := r.SetLandscape(ctx, lsInt); err != nil {
 				rr.ReconcileError = errutils.Join(rr.ReconcileError, errutils.WithReason(fmt.Errorf("error setting internal Landscape representation: %w", err), cconst.ReasonInternalError))
 			}
-		} else {
+		} else if oldLsInt != nil {
 			// remove internal representation of the Landscape
 			log.Info("Unregistering landscape")
 			if err := r.UnsetLandscape(ctx, req.Name); err != nil {
@@ -96,7 +98,6 @@ func (r *LandscapeReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 		}
 	}
 	// status update
-	log.Debug("Updating status")
 	res, err := ctrlutils.NewStatusUpdaterBuilder[*providerv1alpha1.Landscape, providerv1alpha1.LandscapePhase, providerv1alpha1.ConditionStatus]().
 		WithNestedStruct("CommonStatus").
 		WithFieldOverride(ctrlutils.STATUS_FIELD_PHASE, "Phase").
@@ -125,12 +126,28 @@ func (r *LandscapeReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 		WithConditionUpdater(func() conditions.Condition[providerv1alpha1.ConditionStatus] {
 			return &providerv1alpha1.Condition{}
 		}, true).
+		WithCustomUpdateFunc(func(obj *providerv1alpha1.Landscape, rr ctrlutils.ReconcileResult[*providerv1alpha1.Landscape, providerv1alpha1.ConditionStatus]) error {
+			obj.Status.APIServer = apiServer
+			return nil
+		}).
 		Build().
 		UpdateStatus(ctx, r.PlatformCluster.Client(), rr)
+	if lsInt != nil {
+		lsInt.Resource = rr.Object
+		r.UpdateLandscapeResource(lsInt.Resource)
+	}
 
-	// try to notify ProviderConfigs that use the Landscape, if its Phase changed
-	if rr.Object != nil && rr.OldObject != nil && rr.Object.Status.Phase != rr.OldObject.Status.Phase {
-		log.Debug("Landscape phase changed, checking for referencing ProviderConfigs", "oldPhase", rr.OldObject.Status.Phase, "newPhase", rr.Object.Status.Phase)
+	// try to notify ProviderConfigs that use the Landscape, if the Phase of the internal representation changed
+	if (lsInt == nil) != (oldLsInt == nil) || (lsInt != nil && oldLsInt != nil && lsInt.Available() != oldLsInt.Available()) {
+		oldPhase := "<nil>"
+		if oldLsInt != nil {
+			oldPhase = string(oldLsInt.Resource.Status.Phase)
+		}
+		newPhase := "<nil>"
+		if lsInt != nil {
+			newPhase = string(lsInt.Resource.Status.Phase)
+		}
+		log.Info("Internal Landscape phase changed, checking for referencing ProviderConfigs", "oldPhase", oldPhase, "newPhase", newPhase)
 		referencingProviderConfigs := sets.New[string]()
 		pcs := r.GetProviderConfigurations()
 		for _, pc := range pcs {
@@ -173,7 +190,7 @@ func (r *LandscapeReconciler) reconcile(ctx context.Context, log logging.Logger,
 	ls := &providerv1alpha1.Landscape{}
 	if err := r.PlatformCluster.Client().Get(ctx, req.NamespacedName, ls); err != nil {
 		if apierrors.IsNotFound(err) {
-			log.Debug("Resource not found")
+			log.Info("Resource not found")
 			return ReconcileResult{}, nil
 		}
 		return ReconcileResult{ReconcileError: errutils.WithReason(fmt.Errorf("unable to get resource '%s' from cluster: %w", req.NamespacedName.String(), err), cconst.ReasonPlatformClusterInteractionProblem)}, nil
@@ -380,8 +397,8 @@ func (r *LandscapeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		}), ctrlutils.ToTypedPredicate[*providerv1alpha1.Landscape](predicate.And(
 			predicate.Or(
 				predicate.GenerationChangedPredicate{},
-				predicate.AnnotationChangedPredicate{},
-				predicate.LabelChangedPredicate{},
+				ctrlutils.GotAnnotationPredicate(clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueReconcile),
+				ctrlutils.LostAnnotationPredicate(clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueIgnore),
 			),
 			predicate.Not(
 				ctrlutils.HasAnnotationPredicate(clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueIgnore),

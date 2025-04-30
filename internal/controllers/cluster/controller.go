@@ -45,6 +45,7 @@ type ReconcileResult = ctrlutils.ReconcileResult[*clustersv1alpha1.Cluster, clus
 
 func (r *ClusterReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	log := logging.FromContextOrPanic(ctx).WithName(ControllerName)
+	ctx = logging.NewContext(ctx, log)
 	log.Info("Starting reconcile")
 	r.Lock.RLock()
 	defer r.Lock.RUnlock()
@@ -54,8 +55,25 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req reconcile.Request
 		WithNestedStruct("CommonStatus").
 		WithFieldOverride(ctrlutils.STATUS_FIELD_PHASE, "Phase").
 		WithPhaseUpdateFunc(func(obj *clustersv1alpha1.Cluster, rr ctrlutils.ReconcileResult[*clustersv1alpha1.Cluster, clustersv1alpha1.ConditionStatus]) (clustersv1alpha1.ClusterPhase, error) {
-			// TODO
-			return "", nil
+			if rr.ReconcileError != nil {
+				if !obj.DeletionTimestamp.IsZero() {
+					return clustersv1alpha1.CLUSTER_PHASE_DELETING_ERROR, nil
+				}
+				return clustersv1alpha1.CLUSTER_PHASE_ERROR, nil
+			}
+			if len(rr.Conditions) == 0 {
+				return clustersv1alpha1.CLUSTER_PHASE_UNKNOWN, nil
+			}
+			if !obj.DeletionTimestamp.IsZero() {
+				return clustersv1alpha1.CLUSTER_PHASE_DELETING, nil
+			}
+			// check if all conditions are true
+			for _, con := range rr.Conditions {
+				if con.GetStatus() != clustersv1alpha1.CONDITION_TRUE {
+					return clustersv1alpha1.CLUSTER_PHASE_NOT_READY, nil
+				}
+			}
+			return clustersv1alpha1.CLUSTER_PHASE_READY, nil
 		}).
 		WithConditionUpdater(func() conditions.Condition[clustersv1alpha1.ConditionStatus] {
 			return &clustersv1alpha1.Condition{}
@@ -69,7 +87,7 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, log logging.Logger, r
 	c := &clustersv1alpha1.Cluster{}
 	if err := r.OnboardingCluster.Client().Get(ctx, req.NamespacedName, c); err != nil {
 		if apierrors.IsNotFound(err) {
-			log.Debug("Resource not found")
+			log.Info("Resource not found")
 			return ReconcileResult{}
 		}
 		return ReconcileResult{ReconcileError: errutils.WithReason(fmt.Errorf("unable to get resource '%s' from cluster: %w", req.NamespacedName.String(), err), cconst.ReasonOnboardingClusterInteractionProblem)}
@@ -118,8 +136,17 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, log logging.Logger, r
 	if !exists {
 		shoot = &gardenv1beta1.Shoot{}
 		shoot.SetGroupVersionKind(gardenv1beta1.SchemeGroupVersion.WithKind("Shoot"))
-		shoot.SetName(shared.ShootK8sNameFromCluster(c))
-		shoot.SetNamespace(profile.ProjectNamespace)
+		shoot.SetName(shared.ShootK8sNameFromCluster(c, profile.Project.Name))
+		shoot.SetNamespace(profile.Project.Namespace)
+	}
+	rr.Conditions = make([]conditions.Condition[clustersv1alpha1.ConditionStatus], len(shoot.Status.Conditions))
+	for i, con := range shoot.Status.Conditions {
+		rr.Conditions[i] = &clustersv1alpha1.Condition{
+			Type:    string(con.Type),
+			Status:  clustersv1alpha1.ConditionStatus(con.Status),
+			Reason:  con.Reason,
+			Message: con.Message,
+		}
 	}
 
 	inDeletion := !c.DeletionTimestamp.IsZero()
@@ -142,12 +169,26 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, log logging.Logger, r
 			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error updating shoot fields: %w", err), cconst.ReasonInternalError)
 			return rr
 		}
+		// set shoot in ProviderStatus
+		manifest := &gardenv1beta1.ShootTemplate{
+			ObjectMeta: *shoot.ObjectMeta.DeepCopy(),
+			Spec:       *shoot.Spec.DeepCopy(),
+		}
+		manifest.ManagedFields = nil
+		manifest.ResourceVersion = ""
+		manifest.UID = ""
+		manifest.OwnerReferences = nil
+		manifest.Finalizers = nil
+		if err := c.Status.SetProviderStatus(providerv1alpha1.ClusterStatus{Shoot: manifest}); err != nil {
+			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error setting provider status: %w", err), cconst.ReasonInternalError)
+			return rr
+		}
 		var err error
 		if exists {
-			log.Info("Updating shoot", "name", shoot.Name, "namespace", shoot.Namespace)
+			log.Info("Updating shoot", "shootName", shoot.Name, "shootNamespace", shoot.Namespace)
 			err = landscape.Cluster.Client().Update(ctx, shoot)
 		} else {
-			log.Info("Creating shoot", "name", shoot.Name, "namespace", shoot.Namespace)
+			log.Info("Creating shoot", "shootName", shoot.Name, "shootNamespace", shoot.Namespace)
 			err = landscape.Cluster.Client().Create(ctx, shoot)
 		}
 		if err != nil {
@@ -163,7 +204,7 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, log logging.Logger, r
 		if exists {
 			// shoot is still there
 			if shoot.DeletionTimestamp == nil {
-				log.Info("Deleting shoot", "name", shoot.Name, "namespace", shoot.Namespace)
+				log.Info("Deleting shoot", "shootName", shoot.Name, "shootNamespace", shoot.Namespace)
 				if err := ctrlutils.EnsureAnnotation(ctx, landscape.Cluster.Client(), shoot, GardenerDeletionConfirmationAnnotation, "true", true, ctrlutils.OVERWRITE); err != nil {
 					rr.ReconcileError = errutils.WithReason(fmt.Errorf("error adding deletion confirmation annotation to shoot '%s' in namespace '%s': %w", shoot.Name, shoot.Namespace, err), cconst.ReasonGardenClusterInteractionProblem)
 					return rr
@@ -176,7 +217,7 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, log logging.Logger, r
 				}
 				// wait for shoot to be deleted
 			} else {
-				log.Debug("Shoot is being deleted", "name", shoot.Name, "namespace", shoot.Namespace)
+				log.Debug("Shoot is being deleted", "shootName", shoot.Name, "shootNamespace", shoot.Namespace)
 			}
 			rr.Reason = cconst.ReasonWaitingForDeletion
 			rr.Message = "Waiting for shoot to be deleted"
@@ -206,7 +247,8 @@ func (r *ClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		WithEventFilter(predicate.And(
 			predicate.Or(
 				predicate.GenerationChangedPredicate{},
-				predicate.AnnotationChangedPredicate{},
+				ctrlutils.GotAnnotationPredicate(clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueReconcile),
+				ctrlutils.LostAnnotationPredicate(clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueIgnore),
 			),
 			predicate.Not(
 				ctrlutils.HasAnnotationPredicate(clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueIgnore),
@@ -273,23 +315,19 @@ func GetShoot(ctx context.Context, log logging.Logger, landscape *shared.Landsca
 		if err := c.Status.GetProviderStatus(cs); err != nil {
 			return nil, errutils.WithReason(fmt.Errorf("error unmarshalling provider status: %w", err), cconst.ReasonInternalError)
 		}
-		log.Debug("Provider status found, trying to fetch shoot manifest")
-		uShoot, err := cs.GetShoot()
-		if err != nil {
-			return nil, errutils.WithReason(err, cconst.ReasonInternalError)
-		}
-		if uShoot != nil {
-			log.Debug("Found shoot in provider status", "name", uShoot.GetName(), "namespace", uShoot.GetNamespace())
-			shoot.SetName(uShoot.GetName())
-			shoot.SetNamespace(uShoot.GetNamespace())
+		log.Debug("Provider status found, checking for shoot manifest")
+		if cs.Shoot != nil {
+			log.Debug("Found shoot in provider status", "shootName", cs.Shoot.GetName(), "shootNamespace", cs.Shoot.GetNamespace())
+			shoot.SetName(cs.Shoot.GetName())
+			shoot.SetNamespace(cs.Shoot.GetNamespace())
 			if err := landscape.Cluster.Client().Get(ctx, client.ObjectKeyFromObject(shoot), shoot); err != nil {
 				if apierrors.IsNotFound(err) {
-					log.Info("Found shoot reference in provider status, but shoot does not exist", "name", shoot.Name, "namespace", shoot.Namespace)
+					log.Info("Found shoot reference in provider status, but shoot does not exist", "shootName", shoot.Name, "shootNamespace", shoot.Namespace)
 				} else {
 					return nil, errutils.WithReason(fmt.Errorf("error getting shoot '%s' in namespace '%s': %w", shoot.Name, shoot.Namespace, err), cconst.ReasonGardenClusterInteractionProblem)
 				}
 			} else {
-				log.Info("Found shoot from reference in provider status", "name", shoot.Name, "namespace", shoot.Namespace)
+				log.Info("Found shoot from reference in provider status", "shootName", shoot.Name, "shootNamespace", shoot.Namespace)
 				exists = true
 			}
 		} else {
@@ -298,23 +336,23 @@ func GetShoot(ctx context.Context, log logging.Logger, landscape *shared.Landsca
 	}
 	if shoot.Name == "" {
 		// search for shoot with fitting labels in project
-		log.Debug("Shoot name and namespace could not be recovered from provider status, checking shoots in project namespace for fitting cluster reference labels", "projectNamespace", profile.ProjectNamespace)
+		log.Debug("Shoot name and namespace could not be recovered from provider status, checking shoots in project namespace for fitting cluster reference labels", "projectNamespace", profile.Project.Namespace)
 		shoots := &gardenv1beta1.ShootList{}
-		if err := landscape.Cluster.Client().List(ctx, shoots, client.InNamespace(profile.ProjectNamespace), client.MatchingLabels{
+		if err := landscape.Cluster.Client().List(ctx, shoots, client.InNamespace(profile.Project.Namespace), client.MatchingLabels{
 			providerv1alpha1.ClusterReferenceLabelName:      c.Name,
 			providerv1alpha1.ClusterReferenceLabelNamespace: c.Namespace,
 		}); err != nil {
-			return nil, errutils.WithReason(fmt.Errorf("error listing shoots in namespace '%s': %w", profile.ProjectNamespace, err), cconst.ReasonGardenClusterInteractionProblem)
+			return nil, errutils.WithReason(fmt.Errorf("error listing shoots in namespace '%s': %w", profile.Project.Namespace, err), cconst.ReasonGardenClusterInteractionProblem)
 		}
 		if len(shoots.Items) > 1 {
-			return nil, errutils.WithReason(fmt.Errorf("found multiple shoots referencing cluster '%s'/'%s' in namespace '%s', there should never be more than one", c.Namespace, c.Name, profile.ProjectNamespace), cconst.ReasonInternalError)
+			return nil, errutils.WithReason(fmt.Errorf("found multiple shoots referencing cluster '%s'/'%s' in namespace '%s', there should never be more than one", c.Namespace, c.Name, profile.Project.Namespace), cconst.ReasonInternalError)
 		}
 		if len(shoots.Items) == 1 {
 			shoot = &shoots.Items[0]
-			log.Info("Found shoot from cluster reference labels", "name", shoot.Name, "namespace", shoot.Namespace)
+			log.Info("Found shoot from cluster reference labels", "shootName", shoot.Name, "shootNamespace", shoot.Namespace)
 			exists = true
 		} else {
-			log.Info("No shoot found from cluster reference labels", "namespace", profile.ProjectNamespace)
+			log.Info("No shoot found from cluster reference labels", "namespace", profile.Project.Namespace)
 		}
 	}
 	if !exists {

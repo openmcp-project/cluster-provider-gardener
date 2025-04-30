@@ -22,8 +22,8 @@ spec:
     - jsonPath: .status.phase
       name: Phase
       type: string
-    - jsonPath: .status.reason
-      name: Reason
+    - jsonPath: .status.apiServer
+      name: APIServer
       type: string
     name: v1alpha1
     schema:
@@ -80,6 +80,9 @@ spec:
             type: object
           status:
             properties:
+              apiServer:
+                description: APIServer is the API server URL of the Gardener Landscape.
+                type: string
               conditions:
                 description: Conditions contains the conditions.
                 items:
@@ -152,6 +155,7 @@ spec:
                   provides further information in a machine-readable format.
                 type: string
             required:
+            - apiServer
             - lastReconcileTime
             - observedGeneration
             - phase

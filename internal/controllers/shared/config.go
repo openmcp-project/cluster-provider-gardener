@@ -3,7 +3,7 @@ package shared
 import (
 	"context"
 	"fmt"
-	"slices"
+	"reflect"
 	"sync"
 
 	"github.com/openmcp-project/controller-utils/pkg/clusters"
@@ -98,14 +98,33 @@ func (rc *RuntimeConfiguration) GetLandscape(name string) *Landscape {
 	if rc.landscapes == nil {
 		return nil
 	}
-	return rc.landscapes[name].DeepCopy()
+	ls := rc.landscapes[name]
+	if ls == nil {
+		return nil
+	}
+	return ls.DeepCopy()
+}
+
+func (rc *RuntimeConfiguration) GetLandscapes() map[string]*Landscape {
+	if rc.landscapes == nil {
+		return nil
+	}
+	res := make(map[string]*Landscape, len(rc.landscapes))
+	for k, v := range rc.landscapes {
+		res[k] = v.DeepCopy()
+	}
+	return res
 }
 
 func (rc *RuntimeConfiguration) GetProfile(k8sName string) *Profile {
 	if rc.profiles == nil {
 		return nil
 	}
-	return rc.profiles[k8sName].DeepCopy()
+	profile := rc.profiles[k8sName]
+	if profile == nil {
+		return nil
+	}
+	return profile.DeepCopy()
 }
 
 func (rc *RuntimeConfiguration) SetProviderConfigurations(providerConfigurations map[string]*providerv1alpha1.ProviderConfig) {
@@ -136,6 +155,7 @@ func (rc *RuntimeConfiguration) SetLandscape(ctx context.Context, ls *Landscape)
 	if err := rc.UnsetLandscape(ctx, ls.Name); err != nil {
 		return fmt.Errorf("error removing old landscape: %w", err)
 	}
+	ctx, ls.stop = context.WithCancel(ctx)
 	if ls.Cluster != nil {
 		// construct a watch for the shoot resources in this landscape
 		enqueueReconcile := func(sh *gardenv1beta1.Shoot) {
@@ -173,10 +193,22 @@ func (rc *RuntimeConfiguration) SetLandscape(ctx context.Context, ls *Landscape)
 					if !ok {
 						return
 					}
-					// we want to react on status changes only
-					if !slices.EqualFunc(oldShoot.Status.LastErrors, newShoot.Status.LastErrors, func(a, b gardenv1beta1.LastError) bool {
-						return slices.Equal(a.Codes, b.Codes)
-					}) || oldShoot.Status.LastOperation.State != newShoot.Status.LastOperation.State {
+					// since the state of our Cluster is based purely on the shoot's conditions,
+					// only trigger a reconciliation, if the conditions changed
+					changed := false
+					for _, newCon := range newShoot.Status.Conditions {
+						for _, oldCon := range oldShoot.Status.Conditions {
+							if newCon.Type != oldCon.Type {
+								continue
+							}
+							changed = reflect.DeepEqual(newCon, oldCon)
+							break
+						}
+						if changed {
+							break
+						}
+					}
+					if changed {
 						enqueueReconcile(newShoot)
 					}
 				},
@@ -191,9 +223,21 @@ func (rc *RuntimeConfiguration) SetLandscape(ctx context.Context, ls *Landscape)
 		}); err != nil {
 			return fmt.Errorf("error adding event handler to shoot informer: %w", err)
 		}
+		// this feels really hacky and it hides the error that potentially comes out of Start()
+		go ls.Cluster.Cluster().Start(ctx)
 	}
 	rc.landscapes[ls.Name] = ls
 	return nil
+}
+
+// UpdateLandscapeResource just updates the Landscape resource in the internal Landscape object.
+func (rc *RuntimeConfiguration) UpdateLandscapeResource(obj *providerv1alpha1.Landscape) {
+	if rc.landscapes == nil {
+		return
+	}
+	if ls, ok := rc.landscapes[obj.Name]; ok {
+		ls.Resource = obj.DeepCopy()
+	}
 }
 
 // UnsetLandscape removes the shoot informer for the landscape and deletes it from the internal Landscapes list, if that was successful.
@@ -203,6 +247,7 @@ func (rc *RuntimeConfiguration) UnsetLandscape(ctx context.Context, name string)
 	}
 	old := rc.landscapes[name]
 	if old != nil && old.Cluster != nil {
+		old.stop() // stop the watch
 		if err := old.Cluster.Cluster().GetCache().RemoveInformer(ctx, &gardenv1beta1.Shoot{}); err != nil {
 			return fmt.Errorf("error removing shoot informer: %w", err)
 		}
@@ -232,6 +277,19 @@ func (rc *RuntimeConfiguration) SetProfilesForProviderConfiguration(providerConf
 	}
 }
 
+func (rc *RuntimeConfiguration) GetProfilesForProviderConfiguration(providerConfigurationName string) map[string]*Profile {
+	if rc.profiles == nil {
+		return nil
+	}
+	res := map[string]*Profile{}
+	for k, v := range rc.profiles {
+		if v.ProviderConfigSource == providerConfigurationName {
+			res[k] = v.DeepCopy()
+		}
+	}
+	return res
+}
+
 func (rc *RuntimeConfiguration) UnsetProfilesForProviderConfiguration(providerConfigurationName string) {
 	if rc.profiles == nil {
 		return
@@ -247,6 +305,7 @@ type Landscape struct {
 	Name     string
 	Cluster  *clusters.Cluster
 	Resource *providerv1alpha1.Landscape
+	stop     context.CancelFunc
 }
 
 func (l *Landscape) Available() bool {
@@ -267,6 +326,7 @@ func (l *Landscape) DeepCopy() *Landscape {
 		Name:     l.Name,
 		Cluster:  l.Cluster,
 		Resource: l.Resource.DeepCopy(),
+		stop:     l.stop,
 	}
 }
 
@@ -280,7 +340,7 @@ type Profile struct {
 // It belongs to a specific Gardener configuration.
 // This applies, for example, to every information received by reading a Gardener CloudProfile.
 type RuntimeData struct {
-	ProjectNamespace     string
+	Project              providerv1alpha1.ProjectData
 	SupportedK8sVersions []K8sVersion
 }
 
@@ -310,7 +370,7 @@ func (rd *RuntimeData) DeepCopy() *RuntimeData {
 	}
 	return &RuntimeData{
 		SupportedK8sVersions: versions,
-		ProjectNamespace:     rd.ProjectNamespace,
+		Project:              rd.Project,
 	}
 }
 
@@ -330,9 +390,9 @@ func ProfileK8sName(profileName string) string {
 	return ctrlutils.K8sNameHash(Environment(), ProviderName(), profileName)
 }
 
-func ShootK8sName(clusterName, clusterNamespace string) string {
-	return ctrlutils.K8sNameHash(clusterNamespace, clusterName)
+func ShootK8sName(clusterName, clusterNamespace, projectName string) string {
+	return ctrlutils.K8sNameHash(clusterNamespace, clusterName)[:(21 - len(projectName))]
 }
-func ShootK8sNameFromCluster(c *clustersv1alpha1.Cluster) string {
-	return ShootK8sName(c.Name, c.Namespace)
+func ShootK8sNameFromCluster(c *clustersv1alpha1.Cluster, projectName string) string {
+	return ShootK8sName(c.Name, c.Namespace, projectName)
 }

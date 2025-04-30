@@ -62,17 +62,33 @@ type ClusterStatus struct {
 
 type ClusterPhase string
 
+const (
+	// CLUSTER_PHASE_UNKNOWN represents an unknown status for the cluster.
+	CLUSTER_PHASE_UNKNOWN ClusterPhase = "Unknown"
+	// CLUSTER_PHASE_READY represents a cluster that is ready.
+	CLUSTER_PHASE_READY ClusterPhase = "Ready"
+	// CLUSTER_PHASE_NOT_READY represents a cluster that is not ready.
+	CLUSTER_PHASE_NOT_READY ClusterPhase = "Not Ready"
+	// CLUSTER_PHASE_ERROR represents a cluster that could not be reconciled successfully.
+	CLUSTER_PHASE_ERROR ClusterPhase = "Error"
+	// CLUSTER_PHASE_DELETING represents a cluster that is being deleted.
+	CLUSTER_PHASE_DELETING ClusterPhase = "In Deletion"
+	// CLUSTER_PHASE_DELETING_ERROR represents a cluster that could not be reconciled successfully while being in deletion.
+	CLUSTER_PHASE_DELETING_ERROR ClusterPhase = "Error In Deletion"
+)
+
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:metadata:labels="openmcp.cloud/cluster=onboarding"
 // +kubebuilder:selectablefield:JSONPath=".spec.clusterProfileRef.name"
 // +kubebuilder:printcolumn:JSONPath=".spec.purposes",name="Purposes",type=string
-// +kubebuilder:printcolumn:JSONPath=`.metadata.labels["clusters.openmcp.cloud/k8sversion"]`,name="Version",type=string
-// +kubebuilder:printcolumn:JSONPath=`.metadata.labels["clusters.openmcp.cloud/profile"]`,name="Profile",type=string
-// +kubebuilder:printcolumn:JSONPath=`.metadata.labels["clusters.openmcp.cloud/environment"]`,name="Env",type=string,priority=10
-// +kubebuilder:printcolumn:JSONPath=`.metadata.labels["clusters.openmcp.cloud/provider"]`,name="Provider",type=string, priority=10
+// +kubebuilder:printcolumn:JSONPath=`.status.phase`,name="Phase",type=string
+// +kubebuilder:printcolumn:JSONPath=`.metadata.annotations["clusters.openmcp.cloud/k8sversion"]`,name="Version",type=string
+// +kubebuilder:printcolumn:JSONPath=`.metadata.annotations["clusters.openmcp.cloud/profile"]`,name="Profile",type=string
+// +kubebuilder:printcolumn:JSONPath=`.metadata.labels["environment.clusters.openmcp.cloud"]`,name="Env",type=string,priority=10
+// +kubebuilder:printcolumn:JSONPath=`.metadata.labels["provider.clusters.openmcp.cloud"]`,name="Provider",type=string, priority=10
 // +kubebuilder:printcolumn:JSONPath=".spec.clusterProfileRef.name",name="ProfileRef",type=string,priority=10
-// +kubebuilder:printcolumn:JSONPath=`.metadata.labels["clusters.openmcp.cloud/providerinfo"]`,name="Info",type=string,priority=10
+// +kubebuilder:printcolumn:JSONPath=`.metadata.annotations["clusters.openmcp.cloud/providerinfo"]`,name="Info",type=string,priority=10
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // Cluster is the Schema for the clusters API

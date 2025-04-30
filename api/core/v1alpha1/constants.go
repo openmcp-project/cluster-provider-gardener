@@ -9,11 +9,11 @@ const (
 	ClusterFinalizer = GroupName + "/cluster"
 
 	// ClusterReferenceLabelName is the label on the shoot that holds the name of the Cluster resource that created it.
-	ClusterReferenceLabelName = GroupName + "/cluster-name"
+	ClusterReferenceLabelName = "cluster-name." + GroupName
 	// ClusterReferenceLabelNamespace is the label on the shoot that holds the namespace of the Cluster resource that created it.
-	ClusterReferenceLabelNamespace = GroupName + "/cluster-namespace"
+	ClusterReferenceLabelNamespace = "cluster-namespace." + GroupName
 	// ClusterReferenceLabelProvider is the label on the shoot that holds the name of the provider that is responsible for the Cluster resource that created it.
-	ClusterReferenceLabelProvider = GroupName + "/provider-name"
+	ClusterReferenceLabelProvider = "provider-name." + GroupName
 	// ClusterReferenceLabelEnvironment is the label on the shoot that holds the name of the environment that the responsible provider is in.
-	ClusterReferenceLabelEnvironment = GroupName + "/environment"
+	ClusterReferenceLabelEnvironment = "environment." + GroupName
 )

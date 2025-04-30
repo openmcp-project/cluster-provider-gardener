@@ -24,6 +24,9 @@ func UpdateShootFields(ctx context.Context, shoot *gardenv1beta1.Shoot, profile 
 
 	// annotations
 	enforcedAnnotations := maputils.Merge(tmpl.Annotations, map[string]string{
+		clustersv1alpha1.ProfileNameAnnotation:                                     profile.GetName(),
+		clustersv1alpha1.EnvironmentAnnotation:                                     shared.Environment(),
+		clustersv1alpha1.ProviderAnnotation:                                        shared.ProviderName(),
 		"shoot.gardener.cloud/cleanup-extended-apis-finalize-grace-period-seconds": "30",
 		gardenconstants.AnnotationAuthenticationIssuer:                             gardenconstants.AnnotationAuthenticationIssuerManaged,
 	})
@@ -46,9 +49,6 @@ func UpdateShootFields(ctx context.Context, shoot *gardenv1beta1.Shoot, profile 
 		providerv1alpha1.ClusterReferenceLabelNamespace:   cluster.Namespace,
 		providerv1alpha1.ClusterReferenceLabelProvider:    shared.ProviderName(),
 		providerv1alpha1.ClusterReferenceLabelEnvironment: shared.Environment(),
-		clustersv1alpha1.ProfileNameLabel:                 profile.GetName(),
-		clustersv1alpha1.EnvironmentLabel:                 shared.Environment(),
-		clustersv1alpha1.ProviderLabel:                    shared.ProviderName(),
 	})
 	if project, ok := cluster.Labels["openmcp.cloud/project"]; ok { // TODO: use constant
 		enforcedLabels["openmcp.cloud/project"] = project
@@ -82,7 +82,7 @@ func UpdateShootFields(ctx context.Context, shoot *gardenv1beta1.Shoot, profile 
 		return fmt.Errorf("error merging shoot spec from template into shoot: %w", err)
 	}
 	shoot.Spec.Kubernetes.Version = newK8sVersion
-	shoot.ObjectMeta.Labels[clustersv1alpha1.K8sVersionLabel] = newK8sVersion
+	shoot.ObjectMeta.Annotations[clustersv1alpha1.K8sVersionAnnotation] = newK8sVersion
 
 	return nil
 }

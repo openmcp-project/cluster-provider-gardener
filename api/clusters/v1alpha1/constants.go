@@ -65,14 +65,14 @@ const (
 	// OperationAnnotationValueReconcile is used to trigger a reconcile on the resource.
 	OperationAnnotationValueReconcile = "reconcile"
 
-	// K8sVersionLabel can be used to display the k8s version of the cluster.
-	K8sVersionLabel = "clusters.openmcp.cloud/k8sversion"
-	// ProviderInfoLabel can be used to display provider-specific information about the cluster.
-	ProviderInfoLabel = "clusters.openmcp.cloud/providerinfo"
-	// ProfileNameLabel can be used to display the actual name (not the hash) of the cluster profile.
-	ProfileNameLabel = "clusters.openmcp.cloud/profile"
-	// EnvironmentLabel can be used to display the environment of the cluster.
-	EnvironmentLabel = "clusters.openmcp.cloud/environment"
-	// ProviderLabel can be used to display the provider of the cluster.
-	ProviderLabel = "clusters.openmcp.cloud/provider"
+	// K8sVersionAnnotation can be used to display the k8s version of the cluster.
+	K8sVersionAnnotation = "clusters.openmcp.cloud/k8sversion"
+	// ProviderInfoAnnotation can be used to display provider-specific information about the cluster.
+	ProviderInfoAnnotation = "clusters.openmcp.cloud/providerinfo"
+	// ProfileNameAnnotation can be used to display the actual name (not the hash) of the cluster profile.
+	ProfileNameAnnotation = "clusters.openmcp.cloud/profile"
+	// EnvironmentAnnotation can be used to display the environment of the cluster.
+	EnvironmentAnnotation = "clusters.openmcp.cloud/environment"
+	// ProviderAnnotation can be used to display the provider of the cluster.
+	ProviderAnnotation = "clusters.openmcp.cloud/provider"
 )

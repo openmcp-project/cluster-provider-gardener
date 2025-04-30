@@ -50,25 +50,34 @@ type ReconcileResult = ctrlutils.ReconcileResult[*providerv1alpha1.ProviderConfi
 
 func (r *GardenerProviderConfigReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	log := logging.FromContextOrPanic(ctx).WithName(ControllerName)
+	ctx = logging.NewContext(ctx, log)
 	log.Info("Starting reconcile")
 	r.Lock.Lock()
 	defer r.Lock.Unlock()
 	rr, profiles := r.reconcile(ctx, log, req)
 	// internal representation update
+	oldProfiles := sets.New[string]()
+	newProfiles := sets.KeySet(profiles)
+	tmp := r.GetProfilesForProviderConfiguration(req.Name)
+	for _, p := range tmp {
+		oldProfiles.Insert(p.GetName())
+	}
+	removedProfiles := oldProfiles.Difference(newProfiles)
+	addedProfiles := newProfiles.Difference(oldProfiles)
 	if profiles == nil && rr.ReconcileError != nil && rr.ReconcileError.Reason() == cconst.ReasonPlatformClusterInteractionProblem {
 		// there was a problem communicating with the platform cluster which prevents us from determining the current state
 	} else {
 		if profiles != nil {
 			// update internal profiles
-			log.Info("Registering profiles", "profiles", strings.Join(sets.List(sets.KeySet(profiles)), ", "))
+			log.Info("Updating profile registrations", "profiles", strings.Join(sets.List(newProfiles), ", "), "added", strings.Join(sets.List(addedProfiles), ", "), "removed", strings.Join(sets.List(removedProfiles), ", "))
 			r.SetProfilesForProviderConfiguration(req.Name, mapValues(profiles)...)
 			// update internal ProviderConfiguration
 			if rr.Object != nil {
 				r.SetProviderConfiguration(req.Name, rr.Object)
 			}
-		} else {
+		} else if len(oldProfiles) > 0 {
 			// remove internal profiles
-			log.Info("Unregistering profiles")
+			log.Info("Unregistering profiles", "profiles", strings.Join(sets.List(removedProfiles), ", "))
 			r.UnsetProfilesForProviderConfiguration(req.Name)
 			r.UnsetProviderConfiguration(req.Name)
 		}
@@ -115,7 +124,7 @@ func (r *GardenerProviderConfigReconciler) reconcile(ctx context.Context, log lo
 	pc := &providerv1alpha1.ProviderConfig{}
 	if err := r.PlatformCluster.Client().Get(ctx, req.NamespacedName, pc); err != nil {
 		if apierrors.IsNotFound(err) {
-			log.Debug("Resource not found")
+			log.Info("Resource not found")
 			return ReconcileResult{}, nil
 		}
 		return ReconcileResult{ReconcileError: errutils.WithReason(fmt.Errorf("unable to get resource '%s' from cluster: %w", req.NamespacedName.String(), err), cconst.ReasonPlatformClusterInteractionProblem)}, nil
@@ -211,14 +220,7 @@ func (r *GardenerProviderConfigReconciler) reconcile(ctx context.Context, log lo
 				cons[p.GetName()] = pCon
 				continue
 			}
-			if pData.Namespace == "" {
-				pCon.SetStatus(providerv1alpha1.CONDITION_FALSE)
-				pCon.SetReason(cconst.ReasonInternalError)
-				pCon.SetMessage(fmt.Sprintf("Project '%s' does not have an assigned namespace", p.Config.Project))
-				cons[p.GetName()] = pCon
-				continue
-			}
-			p.ProjectNamespace = pData.Namespace
+			p.Project = *pData.DeepCopy()
 
 			// fetch CloudProfile
 			cpName := p.Config.CloudProfile()
@@ -397,6 +399,7 @@ type cachedCloudProfile struct {
 func (r *GardenerProviderConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(strings.ToLower(ControllerName)).
+		// watch ProviderConfig resources on the platform cluster
 		WatchesRawSource(source.Kind(r.PlatformCluster.Cluster().GetCache(), &providerv1alpha1.ProviderConfig{}, handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, ls *providerv1alpha1.ProviderConfig) []ctrl.Request {
 			return []ctrl.Request{testutils.RequestFromObject(ls)}
 		}), ctrlutils.ToTypedPredicate[*providerv1alpha1.ProviderConfig](predicate.And(
@@ -409,7 +412,8 @@ func (r *GardenerProviderConfigReconciler) SetupWithManager(mgr ctrl.Manager) er
 			}),
 			predicate.Or(
 				predicate.GenerationChangedPredicate{},
-				predicate.AnnotationChangedPredicate{},
+				ctrlutils.GotAnnotationPredicate(clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueReconcile),
+				ctrlutils.LostAnnotationPredicate(clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueIgnore),
 			),
 			predicate.Not(
 				ctrlutils.HasAnnotationPredicate(clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueIgnore),

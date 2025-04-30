@@ -27,6 +27,9 @@ type LandscapeStatus struct {
 	// Phase is the current phase of the cluster.
 	Phase LandscapePhase `json:"phase"`
 
+	// APIServer is the API server URL of the Gardener Landscape.
+	APIServer string `json:"apiServer"`
+
 	// Projects lists the available projects.
 	Projects []ProjectData `json:"projects,omitempty"`
 }
@@ -51,7 +54,7 @@ const (
 // +kubebuilder:resource:scope=Cluster,shortName=gpls
 // +kubebuilder:selectablefield:JSONPath=".status.phase"
 // +kubebuilder:printcolumn:JSONPath=".status.phase",name="Phase",type=string
-// +kubebuilder:printcolumn:JSONPath=".status.reason",name="Reason",type=string
+// +kubebuilder:printcolumn:JSONPath=".status.apiServer",name="APIServer",type=string
 // +kubebuilder:metadata:labels="openmcp.cloud/cluster=platform"
 
 type Landscape struct {

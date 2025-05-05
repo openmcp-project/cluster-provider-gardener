@@ -121,9 +121,9 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, log logging.Logger, r
 		rr.ReconcileError = errutils.WithReason(fmt.Errorf("unknown profile '%s'", c.Spec.ClusterProfileRef.Name), cconst.ReasonUnknownProfile)
 		return rr
 	}
-	landscape := r.GetLandscape(profile.Config.LandscapeRef.Name)
+	landscape := r.GetLandscape(profile.ProviderConfig.Spec.LandscapeRef.Name)
 	if landscape == nil {
-		rr.ReconcileError = errutils.WithReason(fmt.Errorf("unknown landscape '%s'", profile.Config.LandscapeRef.Name), cconst.ReasonUnknownLandscape)
+		rr.ReconcileError = errutils.WithReason(fmt.Errorf("unknown landscape '%s'", profile.ProviderConfig.Spec.LandscapeRef.Name), cconst.ReasonUnknownLandscape)
 		return rr
 	}
 

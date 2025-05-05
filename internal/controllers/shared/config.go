@@ -12,7 +12,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
-	"k8s.io/apimachinery/pkg/util/sets"
 	toolscache "k8s.io/client-go/tools/cache"
 
 	clustersv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/clusters/v1alpha1"
@@ -256,49 +255,32 @@ func (rc *RuntimeConfiguration) UnsetLandscape(ctx context.Context, name string)
 	return nil
 }
 
-func (rc *RuntimeConfiguration) SetProfilesForProviderConfiguration(providerConfigurationName string, profiles ...*Profile) {
+func (rc *RuntimeConfiguration) SetProfileForProviderConfiguration(providerConfigName string, profile *Profile) {
 	if rc.profiles == nil {
 		rc.profiles = make(map[string]*Profile)
 	}
-	seenProfileNames := sets.New[string]()
-	for _, profile := range profiles {
-		resName := ProfileK8sName(profile.GetName())
-		seenProfileNames.Insert(resName)
-		if profile.ProviderConfigSource == "" {
-			profile.ProviderConfigSource = providerConfigurationName
-		}
-		rc.profiles[resName] = profile.DeepCopy()
+	pKey := ProfileK8sName(providerConfigName)
+	if profile == nil {
+		delete(rc.profiles, pKey)
+		return
 	}
-	// remove profiles for this provider configuration that have been added previously but are not in the current set
-	for k, v := range rc.profiles {
-		if v.ProviderConfigSource == providerConfigurationName && !seenProfileNames.Has(k) {
-			delete(rc.profiles, k)
-		}
-	}
+	rc.profiles[pKey] = profile.DeepCopy()
 }
 
-func (rc *RuntimeConfiguration) GetProfilesForProviderConfiguration(providerConfigurationName string) map[string]*Profile {
+func (rc *RuntimeConfiguration) GetProfileForProviderConfiguration(providerConfigName string) *Profile {
 	if rc.profiles == nil {
 		return nil
 	}
-	res := map[string]*Profile{}
-	for k, v := range rc.profiles {
-		if v.ProviderConfigSource == providerConfigurationName {
-			res[k] = v.DeepCopy()
-		}
+	pKey := ProfileK8sName(providerConfigName)
+	profile := rc.profiles[pKey]
+	if profile == nil {
+		return nil
 	}
-	return res
+	return profile.DeepCopy()
 }
 
-func (rc *RuntimeConfiguration) UnsetProfilesForProviderConfiguration(providerConfigurationName string) {
-	if rc.profiles == nil {
-		return
-	}
-	for k, v := range rc.profiles {
-		if v.ProviderConfigSource == providerConfigurationName {
-			delete(rc.profiles, k)
-		}
-	}
+func (rc *RuntimeConfiguration) UnsetProfilesForProviderConfiguration(providerConfigName string) {
+	rc.SetProfileForProviderConfiguration(providerConfigName, nil)
 }
 
 type Landscape struct {
@@ -332,8 +314,7 @@ func (l *Landscape) DeepCopy() *Landscape {
 
 type Profile struct {
 	RuntimeData
-	Config               *providerv1alpha1.GardenerConfiguration
-	ProviderConfigSource string
+	ProviderConfig *providerv1alpha1.ProviderConfig
 }
 
 // RuntimeData holds information that has been loaded during runtime.
@@ -376,18 +357,13 @@ func (rd *RuntimeData) DeepCopy() *RuntimeData {
 
 func (p *Profile) DeepCopy() *Profile {
 	return &Profile{
-		RuntimeData:          *p.RuntimeData.DeepCopy(),
-		Config:               p.Config.DeepCopy(),
-		ProviderConfigSource: p.ProviderConfigSource,
+		RuntimeData:    *p.RuntimeData.DeepCopy(),
+		ProviderConfig: p.ProviderConfig.DeepCopy(),
 	}
 }
 
-func (p *Profile) GetName() string {
-	return fmt.Sprintf("%s/%s", p.Config.LandscapeRef.Name, p.Config.Name)
-}
-
-func ProfileK8sName(profileName string) string {
-	return ctrlutils.K8sNameHash(Environment(), ProviderName(), profileName)
+func ProfileK8sName(providerConfigName string) string {
+	return fmt.Sprintf("%s.%s.%s", Environment(), ProviderName(), providerConfigName)
 }
 
 func ShootK8sName(clusterName, clusterNamespace, projectName string) string {

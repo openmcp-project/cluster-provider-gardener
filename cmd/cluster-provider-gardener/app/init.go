@@ -106,7 +106,7 @@ func (o *InitOptions) Run(ctx context.Context) error {
 		}
 		actual := &apiextv1.CustomResourceDefinition{}
 		actual.Name = crd.Name
-		log.Info("creating/updating CRD", "name", crd.Name, "cluster", clusterLabel)
+		log.Info("Creating/updating CRD", "name", crd.Name, "cluster", clusterLabel)
 		_, err := ctrl.CreateOrUpdate(ctx, c, actual, func() error {
 			crd.Spec.DeepCopyInto(&actual.Spec)
 			return nil
@@ -117,6 +117,6 @@ func (o *InitOptions) Run(ctx context.Context) error {
 		return fmt.Errorf("error creating/updating CRDs: %w", errs)
 	}
 
-	log.Info("finished init command")
+	log.Info("Finished init command")
 	return nil
 }

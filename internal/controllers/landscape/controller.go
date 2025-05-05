@@ -151,10 +151,8 @@ func (r *LandscapeReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 		referencingProviderConfigs := sets.New[string]()
 		pcs := r.GetProviderConfigurations()
 		for _, pc := range pcs {
-			for _, cfg := range pc.Spec.Configurations {
-				if cfg.LandscapeRef.Name == rr.Object.Name {
-					referencingProviderConfigs.Insert(pc.Name)
-				}
+			if pc.Spec.LandscapeRef.Name == req.Name {
+				referencingProviderConfigs.Insert(pc.Name)
 			}
 		}
 		if referencingProviderConfigs.Len() > 0 {
@@ -359,10 +357,8 @@ func (r *LandscapeReconciler) reconcile(ctx context.Context, log logging.Logger,
 		referencingProviderConfigs := sets.New[string]()
 		pcs := r.GetProviderConfigurations()
 		for _, pc := range pcs {
-			for _, cfg := range pc.Spec.Configurations {
-				if cfg.LandscapeRef.Name == ls.Name {
-					referencingProviderConfigs.Insert(pc.Name)
-				}
+			if pc.Spec.LandscapeRef.Name == ls.Name {
+				referencingProviderConfigs.Insert(pc.Name)
 			}
 		}
 		if referencingProviderConfigs.Len() > 0 {

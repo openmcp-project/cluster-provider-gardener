@@ -17,9 +17,6 @@ spec:
   scope: Cluster
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.name
-      name: Name
-      type: string
     - jsonPath: .spec.environment
       name: Env
       type: string
@@ -56,10 +53,6 @@ spec:
               environment:
                 description: Environment is the environment in which the ClusterProvider
                   resides.
-                type: string
-              name:
-                description: Name is the name of the profile.
-                minLength: 1
                 type: string
               providerConfigRef:
                 description: ProviderConfigRef is a reference to the provider-specific
@@ -99,14 +92,12 @@ spec:
                 type: array
             required:
             - environment
-            - name
             - providerConfigRef
             - providerRef
             - supportedVersions
             type: object
         type: object
     selectableFields:
-    - jsonPath: .spec.name
     - jsonPath: .spec.environment
     - jsonPath: .spec.providerRef.name
     - jsonPath: .spec.providerConfigRef.name

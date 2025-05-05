@@ -6,10 +6,6 @@ import (
 
 // ClusterProfileSpec defines the desired state of Provider.
 type ClusterProfileSpec struct {
-	// Name is the name of the profile.
-	// +kubebuilder:validation:MinLength=1
-	Name string `json:"name"` // .metadata.name will be a weird hash most likely to avoid collisions
-
 	// Environment is the environment in which the ClusterProvider resides.
 	Environment string `json:"environment"`
 
@@ -35,11 +31,9 @@ type SupportedK8sVersion struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Cluster
 // +kubebuilder:metadata:labels="openmcp.cloud/cluster=onboarding"
-// +kubebuilder:selectablefield:JSONPath=".spec.name"
 // +kubebuilder:selectablefield:JSONPath=".spec.environment"
 // +kubebuilder:selectablefield:JSONPath=".spec.providerRef.name"
 // +kubebuilder:selectablefield:JSONPath=".spec.providerConfigRef.name"
-// +kubebuilder:printcolumn:JSONPath=".spec.name",name="Name",type=string
 // +kubebuilder:printcolumn:JSONPath=".spec.environment",name="Env",type=string
 // +kubebuilder:printcolumn:JSONPath=".spec.providerRef.name",name="Provider",type=string
 // +kubebuilder:printcolumn:JSONPath=".spec.providerConfigRef.name",name="Config",type=string

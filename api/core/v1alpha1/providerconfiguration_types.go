@@ -12,16 +12,6 @@ type ProviderConfigSpec struct {
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="providerRef is immutable"
 	ProviderRef ObjectReference `json:"providerRef"`
 
-	// Configurations is a list of Gardener configurations.
-	Configurations []GardenerConfiguration `json:"configs,omitempty"`
-}
-
-// GardenerConfiguration contains configuration for a Gardener.
-type GardenerConfiguration struct {
-	// Name is the name of this Gardener configuration.
-	// +kubebuilder:validation:MinLength=1
-	Name string `json:"name"`
-
 	// LandscapeRef is a reference to the Landscape resource this configuration belongs to.
 	LandscapeRef ObjectReference `json:"landscapeRef"`
 
@@ -75,17 +65,19 @@ func init() {
 	SchemeBuilder.Register(&ProviderConfig{}, &ProviderConfigList{})
 }
 
-func (gcfg *GardenerConfiguration) CloudProfile() string {
-	if gcfg == nil {
+// CloudProfile returns the name of the Gardener CloudProfile that is referenced in the shoot template.
+// Can only handle cluster-scoped CloudProfiles at the moment.
+func (gpcfg *ProviderConfig) CloudProfile() string {
+	if gpcfg == nil {
 		return ""
 	}
-	if gcfg.ShootTemplate.Spec.CloudProfile != nil {
-		if gcfg.ShootTemplate.Spec.CloudProfile.Kind != "" && gcfg.ShootTemplate.Spec.CloudProfile.Kind != gardenconstants.CloudProfileReferenceKindCloudProfile {
+	if gpcfg.Spec.ShootTemplate.Spec.CloudProfile != nil {
+		if gpcfg.Spec.ShootTemplate.Spec.CloudProfile.Kind != "" && gpcfg.Spec.ShootTemplate.Spec.CloudProfile.Kind != gardenconstants.CloudProfileReferenceKindCloudProfile {
 			return "" // we can only handle standard CloudProfiles at the moment
 		}
-		return gcfg.ShootTemplate.Spec.CloudProfile.Name
-	} else if gcfg.ShootTemplate.Spec.CloudProfileName != nil {
-		return *gcfg.ShootTemplate.Spec.CloudProfileName
+		return gpcfg.Spec.ShootTemplate.Spec.CloudProfile.Name
+	} else if gpcfg.Spec.ShootTemplate.Spec.CloudProfileName != nil {
+		return *gpcfg.Spec.ShootTemplate.Spec.CloudProfileName
 	}
 	return ""
 }

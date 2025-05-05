@@ -20,11 +20,11 @@ import (
 // It tries to avoid invalid changes, such as downgrading the kubernetes version or removing required fields.
 func UpdateShootFields(ctx context.Context, shoot *gardenv1beta1.Shoot, profile *shared.Profile, landscape *shared.Landscape, cluster *clustersv1alpha1.Cluster) error {
 	log := logging.FromContextOrPanic(ctx).WithName("UpdateShootFields")
-	tmpl := profile.Config.ShootTemplate
+	tmpl := profile.ProviderConfig.Spec.ShootTemplate
 
 	// annotations
 	enforcedAnnotations := maputils.Merge(tmpl.Annotations, map[string]string{
-		clustersv1alpha1.ProfileNameAnnotation:                                     profile.GetName(),
+		clustersv1alpha1.ProfileNameAnnotation:                                     profile.ProviderConfig.Name,
 		clustersv1alpha1.EnvironmentAnnotation:                                     shared.Environment(),
 		clustersv1alpha1.ProviderAnnotation:                                        shared.ProviderName(),
 		"shoot.gardener.cloud/cleanup-extended-apis-finalize-grace-period-seconds": "30",

@@ -54,7 +54,7 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req reconcile.Request
 	return ctrlutils.NewStatusUpdaterBuilder[*clustersv1alpha1.Cluster, clustersv1alpha1.ClusterPhase, clustersv1alpha1.ConditionStatus]().
 		WithNestedStruct("CommonStatus").
 		WithFieldOverride(ctrlutils.STATUS_FIELD_PHASE, "Phase").
-		WithPhaseUpdateFunc(func(obj *clustersv1alpha1.Cluster, rr ctrlutils.ReconcileResult[*clustersv1alpha1.Cluster, clustersv1alpha1.ConditionStatus]) (clustersv1alpha1.ClusterPhase, error) {
+		WithPhaseUpdateFunc(func(obj *clustersv1alpha1.Cluster, rr ReconcileResult) (clustersv1alpha1.ClusterPhase, error) {
 			if rr.ReconcileError != nil {
 				if !obj.DeletionTimestamp.IsZero() {
 					return clustersv1alpha1.CLUSTER_PHASE_DELETING_ERROR, nil

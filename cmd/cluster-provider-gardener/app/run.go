@@ -20,6 +20,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/openmcp-project/controller-utils/pkg/logging"
+	"github.com/openmcp-project/controller-utils/pkg/threads"
 
 	// clusterscheme "github.com/openmcp-project/cluster-provider-gardener/api/clusters/install"
 	providerscheme "github.com/openmcp-project/cluster-provider-gardener/api/install"
@@ -256,7 +257,7 @@ func (o *RunOptions) Run(ctx context.Context) error {
 		// the manager stops, so would be fine to enable this option. However,
 		// if you are doing or is intended to do any operation such as perform cleanups
 		// after the manager stops then its usage might be unsafe.
-		LeaderElectionReleaseOnCancel: true,
+		// LeaderElectionReleaseOnCancel: true,
 	})
 	if err != nil {
 		return fmt.Errorf("unable to create manager: %w", err)
@@ -266,9 +267,12 @@ func (o *RunOptions) Run(ctx context.Context) error {
 		return fmt.Errorf("unable to add platform cluster to manager: %w", err)
 	}
 
+	// setup thread manager to deal with the dynamic watches for shoots
+	swMgr := threads.NewThreadManager(logging.NewContext(ctx, o.Log.WithName("ShootWatcher")), nil)
+
 	// setup cluster controllers
 	if slices.Contains(o.Controllers, strings.ToLower(cluster.ControllerName)) {
-		if _, _, _, err := controllers.SetupClusterControllersWithManager(mgr, o.Clusters.Platform, o.Clusters.Onboarding); err != nil {
+		if _, _, _, err := controllers.SetupClusterControllersWithManager(mgr, o.Clusters.Platform, o.Clusters.Onboarding, swMgr); err != nil {
 			return fmt.Errorf("unable to setup cluster controllers: %w", err)
 		}
 	}
@@ -295,6 +299,8 @@ func (o *RunOptions) Run(ctx context.Context) error {
 	}
 
 	setupLog.Info("Starting manager")
+	swMgr.Start()
+	defer swMgr.Stop()
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		return fmt.Errorf("problem running manager: %w", err)
 	}

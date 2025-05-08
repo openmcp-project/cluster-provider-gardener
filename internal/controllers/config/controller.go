@@ -273,6 +273,19 @@ func (r *GardenerProviderConfigReconciler) SetupWithManager(mgr ctrl.Manager) er
 				ctrlutils.HasAnnotationPredicate(clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueIgnore),
 			),
 		)))).
+		// listen to internally triggered reconciliation requests
+		WatchesRawSource(source.TypedChannel(r.ReconcileProviderConfig, handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, pc *providerv1alpha1.ProviderConfig) []ctrl.Request {
+			if pc == nil {
+				return nil
+			}
+			return []ctrl.Request{
+				{
+					NamespacedName: client.ObjectKey{
+						Name: pc.Name,
+					},
+				},
+			}
+		}))).
 		Complete(r)
 }
 

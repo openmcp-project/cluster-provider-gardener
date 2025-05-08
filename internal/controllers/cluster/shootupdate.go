@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"dario.cat/mergo"
-	"github.com/Masterminds/semver"
+	"github.com/Masterminds/semver/v3"
 	maputils "github.com/openmcp-project/controller-utils/pkg/collections/maps"
 	"github.com/openmcp-project/controller-utils/pkg/logging"
 

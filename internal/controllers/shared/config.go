@@ -8,6 +8,8 @@ import (
 
 	"github.com/openmcp-project/controller-utils/pkg/clusters"
 	ctrlutils "github.com/openmcp-project/controller-utils/pkg/controller"
+	"github.com/openmcp-project/controller-utils/pkg/logging"
+	"github.com/openmcp-project/controller-utils/pkg/threads"
 
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -53,8 +55,7 @@ func ProviderName() string {
 }
 
 // RuntimeConfiguration is a struct that holds the loaded ProviderConfigurations, enriched with further information gathered during runtime.
-// For each instance of the ClusterProvider that is running, there should be one instance of this struct.
-// It is important that it is shared between the ProviderConfiguration and the Cluster controllers. The former one will fill it with information that the latter one can use.
+// It is important that the same instance is shared between the different controllers that make up the cluster provider.
 type RuntimeConfiguration struct {
 	Lock *sync.RWMutex
 
@@ -67,18 +68,24 @@ type RuntimeConfiguration struct {
 	// The name of the k8s resource is used as key.
 	profiles map[string]*Profile
 
-	// not modified after creation
-	ShootWatch        chan event.TypedGenericEvent[*gardenv1beta1.Shoot]
-	PlatformCluster   *clusters.Cluster
-	OnboardingCluster *clusters.Cluster
+	// not modified after creation or thread-safe
+	ShootWatchManager       *threads.ThreadManager
+	ShootWatch              chan event.TypedGenericEvent[*gardenv1beta1.Shoot]             // changes on the watched shoots are sent to the Cluster controller via this channel
+	ReconcileLandscape      chan event.TypedGenericEvent[*providerv1alpha1.Landscape]      // sending a Landscape to this channel will trigger a reconciliation of the corresponding resource
+	ReconcileProviderConfig chan event.TypedGenericEvent[*providerv1alpha1.ProviderConfig] // sending a ProviderConfig to this channel will trigger a reconciliation of the corresponding resource
+	PlatformCluster         *clusters.Cluster
+	OnboardingCluster       *clusters.Cluster
 }
 
-func NewRuntimeConfiguration(platform, onboarding *clusters.Cluster) *RuntimeConfiguration {
+func NewRuntimeConfiguration(platform, onboarding *clusters.Cluster, swMgr *threads.ThreadManager) *RuntimeConfiguration {
 	return &RuntimeConfiguration{
-		Lock:              &sync.RWMutex{},
-		ShootWatch:        make(chan event.TypedGenericEvent[*gardenv1beta1.Shoot], 1024),
-		PlatformCluster:   platform,
-		OnboardingCluster: onboarding,
+		Lock:                    &sync.RWMutex{},
+		ShootWatch:              make(chan event.TypedGenericEvent[*gardenv1beta1.Shoot], 1024),
+		ReconcileLandscape:      make(chan event.TypedGenericEvent[*providerv1alpha1.Landscape], 1024),
+		ReconcileProviderConfig: make(chan event.TypedGenericEvent[*providerv1alpha1.ProviderConfig], 1024),
+		ShootWatchManager:       swMgr,
+		PlatformCluster:         platform,
+		OnboardingCluster:       onboarding,
 	}
 }
 
@@ -222,8 +229,15 @@ func (rc *RuntimeConfiguration) SetLandscape(ctx context.Context, ls *Landscape)
 		}); err != nil {
 			return fmt.Errorf("error adding event handler to shoot informer: %w", err)
 		}
-		// this feels really hacky and it hides the error that potentially comes out of Start()
-		go ls.Cluster.Cluster().Start(ctx)
+		// start the watch
+		rc.ShootWatchManager.Run(ctx, ls.Name, ls.Cluster.Cluster().Start, func(ctx context.Context, tr threads.ThreadReturn) {
+			// reconcile the Landscape resource, if the watch ends with an error
+			if tr.Err != nil {
+				log := logging.FromContextOrDiscard(ctx)
+				log.Error(tr.Err, "shoot watch failed, triggering Landscape reconciliation")
+				rc.ReconcileLandscape <- event.TypedGenericEvent[*providerv1alpha1.Landscape]{Object: ls.Resource} // doesn't matter if outdated, we just need the name
+			}
+		})
 	}
 	rc.landscapes[ls.Name] = ls
 	return nil

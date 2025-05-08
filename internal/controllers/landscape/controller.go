@@ -20,6 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -148,29 +149,11 @@ func (r *LandscapeReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 			newPhase = string(lsInt.Resource.Status.Phase)
 		}
 		log.Info("Internal Landscape phase changed, checking for referencing ProviderConfigs", "oldPhase", oldPhase, "newPhase", newPhase)
-		referencingProviderConfigs := sets.New[string]()
 		pcs := r.GetProviderConfigurations()
 		for _, pc := range pcs {
 			if pc.Spec.LandscapeRef.Name == req.Name {
-				referencingProviderConfigs.Insert(pc.Name)
-			}
-		}
-		if referencingProviderConfigs.Len() > 0 {
-			log.Info("Notifying referencing ProviderConfigs due to Landscape phase change", "providerConfigs", strings.Join(sets.List(referencingProviderConfigs), ", "))
-			for pcName := range referencingProviderConfigs {
-				log.Debug("Notifying ProviderConfig", "providerConfig", pcName)
-				pc := pcs[pcName]
-				if pc == nil {
-					log.Error(nil, "unable to find ProviderConfig in internal cache", "providerConfig", pcName)
-					continue
-				}
-				if err := ctrlutils.EnsureAnnotation(ctx, r.PlatformCluster.Client(), pc, clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueReconcile, true); err != nil {
-					if !ctrlutils.IsMetadataEntryAlreadyExistsError(err) {
-						log.Error(err, "error adding reconcile operation annotation to ProviderConfig", "providerConfig", pcName)
-						continue
-					}
-					log.Debug("Operation annotation already exists on ProviderConfig", "providerConfig", pcName)
-				}
+				log.Info("Triggering ProviderConfig reconciliation due to Landscape phase change", "providerConfig", pc.Name, "oldPhase", oldPhase, "newPhase", newPhase)
+				r.ReconcileProviderConfig <- event.TypedGenericEvent[*providerv1alpha1.ProviderConfig]{Object: pc}
 			}
 		}
 	}
@@ -388,6 +371,7 @@ func (r *LandscapeReconciler) reconcile(ctx context.Context, log logging.Logger,
 func (r *LandscapeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(strings.ToLower(ControllerName)).
+		// watch Landscape resources on the platform cluster
 		WatchesRawSource(source.Kind(r.PlatformCluster.Cluster().GetCache(), &providerv1alpha1.Landscape{}, handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, ls *providerv1alpha1.Landscape) []ctrl.Request {
 			return []ctrl.Request{testutils.RequestFromObject(ls)}
 		}), ctrlutils.ToTypedPredicate[*providerv1alpha1.Landscape](predicate.And(
@@ -400,5 +384,18 @@ func (r *LandscapeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				ctrlutils.HasAnnotationPredicate(clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueIgnore),
 			),
 		)))).
+		// listen to internally triggered reconciliation requests
+		WatchesRawSource(source.TypedChannel(r.ReconcileLandscape, handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, ls *providerv1alpha1.Landscape) []ctrl.Request {
+			if ls == nil {
+				return nil
+			}
+			return []ctrl.Request{
+				{
+					NamespacedName: client.ObjectKey{
+						Name: ls.Name,
+					},
+				},
+			}
+		}))).
 		Complete(r)
 }

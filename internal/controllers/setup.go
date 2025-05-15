@@ -16,8 +16,8 @@ import (
 
 // SetupClusterControllersWithManager is a helper function that groups the controllers that are necessary to reconcile Cluster resources.
 // It initializes the Landscape, ProviderConfig, and Cluster controllers and registers them with the provided manager.
-func SetupClusterControllersWithManager(mgr ctrl.Manager, platform, onboarding *clusters.Cluster, swMgr *threads.ThreadManager) (*landscape.LandscapeReconciler, *config.GardenerProviderConfigReconciler, *cluster.ClusterReconciler, error) {
-	rc := shared.NewRuntimeConfiguration(platform, onboarding, swMgr)
+func SetupClusterControllersWithManager(mgr ctrl.Manager, platform *clusters.Cluster, swMgr *threads.ThreadManager) (*landscape.LandscapeReconciler, *config.GardenerProviderConfigReconciler, *cluster.ClusterReconciler, error) {
+	rc := shared.NewRuntimeConfiguration(platform, swMgr)
 	lsRec := landscape.NewLandscapeReconciler(rc)
 	if err := lsRec.SetupWithManager(mgr); err != nil {
 		return lsRec, nil, nil, fmt.Errorf("error registering Landscape controller: %w", err)

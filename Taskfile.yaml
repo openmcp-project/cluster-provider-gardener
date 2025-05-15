@@ -9,9 +9,9 @@ includes:
     - build:img:build:bin:gen:code
     vars:
       NESTED_MODULES: api
-      API_DIRS: '{{.ROOT_DIR}}/api/clusters/v1alpha1/... {{.ROOT_DIR}}/api/core/v1alpha1/...'
+      API_DIRS: '{{.ROOT_DIR}}/api/core/v1alpha1/...'
       MANIFEST_OUT: '{{.ROOT_DIR}}/api/crds/manifests'
-      CODE_DIRS: '{{.ROOT_DIR}}/cmd/... {{.ROOT_DIR}}/internal/... {{.ROOT_DIR}}/api/clusters/...'
+      CODE_DIRS: '{{.ROOT_DIR}}/cmd/... {{.ROOT_DIR}}/internal/... {{.ROOT_DIR}}/api/core/...'
       COMPONENTS: 'cluster-provider-gardener'
       REPO_URL: 'https://github.com/openmcp-project/cluster-provider-gardener'
   common: # imported a second time so that overwriting task definitions can call the overwritten task with a 'c:' prefix
@@ -21,9 +21,9 @@ includes:
     - c
     vars:
       NESTED_MODULES: api
-      API_DIRS: '{{.ROOT_DIR}}/api/clusters/v1alpha1/... {{.ROOT_DIR}}/api/core/v1alpha1/...'
+      API_DIRS: '{{.ROOT_DIR}}/api/core/v1alpha1/...'
       MANIFEST_OUT: '{{.ROOT_DIR}}/api/crds/manifests'
-      CODE_DIRS: '{{.ROOT_DIR}}/cmd/... {{.ROOT_DIR}}/internal/... {{.ROOT_DIR}}/api/clusters/...'
+      CODE_DIRS: '{{.ROOT_DIR}}/cmd/... {{.ROOT_DIR}}/internal/... {{.ROOT_DIR}}/api/core/...'
       COMPONENTS: 'cluster-provider-gardener'
       REPO_URL: 'https://github.com/openmcp-project/cluster-provider-gardener'
 

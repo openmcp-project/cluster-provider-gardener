@@ -6,15 +6,78 @@ import (
 
 	"dario.cat/mergo"
 	"github.com/Masterminds/semver/v3"
+
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	maputils "github.com/openmcp-project/controller-utils/pkg/collections/maps"
+	errutils "github.com/openmcp-project/controller-utils/pkg/errors"
 	"github.com/openmcp-project/controller-utils/pkg/logging"
 
-	clustersv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/clusters/v1alpha1"
+	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
+
 	providerv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
+	cconst "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1/constants"
 	gardenv1beta1 "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1"
 	gardenconstants "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/shared"
 )
+
+func GetShoot(ctx context.Context, log logging.Logger, landscape *shared.Landscape, profile *shared.Profile, c *clustersv1alpha1.Cluster) (*gardenv1beta1.Shoot, errutils.ReasonableError) {
+	// check if shoot already exists
+	shoot := &gardenv1beta1.Shoot{}
+	exists := false
+	// first, look into the status of the Cluster resource
+	if c.Status.ProviderStatus != nil {
+		cs := &providerv1alpha1.ClusterStatus{}
+		if err := c.Status.GetProviderStatus(cs); err != nil {
+			return nil, errutils.WithReason(fmt.Errorf("error unmarshalling provider status: %w", err), cconst.ReasonInternalError)
+		}
+		log.Debug("Provider status found, checking for shoot manifest")
+		if cs.Shoot != nil {
+			log.Debug("Found shoot in provider status", "shootName", cs.Shoot.GetName(), "shootNamespace", cs.Shoot.GetNamespace())
+			shoot.SetName(cs.Shoot.GetName())
+			shoot.SetNamespace(cs.Shoot.GetNamespace())
+			if err := landscape.Cluster.Client().Get(ctx, client.ObjectKeyFromObject(shoot), shoot); err != nil {
+				if apierrors.IsNotFound(err) {
+					log.Info("Found shoot reference in provider status, but shoot does not exist", "shootName", shoot.Name, "shootNamespace", shoot.Namespace)
+				} else {
+					return nil, errutils.WithReason(fmt.Errorf("error getting shoot '%s' in namespace '%s': %w", shoot.Name, shoot.Namespace, err), cconst.ReasonGardenClusterInteractionProblem)
+				}
+			} else {
+				log.Info("Found shoot from reference in provider status", "shootName", shoot.Name, "shootNamespace", shoot.Namespace)
+				exists = true
+			}
+		} else {
+			log.Debug("No shoot found in provider status")
+		}
+	}
+	if shoot.Name == "" {
+		// search for shoot with fitting labels in project
+		log.Debug("Shoot name and namespace could not be recovered from provider status, checking shoots in project namespace for fitting cluster reference labels", "projectNamespace", profile.Project.Namespace)
+		shoots := &gardenv1beta1.ShootList{}
+		if err := landscape.Cluster.Client().List(ctx, shoots, client.InNamespace(profile.Project.Namespace), client.MatchingLabels{
+			providerv1alpha1.ClusterReferenceLabelName:      c.Name,
+			providerv1alpha1.ClusterReferenceLabelNamespace: c.Namespace,
+		}); err != nil {
+			return nil, errutils.WithReason(fmt.Errorf("error listing shoots in namespace '%s': %w", profile.Project.Namespace, err), cconst.ReasonGardenClusterInteractionProblem)
+		}
+		if len(shoots.Items) > 1 {
+			return nil, errutils.WithReason(fmt.Errorf("found multiple shoots referencing cluster '%s'/'%s' in namespace '%s', there should never be more than one", c.Namespace, c.Name, profile.Project.Namespace), cconst.ReasonInternalError)
+		}
+		if len(shoots.Items) == 1 {
+			shoot = &shoots.Items[0]
+			log.Info("Found shoot from cluster reference labels", "shootName", shoot.Name, "shootNamespace", shoot.Namespace)
+			exists = true
+		} else {
+			log.Info("No shoot found from cluster reference labels", "namespace", profile.Project.Namespace)
+		}
+	}
+	if !exists {
+		shoot = nil
+	}
+	return shoot, nil
+}
 
 // UpdateShootFields updates the shoot with the values from the profile.
 // It tries to avoid invalid changes, such as downgrading the kubernetes version or removing required fields.

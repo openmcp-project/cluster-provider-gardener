@@ -59,7 +59,7 @@ spec:
               project:
                 description: |-
                   Project is the Gardener project which should be used to create shoot clusters in it.
-                  The provided kubeconfig must have priviliges for this project.
+                  The provided kubeconfig must have privileges for this project.
                 minLength: 1
                 type: string
               providerRef:

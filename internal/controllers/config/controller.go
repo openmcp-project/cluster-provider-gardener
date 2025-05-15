@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"strings"
 
 	"github.com/Masterminds/semver/v3"
 
@@ -20,9 +19,10 @@ import (
 	ctrlutils "github.com/openmcp-project/controller-utils/pkg/controller"
 	errutils "github.com/openmcp-project/controller-utils/pkg/errors"
 	"github.com/openmcp-project/controller-utils/pkg/logging"
-	testutils "github.com/openmcp-project/controller-utils/pkg/testing"
 
-	clustersv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/clusters/v1alpha1"
+	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
+	clusterconst "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1/constants"
+
 	providerv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
 	cconst "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1/constants"
 	gardenv1beta1 "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1"
@@ -52,9 +52,9 @@ func (r *GardenerProviderConfigReconciler) Reconcile(ctx context.Context, req re
 	log.Info("Starting reconcile")
 	r.Lock.Lock()
 	defer r.Lock.Unlock()
-	rr, profile := r.reconcile(ctx, log, req)
+	rr, profile := r.reconcile(ctx, req)
 	// internal representation update
-	if profile == nil && rr.ReconcileError != nil && rr.ReconcileError.Reason() == cconst.ReasonPlatformClusterInteractionProblem {
+	if profile == nil && rr.ReconcileError != nil && rr.ReconcileError.Reason() == clusterconst.ReasonPlatformClusterInteractionProblem {
 		// there was a problem communicating with the platform cluster which prevents us from determining the current state
 	} else {
 		if profile != nil {
@@ -84,7 +84,9 @@ func (r *GardenerProviderConfigReconciler) Reconcile(ctx context.Context, req re
 		UpdateStatus(ctx, r.PlatformCluster.Client(), rr)
 }
 
-func (r *GardenerProviderConfigReconciler) reconcile(ctx context.Context, log logging.Logger, req reconcile.Request) (ReconcileResult, *shared.Profile) {
+func (r *GardenerProviderConfigReconciler) reconcile(ctx context.Context, req reconcile.Request) (ReconcileResult, *shared.Profile) {
+	log := logging.FromContextOrPanic(ctx)
+
 	// get ProviderConfig resource
 	pc := &providerv1alpha1.ProviderConfig{}
 	if err := r.PlatformCluster.Client().Get(ctx, req.NamespacedName, pc); err != nil {
@@ -92,7 +94,7 @@ func (r *GardenerProviderConfigReconciler) reconcile(ctx context.Context, log lo
 			log.Info("Resource not found")
 			return ReconcileResult{}, nil
 		}
-		return ReconcileResult{ReconcileError: errutils.WithReason(fmt.Errorf("unable to get resource '%s' from cluster: %w", req.NamespacedName.String(), err), cconst.ReasonPlatformClusterInteractionProblem)}, nil
+		return ReconcileResult{ReconcileError: errutils.WithReason(fmt.Errorf("unable to get resource '%s' from cluster: %w", req.NamespacedName.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)}, nil
 	}
 
 	// check provider name
@@ -112,11 +114,27 @@ func (r *GardenerProviderConfigReconciler) reconcile(ctx context.Context, log lo
 			case clustersv1alpha1.OperationAnnotationValueReconcile:
 				log.Debug("Removing reconcile operation annotation from resource")
 				if err := ctrlutils.EnsureAnnotation(ctx, r.PlatformCluster.Client(), pc, clustersv1alpha1.OperationAnnotation, "", true, ctrlutils.DELETE); err != nil {
-					return ReconcileResult{ReconcileError: errutils.WithReason(fmt.Errorf("error removing operation annotation: %w", err), cconst.ReasonPlatformClusterInteractionProblem)}, nil
+					return ReconcileResult{ReconcileError: errutils.WithReason(fmt.Errorf("error removing operation annotation: %w", err), clusterconst.ReasonPlatformClusterInteractionProblem)}, nil
 				}
 			}
 		}
 	}
+
+	inDeletion := pc.DeletionTimestamp != nil
+	var rr ReconcileResult
+	var p *shared.Profile
+	if !inDeletion {
+		rr, p = r.handleCreateOrUpdate(ctx, req, pc)
+	} else {
+		rr = r.handleDelete(ctx, req, pc)
+	}
+
+	return rr, p
+}
+
+func (r *GardenerProviderConfigReconciler) handleCreateOrUpdate(ctx context.Context, req reconcile.Request, pc *providerv1alpha1.ProviderConfig) (ReconcileResult, *shared.Profile) {
+	log := logging.FromContextOrPanic(ctx)
+	log.Info("Creating/updating resource")
 
 	rr := ReconcileResult{
 		Object:    pc,
@@ -126,137 +144,132 @@ func (r *GardenerProviderConfigReconciler) reconcile(ctx context.Context, log lo
 		ProviderConfig: pc,
 	}
 
-	inDeletion := pc.DeletionTimestamp != nil
-	if !inDeletion {
-
-		// CREATE/UPDATE
-		log.Info("Creating/updating resource")
-
-		// ensure finalizer
-		if controllerutil.AddFinalizer(pc, providerv1alpha1.ProviderConfigFinalizer) {
-			log.Info("Adding finalizer")
-			if err := r.PlatformCluster.Client().Patch(ctx, pc, client.MergeFrom(rr.OldObject)); err != nil {
-				rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.NamespacedName.String(), err), cconst.ReasonPlatformClusterInteractionProblem)
-				return rr, nil
-			}
-		}
-
-		// check if Landscape is known
-		ls := r.GetLandscape(pc.Spec.LandscapeRef.Name)
-		if ls == nil {
-			rr.ReconcileError = errutils.WithReason(fmt.Errorf("Landscape '%s' not found", pc.Spec.LandscapeRef.Name), cconst.ReasonUnknownLandscape)
+	// ensure finalizer
+	if controllerutil.AddFinalizer(pc, providerv1alpha1.ProviderConfigFinalizer) {
+		log.Info("Adding finalizer")
+		if err := r.PlatformCluster.Client().Patch(ctx, pc, client.MergeFrom(rr.OldObject)); err != nil {
+			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.NamespacedName.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
 			return rr, nil
 		}
+	}
 
-		// check if Project is known for Landscape
-		var pData *providerv1alpha1.ProjectData
-		for _, project := range ls.Resource.Status.Projects {
-			if project.Name == pc.Spec.Project {
-				pData = &project
-				break
-			}
+	// check if Landscape is known
+	ls := r.GetLandscape(pc.Spec.LandscapeRef.Name)
+	if ls == nil {
+		rr.ReconcileError = errutils.WithReason(fmt.Errorf("Landscape '%s' not found", pc.Spec.LandscapeRef.Name), cconst.ReasonUnknownLandscape)
+		return rr, nil
+	}
+
+	// check if Project is known for Landscape
+	var pData *providerv1alpha1.ProjectData
+	for _, project := range ls.Resource.Status.Projects {
+		if project.Name == pc.Spec.Project {
+			pData = &project
+			break
 		}
-		if pData == nil {
-			rr.ReconcileError = errutils.WithReason(fmt.Errorf("Landscape '%s' can not manage the project '%s'", pc.Spec.LandscapeRef.Name, pc.Spec.Project), cconst.ReasonConfigurationProblem)
+	}
+	if pData == nil {
+		rr.ReconcileError = errutils.WithReason(fmt.Errorf("Landscape '%s' can not manage the project '%s'", pc.Spec.LandscapeRef.Name, pc.Spec.Project), cconst.ReasonConfigurationProblem)
+	}
+	p.Project = *pData.DeepCopy()
+
+	// fetch CloudProfile
+	p.SupportedK8sVersions = []shared.K8sVersion{}
+	cpName := pc.CloudProfile()
+	if cpName == "" {
+		rr.ReconcileError = errutils.WithReason(fmt.Errorf("Unable to extract CloudProfile name from ShootTemplate"), cconst.ReasonConfigurationProblem)
+		return rr, nil
+	}
+	cp := &gardenv1beta1.CloudProfile{}
+	if err := ls.Cluster.Client().Get(ctx, ctrlutils.ObjectKey(cpName), cp); err != nil {
+		if apierrors.IsNotFound(err) {
+			rr.ReconcileError = errutils.WithReason(fmt.Errorf("Gardener landscape '%s' does not have a CloudProfile '%s'", pc.Spec.LandscapeRef.Name, cpName), cconst.ReasonUnknownCloudProfile)
+		} else {
+			rr.ReconcileError = errutils.WithReason(fmt.Errorf("Error while fetching CloudProfile '%s' from landscape '%s': %v", cpName, pc.Spec.LandscapeRef.Name, err), cconst.ReasonGardenClusterInteractionProblem)
 		}
-		p.Project = *pData.DeepCopy()
+		return rr, nil
+	}
 
-		// fetch CloudProfile
-		p.SupportedK8sVersions = []shared.K8sVersion{}
-		cpName := pc.CloudProfile()
-		if cpName == "" {
-			rr.ReconcileError = errutils.WithReason(fmt.Errorf("Unable to extract CloudProfile name from ShootTemplate"), cconst.ReasonConfigurationProblem)
-			return rr, nil
+	// extract supported k8s versions
+	for _, version := range cp.Spec.Kubernetes.Versions {
+		if version.Classification != nil && (*version.Classification == gardenv1beta1.ClassificationSupported || *version.Classification == gardenv1beta1.ClassificationDeprecated) {
+			p.SupportedK8sVersions = append(p.SupportedK8sVersions, shared.K8sVersion{
+				Version:    version.Version,
+				Deprecated: *version.Classification == gardenv1beta1.ClassificationDeprecated,
+			})
 		}
-		cp := &gardenv1beta1.CloudProfile{}
-		if err := ls.Cluster.Client().Get(ctx, ctrlutils.ObjectKey(cpName), cp); err != nil {
-			if apierrors.IsNotFound(err) {
-				rr.ReconcileError = errutils.WithReason(fmt.Errorf("Gardener landscape '%s' does not have a CloudProfile '%s'", pc.Spec.LandscapeRef.Name, cpName), cconst.ReasonUnknownCloudProfile)
-			} else {
-				rr.ReconcileError = errutils.WithReason(fmt.Errorf("Error while fetching CloudProfile '%s' from landscape '%s': %v", cpName, pc.Spec.LandscapeRef.Name, err), cconst.ReasonGardenClusterInteractionProblem)
-			}
-			return rr, nil
+	}
+
+	slices.SortStableFunc(p.SupportedK8sVersions, func(a, b shared.K8sVersion) int {
+		aParsed, err := semver.NewVersion(a.Version)
+		if err != nil {
+			return 0
 		}
-
-		// extract supported k8s versions
-		for _, version := range cp.Spec.Kubernetes.Versions {
-			if version.Classification != nil && (*version.Classification == gardenv1beta1.ClassificationSupported || *version.Classification == gardenv1beta1.ClassificationDeprecated) {
-				p.SupportedK8sVersions = append(p.SupportedK8sVersions, shared.K8sVersion{
-					Version:    version.Version,
-					Deprecated: *version.Classification == gardenv1beta1.ClassificationDeprecated,
-				})
-			}
+		bParsed, err := semver.NewVersion(b.Version)
+		if err != nil {
+			return 0
 		}
+		return aParsed.Compare(bParsed) * (-1) // we want the newest version on the top
+	})
 
-		slices.SortStableFunc(p.SupportedK8sVersions, func(a, b shared.K8sVersion) int {
-			aParsed, err := semver.NewVersion(a.Version)
-			if err != nil {
-				return 0
-			}
-			bParsed, err := semver.NewVersion(b.Version)
-			if err != nil {
-				return 0
-			}
-			return aParsed.Compare(bParsed) * (-1) // we want the newest version on the top
-		})
-
-		actual := &clustersv1alpha1.ClusterProfile{}
-		actual.SetName(shared.ProfileK8sName(pc.Name))
-		log.Info("Creating/updating ClusterProfile", "profileName", actual.Name)
-		if _, err := ctrl.CreateOrUpdate(ctx, r.OnboardingCluster.Client(), actual, func() error {
-			actual.Spec.ProviderRef.Name = shared.ProviderName()
-			actual.Spec.ProviderConfigRef.Name = pc.Name
-			actual.Spec.Environment = shared.Environment()
-			actual.Spec.SupportedVersions = make([]clustersv1alpha1.SupportedK8sVersion, len(p.SupportedK8sVersions))
-			for i, v := range p.SupportedK8sVersions {
-				actual.Spec.SupportedVersions[i] = *v.ToResourceRepresentation()
-			}
-			return nil
-		}); err != nil {
-			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error creating/updating ClusterProfile '%s' on onboarding cluster: %w", actual.Name, err), cconst.ReasonOnboardingClusterInteractionProblem)
-			return rr, nil
+	actual := &clustersv1alpha1.ClusterProfile{}
+	actual.SetName(shared.ProfileK8sName(pc.Name))
+	log.Info("Creating/updating ClusterProfile", "profileName", actual.Name)
+	if _, err := ctrl.CreateOrUpdate(ctx, r.PlatformCluster.Client(), actual, func() error {
+		actual.Spec.ProviderRef.Name = shared.ProviderName()
+		actual.Spec.ProviderConfigRef.Name = pc.Name
+		actual.Spec.SupportedVersions = make([]clustersv1alpha1.SupportedK8sVersion, len(p.SupportedK8sVersions))
+		for i, v := range p.SupportedK8sVersions {
+			actual.Spec.SupportedVersions[i] = *v.ToResourceRepresentation()
 		}
-
-	} else {
-
-		// DELETE
-		log.Info("Deleting resource")
-
-		// delete profiles
-		cp := &clustersv1alpha1.ClusterProfile{}
-		cp.SetName(shared.ProfileK8sName(pc.Name))
-		log.Info("Deleting ClusterProfile", "profileName", cp.Name)
-		if err := r.OnboardingCluster.Client().Delete(ctx, cp); err != nil {
-			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error deleting profiles: %w", err), cconst.ReasonOnboardingClusterInteractionProblem)
-			return rr, nil
-		}
-		log.Debug("Profile deleted", "profileName", cp.Name)
-
-		// remove finalizer
-		if controllerutil.RemoveFinalizer(pc, providerv1alpha1.ProviderConfigFinalizer) {
-			log.Info("Removing finalizer")
-			if err := r.PlatformCluster.Client().Patch(ctx, pc, client.MergeFrom(rr.OldObject)); err != nil {
-				rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.NamespacedName.String(), err), cconst.ReasonPlatformClusterInteractionProblem)
-				return rr, nil
-			}
-		}
-		rr.Object = nil // this prevents the controller from trying to update an already deleted resource
-		p = nil
-
+		return nil
+	}); err != nil {
+		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error creating/updating ClusterProfile '%s' on onboarding cluster: %w", actual.Name, err), clusterconst.ReasonPlatformClusterInteractionProblem)
+		return rr, nil
 	}
 
 	return rr, p
+}
+
+func (r *GardenerProviderConfigReconciler) handleDelete(ctx context.Context, req reconcile.Request, pc *providerv1alpha1.ProviderConfig) ReconcileResult {
+	log := logging.FromContextOrPanic(ctx)
+	log.Info("Deleting resource")
+
+	rr := ReconcileResult{
+		Object:    pc,
+		OldObject: pc.DeepCopy(),
+	}
+
+	// delete profiles
+	cp := &clustersv1alpha1.ClusterProfile{}
+	cp.SetName(shared.ProfileK8sName(pc.Name))
+	log.Info("Deleting ClusterProfile", "profileName", cp.Name)
+	if err := r.PlatformCluster.Client().Delete(ctx, cp); err != nil {
+		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error deleting profiles: %w", err), clusterconst.ReasonPlatformClusterInteractionProblem)
+		return rr
+	}
+	log.Debug("Profile deleted", "profileName", cp.Name)
+
+	// remove finalizer
+	if controllerutil.RemoveFinalizer(pc, providerv1alpha1.ProviderConfigFinalizer) {
+		log.Info("Removing finalizer")
+		if err := r.PlatformCluster.Client().Patch(ctx, pc, client.MergeFrom(rr.OldObject)); err != nil {
+			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.NamespacedName.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
+			return rr
+		}
+	}
+	rr.Object = nil // this prevents the controller from trying to update an already deleted resource
+
+	return rr
 }
 
 // SetupWithManager sets up the controller with the Manager.
 // Uses WatchesRawSource() instead of For() because it doesn't watch the primary cluster of the manager.
 func (r *GardenerProviderConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		Named(strings.ToLower(ControllerName)).
 		// watch ProviderConfig resources on the platform cluster
-		WatchesRawSource(source.Kind(r.PlatformCluster.Cluster().GetCache(), &providerv1alpha1.ProviderConfig{}, handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, ls *providerv1alpha1.ProviderConfig) []ctrl.Request {
-			return []ctrl.Request{testutils.RequestFromObject(ls)}
-		}), ctrlutils.ToTypedPredicate[*providerv1alpha1.ProviderConfig](predicate.And(
+		For(&providerv1alpha1.ProviderConfig{}).
+		WithEventFilter(predicate.And(
 			predicate.NewPredicateFuncs(func(obj client.Object) bool {
 				pc, ok := obj.(*providerv1alpha1.ProviderConfig)
 				if !ok {
@@ -266,13 +279,14 @@ func (r *GardenerProviderConfigReconciler) SetupWithManager(mgr ctrl.Manager) er
 			}),
 			predicate.Or(
 				predicate.GenerationChangedPredicate{},
+				ctrlutils.DeletionTimestampChangedPredicate{},
 				ctrlutils.GotAnnotationPredicate(clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueReconcile),
 				ctrlutils.LostAnnotationPredicate(clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueIgnore),
 			),
 			predicate.Not(
 				ctrlutils.HasAnnotationPredicate(clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueIgnore),
 			),
-		)))).
+		)).
 		// listen to internally triggered reconciliation requests
 		WatchesRawSource(source.TypedChannel(r.ReconcileProviderConfig, handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, pc *providerv1alpha1.ProviderConfig) []ctrl.Request {
 			if pc == nil {
@@ -287,12 +301,4 @@ func (r *GardenerProviderConfigReconciler) SetupWithManager(mgr ctrl.Manager) er
 			}
 		}))).
 		Complete(r)
-}
-
-func mapValues[K comparable, V any](m map[K]V) []V {
-	res := make([]V, 0, len(m))
-	for _, v := range m {
-		res = append(res, v)
-	}
-	return res
 }

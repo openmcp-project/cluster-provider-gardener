@@ -31,9 +31,10 @@ import (
 	ctrlutils "github.com/openmcp-project/controller-utils/pkg/controller"
 	errutils "github.com/openmcp-project/controller-utils/pkg/errors"
 	"github.com/openmcp-project/controller-utils/pkg/logging"
-	testutils "github.com/openmcp-project/controller-utils/pkg/testing"
 
-	clustersv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/clusters/v1alpha1"
+	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
+	clusterconst "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1/constants"
+
 	providerv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
 	cconst "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1/constants"
 	gardenv1beta1 "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1"
@@ -70,14 +71,14 @@ func (r *LandscapeReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 	log.Info("Starting reconcile")
 	r.Lock.Lock()
 	defer r.Lock.Unlock()
-	rr, lsInt := r.reconcile(ctx, log, req)
+	rr, lsInt := r.reconcile(ctx, req)
 
 	apiServer := "<unknown>"
 	if lsInt != nil && lsInt.Cluster != nil && lsInt.Cluster.HasRESTConfig() {
 		apiServer = lsInt.Cluster.APIServerEndpoint()
 	}
 	oldLsInt := r.GetLandscape(req.Name)
-	if lsInt == nil && rr.ReconcileError != nil && rr.ReconcileError.Reason() == cconst.ReasonPlatformClusterInteractionProblem {
+	if lsInt == nil && rr.ReconcileError != nil && rr.ReconcileError.Reason() == clusterconst.ReasonPlatformClusterInteractionProblem {
 		// there was a problem communicating with the platform cluster which prevents us from determining the state of the Landscape
 		// don't update the internal representation of the Landscape
 	} else {
@@ -102,28 +103,7 @@ func (r *LandscapeReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 	res, err := ctrlutils.NewStatusUpdaterBuilder[*providerv1alpha1.Landscape, providerv1alpha1.LandscapePhase, providerv1alpha1.ConditionStatus]().
 		WithNestedStruct("CommonStatus").
 		WithFieldOverride(ctrlutils.STATUS_FIELD_PHASE, "Phase").
-		WithPhaseUpdateFunc(func(obj *providerv1alpha1.Landscape, rr ctrlutils.ReconcileResult[*providerv1alpha1.Landscape, providerv1alpha1.ConditionStatus]) (providerv1alpha1.LandscapePhase, error) {
-			if rr.ReconcileError != nil {
-				return providerv1alpha1.LANDSCAPE_PHASE_UNAVAILABLE, nil
-			}
-			trueCount := 0
-			falseCount := 0
-			for _, con := range rr.Conditions {
-				if con.GetStatus() == providerv1alpha1.CONDITION_TRUE {
-					trueCount++
-				} else {
-					falseCount++
-				}
-			}
-			if trueCount > 0 && falseCount == 0 {
-				return providerv1alpha1.LANDSCAPE_PHASE_AVAILABLE, nil
-			} else if trueCount > 0 && falseCount > 0 {
-				return providerv1alpha1.LANDSCAPE_PHASE_PARTIALLY_AVAILABLE, nil
-			} else if trueCount == 0 && falseCount > 0 {
-				return providerv1alpha1.LANDSCAPE_PHASE_UNAVAILABLE, nil
-			}
-			return providerv1alpha1.LANDSCAPE_PHASE_AVAILABLE, nil
-		}).
+		WithPhaseUpdateFunc(landscapePhaseUpdate).
 		WithConditionUpdater(func() conditions.Condition[providerv1alpha1.ConditionStatus] {
 			return &providerv1alpha1.Condition{}
 		}, true).
@@ -161,11 +141,8 @@ func (r *LandscapeReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 	return res, err
 }
 
-func (r *LandscapeReconciler) reconcile(ctx context.Context, log logging.Logger, req reconcile.Request) (ReconcileResult, *shared.Landscape) {
-	// build internal Landscape object
-	lsInt := &shared.Landscape{
-		Name: req.Name,
-	}
+func (r *LandscapeReconciler) reconcile(ctx context.Context, req reconcile.Request) (ReconcileResult, *shared.Landscape) {
+	log := logging.FromContextOrPanic(ctx)
 
 	// get Landscape resource
 	ls := &providerv1alpha1.Landscape{}
@@ -174,7 +151,7 @@ func (r *LandscapeReconciler) reconcile(ctx context.Context, log logging.Logger,
 			log.Info("Resource not found")
 			return ReconcileResult{}, nil
 		}
-		return ReconcileResult{ReconcileError: errutils.WithReason(fmt.Errorf("unable to get resource '%s' from cluster: %w", req.NamespacedName.String(), err), cconst.ReasonPlatformClusterInteractionProblem)}, nil
+		return ReconcileResult{ReconcileError: errutils.WithReason(fmt.Errorf("unable to get resource '%s' from cluster: %w", req.NamespacedName.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)}, nil
 	}
 
 	// handle operation annotation
@@ -188,202 +165,250 @@ func (r *LandscapeReconciler) reconcile(ctx context.Context, log logging.Logger,
 			case clustersv1alpha1.OperationAnnotationValueReconcile:
 				log.Debug("Removing reconcile operation annotation from resource")
 				if err := ctrlutils.EnsureAnnotation(ctx, r.PlatformCluster.Client(), ls, clustersv1alpha1.OperationAnnotation, "", true, ctrlutils.DELETE); err != nil {
-					return ReconcileResult{ReconcileError: errutils.WithReason(fmt.Errorf("error removing operation annotation: %w", err), cconst.ReasonPlatformClusterInteractionProblem)}, nil
+					return ReconcileResult{ReconcileError: errutils.WithReason(fmt.Errorf("error removing operation annotation: %w", err), clusterconst.ReasonPlatformClusterInteractionProblem)}, nil
 				}
 			}
 		}
 	}
+
+	inDeletion := ls.DeletionTimestamp != nil
+	var rr ReconcileResult
+	var lsInt *shared.Landscape
+	if !inDeletion {
+		rr, lsInt = r.handleCreateOrUpdate(ctx, req, ls)
+	} else {
+		rr, lsInt = r.handleDelete(ctx, req, ls)
+	}
+
+	return rr, lsInt
+}
+
+func (r *LandscapeReconciler) handleCreateOrUpdate(ctx context.Context, req reconcile.Request, ls *providerv1alpha1.Landscape) (ReconcileResult, *shared.Landscape) {
+	log := logging.FromContextOrPanic(ctx)
+	log.Info("Creating/updating resource")
 
 	rr := ReconcileResult{
 		Object:    ls,
 		OldObject: ls.DeepCopy(),
 	}
+	// build internal Landscape object
+	lsInt := &shared.Landscape{
+		Name: req.Name,
+	}
 
-	inDeletion := ls.DeletionTimestamp != nil
-	if !inDeletion {
-		// CREATE/UPDATE
-		log.Info("Creating/updating resource")
-
-		// ensure finalizer
-		if controllerutil.AddFinalizer(ls, providerv1alpha1.LandscapeFinalizer) {
-			log.Info("Adding finalizer")
-			if err := r.PlatformCluster.Client().Patch(ctx, ls, client.MergeFrom(rr.OldObject)); err != nil {
-				rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.NamespacedName.String(), err), cconst.ReasonPlatformClusterInteractionProblem)
-				return rr, nil
-			}
+	// ensure finalizer
+	if controllerutil.AddFinalizer(ls, providerv1alpha1.LandscapeFinalizer) {
+		log.Info("Adding finalizer")
+		if err := r.PlatformCluster.Client().Patch(ctx, ls, client.MergeFrom(rr.OldObject)); err != nil {
+			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.NamespacedName.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
+			return rr, nil
 		}
+	}
 
-		// load Garden cluster kubeconfig
-		var restCfg *rest.Config
-		if ls.Spec.Access.Inline != "" {
-			log.Debug("Garden cluster access via inline kubeconfig")
-			var err error
-			restCfg, err = clientcmd.RESTConfigFromKubeConfig([]byte(ls.Spec.Access.Inline))
-			if err != nil {
-				rr.ReconcileError = errutils.WithReason(fmt.Errorf("error loading inline kubeconfig for Landscape '%s': %w", ls.Name, err), cconst.ReasonKubeconfigError)
-				return rr, lsInt
-			}
-		} else if ls.Spec.Access.SecretRef != nil {
-			log.Debug("Garden cluster access via secret reference", "secret", fmt.Sprintf("%s/%s", ls.Spec.Access.SecretRef.Namespace, ls.Spec.Access.SecretRef.Name))
-			ref := ls.Spec.Access.SecretRef
-			secret := &corev1.Secret{}
-			if err := r.PlatformCluster.Client().Get(ctx, ctrlutils.ObjectKey(ref.Name, ref.Namespace), secret); err != nil {
-				if apierrors.IsNotFound(err) {
-					rr.ReconcileError = errutils.WithReason(fmt.Errorf("kubeconfig secret '%s/%s' not found for Landscape '%s': %w", ref.Namespace, ref.Name, ls.Name, err), cconst.ReasonInvalidReference)
-					return rr, lsInt
-				} else {
-					rr.ReconcileError = errutils.WithReason(fmt.Errorf("error getting kubeconfig secret '%s/%s' for Landscape '%s': %w", ref.Namespace, ref.Name, ls.Name, err), cconst.ReasonPlatformClusterInteractionProblem)
-					return rr, lsInt
-				}
-			}
-			tmpDir := filepath.Join(r.TmpKubeconfigDir, ref.Namespace, ref.Name)
-			if err := os.MkdirAll(tmpDir, os.ModeDir|os.ModePerm); err != nil {
-				rr.ReconcileError = errutils.WithReason(fmt.Errorf("error creating temporary directory '%s' for kubeconfig secret '%s/%s' for Landscape '%s': %w", tmpDir, ref.Namespace, ref.Name, ls.Name, err), cconst.ReasonOperatingSystemProblem)
-				return rr, lsInt
-			}
-			for k, v := range secret.Data {
-				if err := os.WriteFile(filepath.Join(tmpDir, k), v, os.ModePerm); err != nil {
-					rr.ReconcileError = errutils.WithReason(fmt.Errorf("error writing kubeconfig file '%s/%s' for Landscape '%s': %w", tmpDir, k, ls.Name, err), cconst.ReasonOperatingSystemProblem)
-					return rr, lsInt
-				}
-			}
-			log.Debug("Secret contents identified", "keys", strings.Join(sets.List(sets.KeySet(secret.Data)), ", "))
-			var err error
-			restCfg, err = ctrlutils.LoadKubeconfig(tmpDir)
-			if err != nil {
-				rr.ReconcileError = errutils.WithReason(fmt.Errorf("error loading kubeconfig for Landscape '%s': %w", ls.Name, err), cconst.ReasonKubeconfigError)
-				return rr, lsInt
-			}
-		} else {
-			rr.ReconcileError = errutils.WithReason(fmt.Errorf("no access information found for Landscape '%s'", ls.Name), cconst.ReasonConfigurationProblem)
+	// load Garden cluster kubeconfig
+	var restCfg *rest.Config
+	if ls.Spec.Access.Inline != "" {
+		log.Debug("Garden cluster access via inline kubeconfig")
+		var err error
+		restCfg, err = clientcmd.RESTConfigFromKubeConfig([]byte(ls.Spec.Access.Inline))
+		if err != nil {
+			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error loading inline kubeconfig for Landscape '%s': %w", ls.Name, err), cconst.ReasonKubeconfigError)
 			return rr, lsInt
 		}
-
-		log.Debug("REST config for Garden cluster created", "apiServer", restCfg.Host)
-		lsInt.Cluster = clusterutils.New(ls.Name).WithRESTConfig(restCfg)
-
-		if err := lsInt.Cluster.InitializeClient(gardenerScheme); err != nil {
-			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error initializing client for Landscape '%s': %w", ls.Name, err), cconst.ReasonKubeconfigError)
-			return rr, lsInt
-		}
-
-		// verify that kubeconfig is working by checking access to projects
-		ssrr := &authzv1.SelfSubjectRulesReview{
-			Spec: authzv1.SelfSubjectRulesReviewSpec{
-				Namespace: "*",
-			},
-		}
-		if err := lsInt.Cluster.Client().Create(ctx, ssrr); err != nil {
-			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error creating SelfSubjectRulesReview for Landscape '%s': %w", ls.Name, err), cconst.ReasonGardenClusterInteractionProblem)
-		}
-
-		rr.Conditions = []conditions.Condition[providerv1alpha1.ConditionStatus]{}
-		ls.Status.Projects = []providerv1alpha1.ProjectData{}
-		for _, rule := range ssrr.Status.ResourceRules {
-			// search for projects where the user has admin access
-			// Note that this is a somewhat hacky shortcut that abuses the fact that the permissions to manage shoots are coupled with the permissions to update the containing project in Gardener.
-			// Technically, we should check the permissions regarding shoots for all projects that we have access to, but this is a good enough approximation for now.
-			if slices.Contains(rule.APIGroups, gardenv1beta1.GroupName) && slices.Contains(rule.Resources, "projects") && slices.Contains(rule.Verbs, "update") && slices.Contains(rule.Verbs, "get") {
-				for _, prName := range rule.ResourceNames {
-					// fetch project to extract project namespace
-					log.Debug("Fetching project", "project", prName)
-					pr := &gardenv1beta1.Project{}
-					prCon := &providerv1alpha1.Condition{
-						Type: ProjectConditionPrefix + prName,
-					}
-					if err := lsInt.Cluster.Client().Get(ctx, ctrlutils.ObjectKey(prName, ""), pr); err != nil {
-						prCon.SetStatus(providerv1alpha1.CONDITION_FALSE)
-						prCon.SetReason(cconst.ReasonGardenClusterInteractionProblem)
-						prCon.SetMessage(fmt.Sprintf("Error getting project '%s': %s", prName, err.Error()))
-						log.Debug("Error getting project", "project", prName, "error", err)
-						rr.Conditions = append(rr.Conditions, prCon)
-						continue
-					}
-					prNamespace := pr.Spec.Namespace
-					if prNamespace == nil || *prNamespace == "" {
-						prCon.SetStatus(providerv1alpha1.CONDITION_FALSE)
-						prCon.SetReason(cconst.ReasonGardenClusterInteractionProblem)
-						prCon.SetMessage(fmt.Sprintf("Project '%s' has no namespace", prName))
-						log.Debug("Project has no namespace", "project", prName)
-						rr.Conditions = append(rr.Conditions, prCon)
-						continue
-					}
-					prCon.SetStatus(providerv1alpha1.CONDITION_TRUE)
-					rr.Conditions = append(rr.Conditions, prCon)
-					log.Debug("Project found", "project", prName, "projectNamespace", prNamespace)
-					ls.Status.Projects = append(ls.Status.Projects, providerv1alpha1.ProjectData{
-						Name:      prName,
-						Namespace: *prNamespace,
-					})
-				}
+	} else if ls.Spec.Access.SecretRef != nil {
+		log.Debug("Garden cluster access via secret reference", "secret", fmt.Sprintf("%s/%s", ls.Spec.Access.SecretRef.Namespace, ls.Spec.Access.SecretRef.Name))
+		ref := ls.Spec.Access.SecretRef
+		secret := &corev1.Secret{}
+		if err := r.PlatformCluster.Client().Get(ctx, ctrlutils.ObjectKey(ref.Name, ref.Namespace), secret); err != nil {
+			if apierrors.IsNotFound(err) {
+				rr.ReconcileError = errutils.WithReason(fmt.Errorf("kubeconfig secret '%s/%s' not found for Landscape '%s': %w", ref.Namespace, ref.Name, ls.Name, err), cconst.ReasonInvalidReference)
+				return rr, lsInt
+			} else {
+				rr.ReconcileError = errutils.WithReason(fmt.Errorf("error getting kubeconfig secret '%s/%s' for Landscape '%s': %w", ref.Namespace, ref.Name, ls.Name, err), clusterconst.ReasonPlatformClusterInteractionProblem)
+				return rr, lsInt
 			}
 		}
-		// we want to use the cluster's informer to watch for shoot changes
-		// but we only have watch permissions in the project namespaces
-		// so we set the default namespaces in the cluster cache
-		projectNamespaces := map[string]cache.Config{}
-		for _, pr := range ls.Status.Projects {
-			projectNamespaces[pr.Namespace] = cache.Config{}
+		tmpDir := filepath.Join(r.TmpKubeconfigDir, ref.Namespace, ref.Name)
+		if err := os.MkdirAll(tmpDir, os.ModeDir|os.ModePerm); err != nil {
+			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error creating temporary directory '%s' for kubeconfig secret '%s/%s' for Landscape '%s': %w", tmpDir, ref.Namespace, ref.Name, ls.Name, err), cconst.ReasonOperatingSystemProblem)
+			return rr, lsInt
 		}
-		lsInt.Cluster.WithClusterOptions(clusterutils.DefaultClusterOptions(gardenerScheme), func(o *cluster.Options) {
-			o.Cache.DefaultNamespaces = projectNamespaces
-		})
-		if err := lsInt.Cluster.InitializeClient(gardenerScheme); err != nil {
-			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error initializing client with cache options for Landscape '%s': %w", ls.Name, err), cconst.ReasonInternalError)
+		for k, v := range secret.Data {
+			if err := os.WriteFile(filepath.Join(tmpDir, k), v, os.ModePerm); err != nil {
+				rr.ReconcileError = errutils.WithReason(fmt.Errorf("error writing kubeconfig file '%s/%s' for Landscape '%s': %w", tmpDir, k, ls.Name, err), cconst.ReasonOperatingSystemProblem)
+				return rr, lsInt
+			}
+		}
+		log.Debug("Secret contents identified", "keys", strings.Join(sets.List(sets.KeySet(secret.Data)), ", "))
+		var err error
+		restCfg, err = ctrlutils.LoadKubeconfig(tmpDir)
+		if err != nil {
+			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error loading kubeconfig for Landscape '%s': %w", ls.Name, err), cconst.ReasonKubeconfigError)
 			return rr, lsInt
 		}
 	} else {
-		// DELETE
-		log.Info("Deleting resource")
+		rr.ReconcileError = errutils.WithReason(fmt.Errorf("no access information found for Landscape '%s'", ls.Name), cconst.ReasonConfigurationProblem)
+		return rr, lsInt
+	}
 
-		// check if the landscape is still in use by any provider configs
-		referencingProviderConfigs := sets.New[string]()
-		pcs := r.GetProviderConfigurations()
-		for _, pc := range pcs {
-			if pc.Spec.LandscapeRef.Name == ls.Name {
-				referencingProviderConfigs.Insert(pc.Name)
+	log.Debug("REST config for Garden cluster created", "apiServer", restCfg.Host)
+	lsInt.Cluster = clusterutils.New(ls.Name).WithRESTConfig(restCfg)
+
+	if err := lsInt.Cluster.InitializeClient(gardenerScheme); err != nil {
+		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error initializing client for Landscape '%s': %w", ls.Name, err), cconst.ReasonKubeconfigError)
+		return rr, lsInt
+	}
+
+	// verify that kubeconfig is working by checking access to projects
+	ssrr := &authzv1.SelfSubjectRulesReview{
+		Spec: authzv1.SelfSubjectRulesReviewSpec{
+			Namespace: "*",
+		},
+	}
+	if err := lsInt.Cluster.Client().Create(ctx, ssrr); err != nil {
+		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error creating SelfSubjectRulesReview for Landscape '%s': %w", ls.Name, err), cconst.ReasonGardenClusterInteractionProblem)
+	}
+
+	rr.Conditions = []conditions.Condition[providerv1alpha1.ConditionStatus]{}
+	ls.Status.Projects = []providerv1alpha1.ProjectData{}
+	for _, rule := range ssrr.Status.ResourceRules {
+		// search for projects where the user has admin access
+		// Note that this is a somewhat hacky shortcut that abuses the fact that the permissions to manage shoots are coupled with the permissions to update the containing project in Gardener.
+		// Technically, we should check the permissions regarding shoots for all projects that we have access to, but this is a good enough approximation for now.
+		if slices.Contains(rule.APIGroups, gardenv1beta1.GroupName) && slices.Contains(rule.Resources, "projects") && slices.Contains(rule.Verbs, "update") && slices.Contains(rule.Verbs, "get") {
+			for _, prName := range rule.ResourceNames {
+				// fetch project to extract project namespace
+				log.Debug("Fetching project", "project", prName)
+				pr := &gardenv1beta1.Project{}
+				prCon := &providerv1alpha1.Condition{
+					Type: ProjectConditionPrefix + prName,
+				}
+				if err := lsInt.Cluster.Client().Get(ctx, ctrlutils.ObjectKey(prName, ""), pr); err != nil {
+					prCon.SetStatus(providerv1alpha1.CONDITION_FALSE)
+					prCon.SetReason(cconst.ReasonGardenClusterInteractionProblem)
+					prCon.SetMessage(fmt.Sprintf("Error getting project '%s': %s", prName, err.Error()))
+					log.Debug("Error getting project", "project", prName, "error", err)
+					rr.Conditions = append(rr.Conditions, prCon)
+					continue
+				}
+				prNamespace := pr.Spec.Namespace
+				if prNamespace == nil || *prNamespace == "" {
+					prCon.SetStatus(providerv1alpha1.CONDITION_FALSE)
+					prCon.SetReason(cconst.ReasonGardenClusterInteractionProblem)
+					prCon.SetMessage(fmt.Sprintf("Project '%s' has no namespace", prName))
+					log.Debug("Project has no namespace", "project", prName)
+					rr.Conditions = append(rr.Conditions, prCon)
+					continue
+				}
+				prCon.SetStatus(providerv1alpha1.CONDITION_TRUE)
+				rr.Conditions = append(rr.Conditions, prCon)
+				log.Debug("Project found", "project", prName, "projectNamespace", prNamespace)
+				ls.Status.Projects = append(ls.Status.Projects, providerv1alpha1.ProjectData{
+					Name:      prName,
+					Namespace: *prNamespace,
+				})
 			}
 		}
-		if referencingProviderConfigs.Len() > 0 {
-			refsPrint := strings.Join(sets.List(referencingProviderConfigs), ", ")
-			log.Info("Waiting for ProviderConfigs to stop referencing the Landscape", "providerConfigs", refsPrint)
-			rr.Message = fmt.Sprintf("Landscape is still referenced by the following ProviderConfigs: %s.", refsPrint)
-			rr.Reason = cconst.ReasonWaitingForDeletion
-			return rr, lsInt
-		}
-		// remove own finalizer and remove from internal list
-		if controllerutil.RemoveFinalizer(ls, providerv1alpha1.LandscapeFinalizer) {
-			log.Info("Removing finalizer")
-			if err := r.PlatformCluster.Client().Patch(ctx, ls, client.MergeFrom(rr.OldObject)); err != nil {
-				rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.NamespacedName.String(), err), cconst.ReasonPlatformClusterInteractionProblem)
-				return rr, nil
-			}
-		}
-		lsInt = nil     // this causes the internal representation to be removed
-		rr.Object = nil // this prevents the controller from trying to update an already deleted resource
+	}
+	// we want to use the cluster's informer to watch for shoot changes
+	// but we only have watch permissions in the project namespaces
+	// so we set the default namespaces in the cluster cache
+	projectNamespaces := map[string]cache.Config{}
+	for _, pr := range ls.Status.Projects {
+		projectNamespaces[pr.Namespace] = cache.Config{}
+	}
+	lsInt.Cluster.WithClusterOptions(clusterutils.DefaultClusterOptions(gardenerScheme), func(o *cluster.Options) {
+		o.Cache.DefaultNamespaces = projectNamespaces
+	})
+	if err := lsInt.Cluster.InitializeClient(gardenerScheme); err != nil {
+		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error initializing client with cache options for Landscape '%s': %w", ls.Name, err), cconst.ReasonInternalError)
+		return rr, lsInt
 	}
 
 	return rr, lsInt
+}
+
+func (r *LandscapeReconciler) handleDelete(ctx context.Context, req reconcile.Request, ls *providerv1alpha1.Landscape) (ReconcileResult, *shared.Landscape) {
+	log := logging.FromContextOrPanic(ctx)
+	log.Info("Deleting resource")
+
+	rr := ReconcileResult{
+		Object:    ls,
+		OldObject: ls.DeepCopy(),
+	}
+	// build internal Landscape object
+	lsInt := &shared.Landscape{
+		Name: req.Name,
+	}
+
+	// check if the landscape is still in use by any provider configs
+	referencingProviderConfigs := sets.New[string]()
+	pcs := r.GetProviderConfigurations()
+	for _, pc := range pcs {
+		if pc.Spec.LandscapeRef.Name == ls.Name {
+			referencingProviderConfigs.Insert(pc.Name)
+		}
+	}
+	if referencingProviderConfigs.Len() > 0 {
+		refsPrint := strings.Join(sets.List(referencingProviderConfigs), ", ")
+		log.Info("Waiting for ProviderConfigs to stop referencing the Landscape", "providerConfigs", refsPrint)
+		rr.Message = fmt.Sprintf("Landscape is still referenced by the following ProviderConfigs: %s.", refsPrint)
+		rr.Reason = cconst.ReasonWaitingForDeletion
+		return rr, lsInt
+	}
+	// remove own finalizer and remove from internal list
+	if controllerutil.RemoveFinalizer(ls, providerv1alpha1.LandscapeFinalizer) {
+		log.Info("Removing finalizer")
+		if err := r.PlatformCluster.Client().Patch(ctx, ls, client.MergeFrom(rr.OldObject)); err != nil {
+			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.NamespacedName.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
+			return rr, nil
+		}
+	}
+	rr.Object = nil // this prevents the controller from trying to update an already deleted resource
+
+	return rr, nil
+}
+
+func landscapePhaseUpdate(obj *providerv1alpha1.Landscape, rr ctrlutils.ReconcileResult[*providerv1alpha1.Landscape, providerv1alpha1.ConditionStatus]) (providerv1alpha1.LandscapePhase, error) {
+	if rr.ReconcileError != nil {
+		return providerv1alpha1.LANDSCAPE_PHASE_UNAVAILABLE, nil
+	}
+	trueCount := 0
+	falseCount := 0
+	for _, con := range rr.Conditions {
+		if con.GetStatus() == providerv1alpha1.CONDITION_TRUE {
+			trueCount++
+		} else {
+			falseCount++
+		}
+	}
+	if trueCount > 0 && falseCount == 0 {
+		return providerv1alpha1.LANDSCAPE_PHASE_AVAILABLE, nil
+	} else if trueCount > 0 && falseCount > 0 {
+		return providerv1alpha1.LANDSCAPE_PHASE_PARTIALLY_AVAILABLE, nil
+	} else if trueCount == 0 && falseCount > 0 {
+		return providerv1alpha1.LANDSCAPE_PHASE_UNAVAILABLE, nil
+	}
+	return providerv1alpha1.LANDSCAPE_PHASE_AVAILABLE, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 // Uses WatchesRawSource() instead of For() because it doesn't watch the primary cluster of the manager.
 func (r *LandscapeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		Named(strings.ToLower(ControllerName)).
 		// watch Landscape resources on the platform cluster
-		WatchesRawSource(source.Kind(r.PlatformCluster.Cluster().GetCache(), &providerv1alpha1.Landscape{}, handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, ls *providerv1alpha1.Landscape) []ctrl.Request {
-			return []ctrl.Request{testutils.RequestFromObject(ls)}
-		}), ctrlutils.ToTypedPredicate[*providerv1alpha1.Landscape](predicate.And(
+		For(&providerv1alpha1.Landscape{}).
+		WithEventFilter(predicate.And(
 			predicate.Or(
 				predicate.GenerationChangedPredicate{},
+				ctrlutils.DeletionTimestampChangedPredicate{},
 				ctrlutils.GotAnnotationPredicate(clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueReconcile),
 				ctrlutils.LostAnnotationPredicate(clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueIgnore),
 			),
 			predicate.Not(
 				ctrlutils.HasAnnotationPredicate(clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueIgnore),
 			),
-		)))).
+		)).
 		// listen to internally triggered reconciliation requests
 		WatchesRawSource(source.TypedChannel(r.ReconcileLandscape, handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, ls *providerv1alpha1.Landscape) []ctrl.Request {
 			if ls == nil {

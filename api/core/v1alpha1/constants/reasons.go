@@ -1,10 +1,6 @@
 package constants
 
 const (
-	// ReasonOnboardingClusterInteractionProblem is used when the onboarding cluster cannot be reached.
-	ReasonOnboardingClusterInteractionProblem = "OnboardingClusterInteractionProblem"
-	// ReasonPlatformClusterInteractionProblem is used when the platform cluster cannot be reached.
-	ReasonPlatformClusterInteractionProblem = "PlatformClusterInteractionProblem"
 	// ReasonGardenClusterInteractionProblem is used when the garden cluster cannot be reached.
 	ReasonGardenClusterInteractionProblem = "GardenClusterInteractionProblem"
 	// ReasonKubeconfigError indicates that the rest config could not be created.

@@ -16,7 +16,7 @@ type ProviderConfigSpec struct {
 	LandscapeRef ObjectReference `json:"landscapeRef"`
 
 	// Project is the Gardener project which should be used to create shoot clusters in it.
-	// The provided kubeconfig must have priviliges for this project.
+	// The provided kubeconfig must have privileges for this project.
 	// +kubebuilder:validation:MinLength=1
 	Project string `json:"project"`
 

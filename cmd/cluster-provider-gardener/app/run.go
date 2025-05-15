@@ -224,10 +224,7 @@ func (o *RunOptions) PrintCompletedOptions(cmd *cobra.Command) {
 }
 
 func (o *RunOptions) Run(ctx context.Context) error {
-	if err := o.Clusters.Onboarding.InitializeClient(providerscheme.InstallProviderAPIs(runtime.NewScheme())); err != nil {
-		return err
-	}
-	if err := o.Clusters.Platform.InitializeClient(providerscheme.InstallProviderAPIs(runtime.NewScheme())); err != nil {
+	if err := o.PlatformCluster.InitializeClient(providerscheme.InstallProviderAPIs(runtime.NewScheme())); err != nil {
 		return err
 	}
 
@@ -239,7 +236,7 @@ func (o *RunOptions) Run(ctx context.Context) error {
 		TLSOpts: o.WebhookTLSOpts,
 	})
 
-	mgr, err := ctrl.NewManager(o.Clusters.Onboarding.RESTConfig(), ctrl.Options{
+	mgr, err := ctrl.NewManager(o.PlatformCluster.RESTConfig(), ctrl.Options{
 		Scheme:                 providerscheme.InstallProviderAPIs(runtime.NewScheme()),
 		Metrics:                o.MetricsServerOptions,
 		WebhookServer:          webhookServer,
@@ -262,17 +259,13 @@ func (o *RunOptions) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("unable to create manager: %w", err)
 	}
-	// add platform cluster to manager
-	if err := mgr.Add(o.Clusters.Platform.Cluster()); err != nil {
-		return fmt.Errorf("unable to add platform cluster to manager: %w", err)
-	}
 
 	// setup thread manager to deal with the dynamic watches for shoots
 	swMgr := threads.NewThreadManager(logging.NewContext(ctx, o.Log.WithName("ShootWatcher")), nil)
 
 	// setup cluster controllers
 	if slices.Contains(o.Controllers, strings.ToLower(cluster.ControllerName)) {
-		if _, _, _, err := controllers.SetupClusterControllersWithManager(mgr, o.Clusters.Platform, o.Clusters.Onboarding, swMgr); err != nil {
+		if _, _, _, err := controllers.SetupClusterControllersWithManager(mgr, o.PlatformCluster, swMgr); err != nil {
 			return fmt.Errorf("unable to setup cluster controllers: %w", err)
 		}
 	}

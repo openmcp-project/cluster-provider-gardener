@@ -16,7 +16,8 @@ import (
 
 	toolscache "k8s.io/client-go/tools/cache"
 
-	clustersv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/clusters/v1alpha1"
+	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
+
 	providerv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
 	gardenv1beta1 "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1"
 )
@@ -74,10 +75,9 @@ type RuntimeConfiguration struct {
 	ReconcileLandscape      chan event.TypedGenericEvent[*providerv1alpha1.Landscape]      // sending a Landscape to this channel will trigger a reconciliation of the corresponding resource
 	ReconcileProviderConfig chan event.TypedGenericEvent[*providerv1alpha1.ProviderConfig] // sending a ProviderConfig to this channel will trigger a reconciliation of the corresponding resource
 	PlatformCluster         *clusters.Cluster
-	OnboardingCluster       *clusters.Cluster
 }
 
-func NewRuntimeConfiguration(platform, onboarding *clusters.Cluster, swMgr *threads.ThreadManager) *RuntimeConfiguration {
+func NewRuntimeConfiguration(platform *clusters.Cluster, swMgr *threads.ThreadManager) *RuntimeConfiguration {
 	return &RuntimeConfiguration{
 		Lock:                    &sync.RWMutex{},
 		ShootWatch:              make(chan event.TypedGenericEvent[*gardenv1beta1.Shoot], 1024),
@@ -85,7 +85,6 @@ func NewRuntimeConfiguration(platform, onboarding *clusters.Cluster, swMgr *thre
 		ReconcileProviderConfig: make(chan event.TypedGenericEvent[*providerv1alpha1.ProviderConfig], 1024),
 		ShootWatchManager:       swMgr,
 		PlatformCluster:         platform,
-		OnboardingCluster:       onboarding,
 	}
 }
 

@@ -3,6 +3,8 @@ package constants
 const (
 	// ReasonGardenClusterInteractionProblem is used when the garden cluster cannot be reached.
 	ReasonGardenClusterInteractionProblem = "GardenClusterInteractionProblem"
+	// ReasonShootClusterInteractionProblem is used when the shoot cluster cannot be reached.
+	ReasonShootClusterInteractionProblem = "GardenClusterInteractionProblem"
 	// ReasonKubeconfigError indicates that the rest config could not be created.
 	ReasonKubeconfigError = "KubeconfigError"
 	// ReasonInvalidReference indicates that a reference points to a non-existing or otherwise wrong resource.

@@ -105,6 +105,8 @@ github.com/openmcp-project/controller-utils v0.8.1-0.20250514103840-36be6cfff45a
 github.com/openmcp-project/controller-utils v0.8.1-0.20250514103840-36be6cfff45a/go.mod h1:/PeEIAdVHe9W1u0Nw8PlrKr5Gp3Wqwhnr2uo/Q7BtEI=
 github.com/openmcp-project/openmcp-operator/api v0.4.0 h1:idWrm3CtRe9XsI6XjdfL1VgpD1ND1QYpqZdstAKM5Fg=
 github.com/openmcp-project/openmcp-operator/api v0.4.0/go.mod h1:98XADSMdArAAnAC+qyd9g+C8KG5ZmkmJGPPUHtFB2TA=
+github.com/openmcp-project/openmcp-operator/api v0.5.0 h1:WdPT8I/Mw2jAPqng9MByXOo/Y8fCSBsW3UG5o8d1luA=
+github.com/openmcp-project/openmcp-operator/api v0.5.0/go.mod h1:98XADSMdArAAnAC+qyd9g+C8KG5ZmkmJGPPUHtFB2TA=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=

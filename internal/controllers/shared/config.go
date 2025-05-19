@@ -23,8 +23,9 @@ import (
 )
 
 var (
-	environment  string
-	providerName string
+	environment              string
+	providerName             string
+	accessRequestSANamespace string
 )
 
 func SetEnvironment(env string) {
@@ -50,9 +51,23 @@ func SetProviderName(name string) {
 
 func ProviderName() string {
 	if providerName == "" {
-		panic("providerName not set")
+		panic("provider name not set")
 	}
 	return providerName
+}
+
+func SetAccessRequestSANamespace(ns string) {
+	if accessRequestSANamespace != "" {
+		panic("accessrequest namespace already set")
+	}
+	accessRequestSANamespace = ns
+}
+
+func AccessRequestSANamespace() string {
+	if accessRequestSANamespace == "" {
+		panic("accessrequest namespace not set")
+	}
+	return accessRequestSANamespace
 }
 
 // RuntimeConfiguration is a struct that holds the loaded ProviderConfigurations, enriched with further information gathered during runtime.
@@ -121,6 +136,20 @@ func (rc *RuntimeConfiguration) GetLandscapes() map[string]*Landscape {
 	return res
 }
 
+func (rc *RuntimeConfiguration) GetLandscapeForProfile(profile *Profile) *Landscape {
+	if rc.landscapes == nil {
+		return nil
+	}
+	if profile == nil || profile.ProviderConfig == nil {
+		return nil
+	}
+	ls := rc.landscapes[profile.ProviderConfig.Spec.LandscapeRef.Name]
+	if ls == nil {
+		return nil
+	}
+	return ls.DeepCopy()
+}
+
 func (rc *RuntimeConfiguration) GetProfile(k8sName string) *Profile {
 	if rc.profiles == nil {
 		return nil
@@ -130,6 +159,12 @@ func (rc *RuntimeConfiguration) GetProfile(k8sName string) *Profile {
 		return nil
 	}
 	return profile.DeepCopy()
+}
+
+func (rc *RuntimeConfiguration) GetProfileAndLandscape(profileK8sName string) (*Profile, *Landscape) {
+	profile := rc.GetProfile(profileK8sName)
+	landscape := rc.GetLandscapeForProfile(profile)
+	return profile, landscape
 }
 
 func (rc *RuntimeConfiguration) SetProviderConfigurations(providerConfigurations map[string]*providerv1alpha1.ProviderConfig) {

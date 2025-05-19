@@ -7,6 +7,13 @@ const (
 	ProviderConfigFinalizer = GroupName + "/providerconfig"
 	// ClusterFinalizer is the finalizer that is used by the Cluster controller on Cluster resources.
 	ClusterFinalizer = GroupName + "/cluster"
+	// AccessRequestFinalizer is the finalizer that is used by the AccessRequest controller on AccessRequest resources.
+	AccessRequestFinalizer = GroupName + "/accessrequest"
+
+	// ManagedByNameLabel is used to mark resources that are managed by the Gardener ClusterProvider.
+	ManagedByNameLabel = GroupName + "/managed-by-name"
+	// ManagedByNamespaceLabel is used to mark resources that are managed by the Gardener ClusterProvider.
+	ManagedByNamespaceLabel = GroupName + "/managed-by-namespace"
 
 	// ClusterReferenceLabelName is the label on the shoot that holds the name of the Cluster resource that created it.
 	ClusterReferenceLabelName = "cluster-name." + GroupName

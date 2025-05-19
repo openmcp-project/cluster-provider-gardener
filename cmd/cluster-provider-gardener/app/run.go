@@ -25,13 +25,16 @@ import (
 	// clusterscheme "github.com/openmcp-project/cluster-provider-gardener/api/clusters/install"
 	providerscheme "github.com/openmcp-project/cluster-provider-gardener/api/install"
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers"
+	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/accessrequest"
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/cluster"
+	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/shared"
 )
 
 var setupLog logging.Logger
 
 var allControllers = []string{
 	strings.ToLower(cluster.ControllerName),
+	strings.ToLower(accessrequest.ControllerName),
 }
 
 func NewRunCommand(so *SharedOptions) *cobra.Command {
@@ -106,7 +109,7 @@ func (o *RunOptions) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&o.MetricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	cmd.Flags().BoolVar(&o.EnableHTTP2, "enable-http2", false, "If set, HTTP/2 will be enabled for the metrics and webhook servers")
 
-	cmd.Flags().StringSliceVar(&o.Controllers, "controllers", allControllers, fmt.Sprintf("List of active controllers. The '%s' controller actually consists of multiple controllers, but they rely on each other and cannot be disabled individually.", strings.ToLower(cluster.ControllerName)))
+	cmd.Flags().StringSliceVar(&o.Controllers, "controllers", allControllers, fmt.Sprintf("List of active controllers. The '%s' controller consists of multiple controllers which cannot be disabled individually, and the '%s' controller relies on them running too.", strings.ToLower(cluster.ControllerName), strings.ToLower(accessrequest.ControllerName)))
 }
 
 func (o *RunOptions) PrintRaw(cmd *cobra.Command) {
@@ -211,6 +214,9 @@ func (o *RunOptions) Complete(ctx context.Context) error {
 		})
 	}
 
+	// TODO
+	shared.SetAccessRequestSANamespace("accessrequests")
+
 	return nil
 }
 
@@ -263,10 +269,19 @@ func (o *RunOptions) Run(ctx context.Context) error {
 	// setup thread manager to deal with the dynamic watches for shoots
 	swMgr := threads.NewThreadManager(logging.NewContext(ctx, o.Log.WithName("ShootWatcher")), nil)
 
-	// setup cluster controllers
+	rc := shared.NewRuntimeConfiguration(o.PlatformCluster, swMgr)
+
+	// setup Cluster controllers
 	if slices.Contains(o.Controllers, strings.ToLower(cluster.ControllerName)) {
-		if _, _, _, err := controllers.SetupClusterControllersWithManager(mgr, o.PlatformCluster, swMgr); err != nil {
-			return fmt.Errorf("unable to setup cluster controllers: %w", err)
+		if _, _, _, err := controllers.SetupClusterControllersWithManager(mgr, rc); err != nil {
+			return fmt.Errorf("unable to setup Cluster controllers: %w", err)
+		}
+	}
+	// setup AccessRequest controller
+	if slices.Contains(o.Controllers, strings.ToLower(accessrequest.ControllerName)) {
+		arr := accessrequest.NewAccessRequestReconciler(rc)
+		if err := arr.SetupWithManager(mgr); err != nil {
+			return fmt.Errorf("unable to setup AccessRequest controller: %w", err)
 		}
 	}
 

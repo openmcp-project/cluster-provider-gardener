@@ -23,7 +23,8 @@ import (
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/shared"
 )
 
-func GetShoot(ctx context.Context, log logging.Logger, landscape *shared.Landscape, profile *shared.Profile, c *clustersv1alpha1.Cluster) (*gardenv1beta1.Shoot, errutils.ReasonableError) {
+func GetShoot(ctx context.Context, landscape *shared.Landscape, profile *shared.Profile, c *clustersv1alpha1.Cluster) (*gardenv1beta1.Shoot, errutils.ReasonableError) {
+	log := logging.FromContextOrPanic(ctx)
 	// check if shoot already exists
 	shoot := &gardenv1beta1.Shoot{}
 	exists := false

@@ -86,10 +86,8 @@ func (o *InitOptions) Run(ctx context.Context) error {
 
 	// apply CRDs
 	crdManager := crdutil.NewCRDManager(clustersv1alpha1.ClusterLabel, crds.CRDs)
-
 	crdManager.AddCRDLabelToClusterMapping(clustersv1alpha1.PURPOSE_PLATFORM, o.PlatformCluster)
-
-	if err := crdManager.CreateOrUpdateCRDs(ctx, nil); err != nil {
+	if err := crdManager.CreateOrUpdateCRDs(ctx, &log); err != nil {
 		return fmt.Errorf("error creating/updating CRDs: %w", err)
 	}
 

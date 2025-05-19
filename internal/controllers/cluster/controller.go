@@ -132,7 +132,7 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 		return rr
 	}
 
-	shoot, rerr := GetShoot(ctx, log, landscape, profile, c)
+	shoot, rerr := GetShoot(ctx, landscape, profile, c)
 	if rerr != nil {
 		rr.ReconcileError = errutils.Errorf("error getting shoot: %w", rerr, rerr)
 		return rr

@@ -23,6 +23,7 @@ import (
 	ctrlutils "github.com/openmcp-project/controller-utils/pkg/controller"
 	errutils "github.com/openmcp-project/controller-utils/pkg/errors"
 	"github.com/openmcp-project/controller-utils/pkg/logging"
+	"github.com/openmcp-project/controller-utils/pkg/pairs"
 	"github.com/openmcp-project/controller-utils/pkg/resources"
 
 	cconst "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1/constants"
@@ -276,7 +277,7 @@ func (r *AccessRequestReconciler) renewToken(ctx context.Context, ac *clustersv1
 		return nil, rr
 	}
 
-	expectedLabels := clusteraccess.LabelMapToList(managedResourcesLabels(ac))
+	expectedLabels := pairs.MapToPairs(managedResourcesLabels(ac))
 	keep := []client.Object{}
 
 	// ensure service account
@@ -353,7 +354,7 @@ func (r *AccessRequestReconciler) renewToken(ctx context.Context, ac *clustersv1
 		SecretKeyKubeconfig:          string(kcfg),
 		SecretKeyExpirationTimestamp: strconv.FormatInt(token.ExpirationTimestamp.Unix(), 10),
 		SecretKeyCreationTimestamp:   strconv.FormatInt(token.CreationTimestamp.Unix(), 10),
-	}, corev1.SecretTypeOpaque, nil, nil)
+	}, corev1.SecretTypeOpaque)
 	sm.MetadataMutator().WithOwnerReferences([]metav1.OwnerReference{
 		{
 			APIVersion: clustersv1alpha1.GroupVersion.String(),

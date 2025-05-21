@@ -91,8 +91,8 @@ func (r *AccessRequestReconciler) reconcile(ctx context.Context, req reconcile.R
 	log := logging.FromContextOrPanic(ctx)
 
 	// get AccessRequest resource
-	ac := &clustersv1alpha1.AccessRequest{}
-	if err := r.PlatformCluster.Client().Get(ctx, req.NamespacedName, ac); err != nil {
+	ar := &clustersv1alpha1.AccessRequest{}
+	if err := r.PlatformCluster.Client().Get(ctx, req.NamespacedName, ar); err != nil {
 		if apierrors.IsNotFound(err) {
 			log.Info("Resource not found")
 			return ReconcileResult{}
@@ -100,15 +100,10 @@ func (r *AccessRequestReconciler) reconcile(ctx context.Context, req reconcile.R
 		return ReconcileResult{ReconcileError: errutils.WithReason(fmt.Errorf("unable to get resource '%s' from cluster: %w", req.NamespacedName.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)}
 	}
 
-	c, p, rerr := r.checkResponsibility(ctx, ac)
-	if c == nil || p == nil || rerr != nil {
-		return ReconcileResult{ReconcileError: rerr}
-	}
-
 	// handle operation annotation
 	enforceReconcile := false
-	if ac.GetAnnotations() != nil {
-		op, ok := c.GetAnnotations()[clustersv1alpha1.OperationAnnotation]
+	if ar.GetAnnotations() != nil {
+		op, ok := ar.GetAnnotations()[clustersv1alpha1.OperationAnnotation]
 		if ok {
 			switch op {
 			case clustersv1alpha1.OperationAnnotationValueIgnore:
@@ -117,11 +112,16 @@ func (r *AccessRequestReconciler) reconcile(ctx context.Context, req reconcile.R
 			case clustersv1alpha1.OperationAnnotationValueReconcile:
 				enforceReconcile = true
 				log.Debug("Removing reconcile operation annotation from resource")
-				if err := ctrlutils.EnsureAnnotation(ctx, r.PlatformCluster.Client(), c, clustersv1alpha1.OperationAnnotation, "", true, ctrlutils.DELETE); err != nil {
+				if err := ctrlutils.EnsureAnnotation(ctx, r.PlatformCluster.Client(), ar, clustersv1alpha1.OperationAnnotation, "", true, ctrlutils.DELETE); err != nil {
 					return ReconcileResult{ReconcileError: errutils.WithReason(fmt.Errorf("error removing operation annotation: %w", err), clusterconst.ReasonPlatformClusterInteractionProblem)}
 				}
 			}
 		}
+	}
+
+	c, p, rerr := r.getClusterAndProfile(ctx, ar)
+	if rerr != nil {
+		return ReconcileResult{ReconcileError: rerr}
 	}
 
 	getShootAccess := func() (*shootAccess, errutils.ReasonableError) {
@@ -150,12 +150,12 @@ func (r *AccessRequestReconciler) reconcile(ctx context.Context, req reconcile.R
 		}, nil
 	}
 
-	inDeletion := !ac.DeletionTimestamp.IsZero()
+	inDeletion := !ar.DeletionTimestamp.IsZero()
 	var rr ReconcileResult
 	if !inDeletion {
-		rr = r.handleCreateOrUpdate(ctx, req, ac, getShootAccess, enforceReconcile)
+		rr = r.handleCreateOrUpdate(ctx, req, ar, getShootAccess, enforceReconcile)
 	} else {
-		rr = r.handleDelete(ctx, req, ac, getShootAccess)
+		rr = r.handleDelete(ctx, req, ar, getShootAccess)
 	}
 
 	return rr
@@ -279,40 +279,19 @@ func (r *AccessRequestReconciler) handleDelete(ctx context.Context, req reconcil
 	return rr
 }
 
-// checkResponsibility checks if this ClusterProvider is responsible for the given AccessRequest.
-// If yes, the returned Cluster and Profile are both non-nil, otherwise both are nil.
-func (r *AccessRequestReconciler) checkResponsibility(ctx context.Context, ac *clustersv1alpha1.AccessRequest) (*clustersv1alpha1.Cluster, *shared.Profile, errutils.ReasonableError) {
+func (r *AccessRequestReconciler) getClusterAndProfile(ctx context.Context, ar *clustersv1alpha1.AccessRequest) (*clustersv1alpha1.Cluster, *shared.Profile, errutils.ReasonableError) {
 	log := logging.FromContextOrPanic(ctx)
 
 	// get Cluster that the request refers to
 	c := &clustersv1alpha1.Cluster{}
-	if ac.Spec.ClusterRef != nil {
-		c.SetName(ac.Spec.ClusterRef.Name)
-		c.SetNamespace(ac.Spec.ClusterRef.Namespace)
-	} else if ac.Spec.RequestRef != nil {
-		// fetch request to lookup the cluster reference
-		cr := &clustersv1alpha1.ClusterRequest{}
-		cr.SetName(ac.Spec.RequestRef.Name)
-		cr.SetNamespace(ac.Spec.RequestRef.Namespace)
-		if err := r.PlatformCluster.Client().Get(ctx, client.ObjectKeyFromObject(cr), cr); err != nil {
-			if apierrors.IsNotFound(err) {
-				return nil, nil, errutils.WithReason(fmt.Errorf("ClusterRequest '%s/%s' not found", cr.Namespace, cr.Name), cconst.ReasonInvalidReference)
-			}
-			return nil, nil, errutils.WithReason(fmt.Errorf("unable to get ClusterRequest '%s/%s': %w", cr.Namespace, cr.Name, err), clusterconst.ReasonPlatformClusterInteractionProblem)
-		}
-		if cr.Status.Phase != clustersv1alpha1.REQUEST_GRANTED {
-			return nil, nil, errutils.WithReason(fmt.Errorf("ClusterRequest '%s/%s' is not granted", cr.Namespace, cr.Name), cconst.ReasonInvalidReference)
-		}
-		if cr.Status.Cluster == nil {
-			return nil, nil, errutils.WithReason(fmt.Errorf("ClusterRequest '%s/%s' is granted but does not reference a cluster", cr.Namespace, cr.Name), cconst.ReasonInternalError)
-		}
-		c.SetName(cr.Status.Cluster.Name)
-		c.SetNamespace(cr.Status.Cluster.Namespace)
-	} else {
-		return nil, nil, errutils.WithReason(fmt.Errorf("invalid AccessRequest resource '%s/%s': neither clusterRef nor requestRef is set", ac.Namespace, ac.Name), cconst.ReasonConfigurationProblem)
+	if ar.Spec.ClusterRef == nil {
+		return nil, nil, errutils.WithReason(fmt.Errorf("spec.clusterRef is not set"), cconst.ReasonConfigurationProblem)
 	}
+	c.SetName(ar.Spec.ClusterRef.Name)
+	c.SetNamespace(ar.Spec.ClusterRef.Namespace)
 
 	// fetch Cluster resource
+	log.Debug("Fetching Cluster resource", "clusterName", c.Name, "clusterNamespace", c.Namespace)
 	if err := r.PlatformCluster.Client().Get(ctx, client.ObjectKeyFromObject(c), c); err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil, nil, errutils.WithReason(fmt.Errorf("Cluster '%s/%s' not found", c.Namespace, c.Name), cconst.ReasonInvalidReference)
@@ -320,11 +299,9 @@ func (r *AccessRequestReconciler) checkResponsibility(ctx context.Context, ac *c
 		return nil, nil, errutils.WithReason(fmt.Errorf("unable to get Cluster '%s/%s': %w", c.Namespace, c.Name, err), clusterconst.ReasonPlatformClusterInteractionProblem)
 	}
 
-	// check if this ClusterProvider is responsible for the Cluster
 	p := r.GetProfile(c.Spec.Profile)
 	if p == nil {
-		log.Info("Ignoring resource due to unknown profile")
-		return nil, nil, nil
+		return nil, nil, errutils.WithReason(fmt.Errorf("unknown profile '%s' for Cluster '%s/%s'", c.Spec.Profile, c.Namespace, c.Name), cconst.ReasonConfigurationProblem)
 	}
 
 	return c, p, nil
@@ -336,6 +313,8 @@ func (r *AccessRequestReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// watch AccessRequest resources
 		For(&clustersv1alpha1.AccessRequest{}).
 		WithEventFilter(predicate.And(
+			ctrlutils.HasLabelPredicate(clustersv1alpha1.ProviderLabel, shared.ProviderName()),
+			ctrlutils.HasLabelPredicate(clustersv1alpha1.ProfileLabel, ""),
 			predicate.Or(
 				predicate.GenerationChangedPredicate{},
 				ctrlutils.DeletionTimestampChangedPredicate{},

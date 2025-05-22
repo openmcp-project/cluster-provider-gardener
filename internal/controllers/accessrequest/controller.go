@@ -243,13 +243,13 @@ func (r *AccessRequestReconciler) handleCreateOrUpdate(ctx context.Context, req 
 	return rr
 }
 
-func (r *AccessRequestReconciler) handleDelete(ctx context.Context, req reconcile.Request, ac *clustersv1alpha1.AccessRequest, getShootAccess shootAccessGetter) ReconcileResult {
+func (r *AccessRequestReconciler) handleDelete(ctx context.Context, req reconcile.Request, ar *clustersv1alpha1.AccessRequest, getShootAccess shootAccessGetter) ReconcileResult {
 	log := logging.FromContextOrPanic(ctx)
 	log.Info("Deleting resource")
 
 	rr := ReconcileResult{
-		Object:    ac,
-		OldObject: ac.DeepCopy(),
+		Object:    ar,
+		OldObject: ar.DeepCopy(),
 	}
 
 	// no need to delete secret, since it has an owner reference
@@ -262,15 +262,15 @@ func (r *AccessRequestReconciler) handleDelete(ctx context.Context, req reconcil
 	}
 	getShootAccess = staticShootAccessGetter(sac)
 
-	if rerr := r.cleanupResources(ctx, getShootAccess, nil, managedResourcesLabels(ac)); rerr != nil {
+	if rerr := r.cleanupResources(ctx, getShootAccess, nil, managedResourcesLabels(ar)); rerr != nil {
 		rr.ReconcileError = errutils.Errorf("error cleaning up resources on shoot cluster '%s/%s': %s", rerr, sac.Shoot.Namespace, sac.Shoot.Name, rerr.Error())
 		return rr
 	}
 
 	// remove finalizer
-	if controllerutil.RemoveFinalizer(ac, providerv1alpha1.ClusterFinalizer) {
+	if controllerutil.RemoveFinalizer(ar, providerv1alpha1.AccessRequestFinalizer) {
 		log.Info("Removing finalizer")
-		if err := r.PlatformCluster.Client().Patch(ctx, ac, client.MergeFrom(rr.OldObject)); err != nil {
+		if err := r.PlatformCluster.Client().Patch(ctx, ar, client.MergeFrom(rr.OldObject)); err != nil {
 			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.NamespacedName.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
 			return rr
 		}

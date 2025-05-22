@@ -11,6 +11,7 @@ import (
 	crdutil "github.com/openmcp-project/controller-utils/pkg/crds"
 
 	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
+	openmcpconst "github.com/openmcp-project/openmcp-operator/api/constants"
 
 	"github.com/openmcp-project/cluster-provider-gardener/api/crds"
 	providerscheme "github.com/openmcp-project/cluster-provider-gardener/api/install"
@@ -85,7 +86,7 @@ func (o *InitOptions) Run(ctx context.Context) error {
 	log.Info("ProviderName", "value", o.ProviderName)
 
 	// apply CRDs
-	crdManager := crdutil.NewCRDManager(clustersv1alpha1.ClusterLabel, crds.CRDs)
+	crdManager := crdutil.NewCRDManager(openmcpconst.ClusterLabel, crds.CRDs)
 	crdManager.AddCRDLabelToClusterMapping(clustersv1alpha1.PURPOSE_PLATFORM, o.PlatformCluster)
 	if err := crdManager.CreateOrUpdateCRDs(ctx, &log); err != nil {
 		return fmt.Errorf("error creating/updating CRDs: %w", err)

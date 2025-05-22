@@ -93,7 +93,7 @@ func (r *AccessRequestReconciler) cleanupResources(ctx context.Context, getShoot
 	log.Info("Cleaning up resources that are not required anymore")
 
 	if len(labels) == 0 {
-		return errutils.WithReason(fmt.Errorf("no labels provided for cleanup"), cconst.ReasonInternalError)
+		return errutils.WithReason(fmt.Errorf("no labels provided for cleanup"), clusterconst.ReasonInternalError)
 	}
 	selector := client.MatchingLabels(labels)
 

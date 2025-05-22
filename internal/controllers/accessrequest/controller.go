@@ -25,6 +25,7 @@ import (
 
 	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
 	clusterconst "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1/constants"
+	openmcpconst "github.com/openmcp-project/openmcp-operator/api/constants"
 
 	providerv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
 	cconst "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1/constants"
@@ -104,16 +105,16 @@ func (r *AccessRequestReconciler) reconcile(ctx context.Context, req reconcile.R
 	// handle operation annotation
 	enforceReconcile := false
 	if ar.GetAnnotations() != nil {
-		op, ok := ar.GetAnnotations()[clustersv1alpha1.OperationAnnotation]
+		op, ok := ar.GetAnnotations()[openmcpconst.OperationAnnotation]
 		if ok {
 			switch op {
-			case clustersv1alpha1.OperationAnnotationValueIgnore:
+			case openmcpconst.OperationAnnotationValueIgnore:
 				log.Info("Ignoring resource due to ignore operation annotation")
 				return ReconcileResult{}
-			case clustersv1alpha1.OperationAnnotationValueReconcile:
+			case openmcpconst.OperationAnnotationValueReconcile:
 				enforceReconcile = true
 				log.Debug("Removing reconcile operation annotation from resource")
-				if err := ctrlutils.EnsureAnnotation(ctx, r.PlatformCluster.Client(), ar, clustersv1alpha1.OperationAnnotation, "", true, ctrlutils.DELETE); err != nil {
+				if err := ctrlutils.EnsureAnnotation(ctx, r.PlatformCluster.Client(), ar, openmcpconst.OperationAnnotation, "", true, ctrlutils.DELETE); err != nil {
 					return ReconcileResult{ReconcileError: errutils.WithReason(fmt.Errorf("error removing operation annotation: %w", err), clusterconst.ReasonPlatformClusterInteractionProblem)}
 				}
 			}
@@ -129,7 +130,7 @@ func (r *AccessRequestReconciler) reconcile(ctx context.Context, req reconcile.R
 		// get landscape
 		ls := r.GetLandscapeForProfile(p)
 		if ls == nil {
-			return nil, errutils.WithReason(fmt.Errorf("unable to determine landscape"), cconst.ReasonInternalError)
+			return nil, errutils.WithReason(fmt.Errorf("unable to determine landscape"), clusterconst.ReasonInternalError)
 		}
 
 		// get shoot
@@ -201,13 +202,13 @@ func (r *AccessRequestReconciler) handleCreateOrUpdate(ctx context.Context, req 
 			if creationTimestamp != "" && expirationTimestamp != "" {
 				tmp, err := strconv.ParseInt(creationTimestamp, 10, 64)
 				if err != nil {
-					rr.ReconcileError = errutils.WithReason(fmt.Errorf("error parsing creation timestamp from secret '%s/%s': %w", s.Namespace, s.Name, err), cconst.ReasonInternalError)
+					rr.ReconcileError = errutils.WithReason(fmt.Errorf("error parsing creation timestamp from secret '%s/%s': %w", s.Namespace, s.Name, err), clusterconst.ReasonInternalError)
 					return rr
 				}
 				createdAt := time.Unix(tmp, 0)
 				tmp, err = strconv.ParseInt(expirationTimestamp, 10, 64)
 				if err != nil {
-					rr.ReconcileError = errutils.WithReason(fmt.Errorf("error parsing expiration timestamp from secret '%s/%s': %w", s.Namespace, s.Name, err), cconst.ReasonInternalError)
+					rr.ReconcileError = errutils.WithReason(fmt.Errorf("error parsing expiration timestamp from secret '%s/%s': %w", s.Namespace, s.Name, err), clusterconst.ReasonInternalError)
 					return rr
 				}
 				expiredAt := time.Unix(tmp, 0)
@@ -295,7 +296,7 @@ func (r *AccessRequestReconciler) getClusterAndProfile(ctx context.Context, ar *
 	log.Debug("Fetching Cluster resource", "clusterName", c.Name, "clusterNamespace", c.Namespace)
 	if err := r.PlatformCluster.Client().Get(ctx, client.ObjectKeyFromObject(c), c); err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil, nil, errutils.WithReason(fmt.Errorf("Cluster '%s/%s' not found", c.Namespace, c.Name), cconst.ReasonInvalidReference)
+			return nil, nil, errutils.WithReason(fmt.Errorf("Cluster '%s/%s' not found", c.Namespace, c.Name), clusterconst.ReasonInvalidReference)
 		}
 		return nil, nil, errutils.WithReason(fmt.Errorf("unable to get Cluster '%s/%s': %w", c.Namespace, c.Name, err), clusterconst.ReasonPlatformClusterInteractionProblem)
 	}
@@ -319,11 +320,11 @@ func (r *AccessRequestReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			predicate.Or(
 				predicate.GenerationChangedPredicate{},
 				ctrlutils.DeletionTimestampChangedPredicate{},
-				ctrlutils.GotAnnotationPredicate(clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueReconcile),
-				ctrlutils.LostAnnotationPredicate(clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueIgnore),
+				ctrlutils.GotAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueReconcile),
+				ctrlutils.LostAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueIgnore),
 			),
 			predicate.Not(
-				ctrlutils.HasAnnotationPredicate(clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueIgnore),
+				ctrlutils.HasAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueIgnore),
 			),
 		)).
 		Owns(&corev1.Secret{}, builder.WithPredicates(

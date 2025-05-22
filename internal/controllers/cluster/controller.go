@@ -21,6 +21,7 @@ import (
 
 	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
 	clusterconst "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1/constants"
+	openmcpconst "github.com/openmcp-project/openmcp-operator/api/constants"
 
 	providerv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
 	cconst "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1/constants"
@@ -99,15 +100,15 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 
 	// handle operation annotation
 	if c.GetAnnotations() != nil {
-		op, ok := c.GetAnnotations()[clustersv1alpha1.OperationAnnotation]
+		op, ok := c.GetAnnotations()[openmcpconst.OperationAnnotation]
 		if ok {
 			switch op {
-			case clustersv1alpha1.OperationAnnotationValueIgnore:
+			case openmcpconst.OperationAnnotationValueIgnore:
 				log.Info("Ignoring resource due to ignore operation annotation")
 				return ReconcileResult{}
-			case clustersv1alpha1.OperationAnnotationValueReconcile:
+			case openmcpconst.OperationAnnotationValueReconcile:
 				log.Debug("Removing reconcile operation annotation from resource")
-				if err := ctrlutils.EnsureAnnotation(ctx, r.PlatformCluster.Client(), c, clustersv1alpha1.OperationAnnotation, "", true, ctrlutils.DELETE); err != nil {
+				if err := ctrlutils.EnsureAnnotation(ctx, r.PlatformCluster.Client(), c, openmcpconst.OperationAnnotation, "", true, ctrlutils.DELETE); err != nil {
 					return ReconcileResult{ReconcileError: errutils.WithReason(fmt.Errorf("error removing operation annotation: %w", err), clusterconst.ReasonPlatformClusterInteractionProblem)}
 				}
 			}
@@ -171,7 +172,7 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 
 		// take over fields from shoot template and update shoot
 		if err := UpdateShootFields(ctx, shoot, profile, landscape, c); err != nil {
-			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error updating shoot fields: %w", err), cconst.ReasonInternalError)
+			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error updating shoot fields: %w", err), clusterconst.ReasonInternalError)
 			return rr
 		}
 		// set shoot in ProviderStatus
@@ -185,7 +186,7 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 		manifest.OwnerReferences = nil
 		manifest.Finalizers = nil
 		if err := c.Status.SetProviderStatus(providerv1alpha1.ClusterStatus{Shoot: manifest}); err != nil {
-			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error setting provider status: %w", err), cconst.ReasonInternalError)
+			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error setting provider status: %w", err), clusterconst.ReasonInternalError)
 			return rr
 		}
 		var err error
@@ -253,11 +254,11 @@ func (r *ClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			predicate.Or(
 				predicate.GenerationChangedPredicate{},
 				ctrlutils.DeletionTimestampChangedPredicate{},
-				ctrlutils.GotAnnotationPredicate(clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueReconcile),
-				ctrlutils.LostAnnotationPredicate(clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueIgnore),
+				ctrlutils.GotAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueReconcile),
+				ctrlutils.LostAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueIgnore),
 			),
 			predicate.Not(
-				ctrlutils.HasAnnotationPredicate(clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueIgnore),
+				ctrlutils.HasAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueIgnore),
 			),
 		)).
 		// watch Shoot resources

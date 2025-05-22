@@ -23,6 +23,7 @@ import (
 
 	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
 	clusterconst "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1/constants"
+	openmcpconst "github.com/openmcp-project/openmcp-operator/api/constants"
 
 	providerv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
 	cconst "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1/constants"
@@ -122,15 +123,15 @@ func (r *GardenerProviderConfigReconciler) reconcile(ctx context.Context, req re
 
 	// handle operation annotation
 	if pc.GetAnnotations() != nil {
-		op, ok := pc.GetAnnotations()[clustersv1alpha1.OperationAnnotation]
+		op, ok := pc.GetAnnotations()[openmcpconst.OperationAnnotation]
 		if ok {
 			switch op {
-			case clustersv1alpha1.OperationAnnotationValueIgnore:
+			case openmcpconst.OperationAnnotationValueIgnore:
 				log.Info("Ignoring resource due to ignore operation annotation")
 				return ReconcileResult{}, nil
-			case clustersv1alpha1.OperationAnnotationValueReconcile:
+			case openmcpconst.OperationAnnotationValueReconcile:
 				log.Debug("Removing reconcile operation annotation from resource")
-				if err := ctrlutils.EnsureAnnotation(ctx, r.PlatformCluster.Client(), pc, clustersv1alpha1.OperationAnnotation, "", true, ctrlutils.DELETE); err != nil {
+				if err := ctrlutils.EnsureAnnotation(ctx, r.PlatformCluster.Client(), pc, openmcpconst.OperationAnnotation, "", true, ctrlutils.DELETE); err != nil {
 					return ReconcileResult{ReconcileError: errutils.WithReason(fmt.Errorf("error removing operation annotation: %w", err), clusterconst.ReasonPlatformClusterInteractionProblem)}, nil
 				}
 			}
@@ -320,11 +321,11 @@ func (r *GardenerProviderConfigReconciler) SetupWithManager(mgr ctrl.Manager) er
 			predicate.Or(
 				predicate.GenerationChangedPredicate{},
 				ctrlutils.DeletionTimestampChangedPredicate{},
-				ctrlutils.GotAnnotationPredicate(clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueReconcile),
-				ctrlutils.LostAnnotationPredicate(clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueIgnore),
+				ctrlutils.GotAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueReconcile),
+				ctrlutils.LostAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueIgnore),
 			),
 			predicate.Not(
-				ctrlutils.HasAnnotationPredicate(clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueIgnore),
+				ctrlutils.HasAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueIgnore),
 			),
 		)).
 		// listen to internally triggered reconciliation requests

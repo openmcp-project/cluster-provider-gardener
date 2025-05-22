@@ -32,8 +32,8 @@ import (
 	errutils "github.com/openmcp-project/controller-utils/pkg/errors"
 	"github.com/openmcp-project/controller-utils/pkg/logging"
 
-	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
 	clusterconst "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1/constants"
+	openmcpconst "github.com/openmcp-project/openmcp-operator/api/constants"
 
 	providerv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
 	cconst "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1/constants"
@@ -89,13 +89,13 @@ func (r *LandscapeReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 			}
 			log.Info("Registering landscape", "apiServer", apiServer)
 			if err := r.SetLandscape(ctx, lsInt); err != nil {
-				rr.ReconcileError = errutils.Join(rr.ReconcileError, errutils.WithReason(fmt.Errorf("error setting internal Landscape representation: %w", err), cconst.ReasonInternalError))
+				rr.ReconcileError = errutils.Join(rr.ReconcileError, errutils.WithReason(fmt.Errorf("error setting internal Landscape representation: %w", err), clusterconst.ReasonInternalError))
 			}
 		} else if oldLsInt != nil {
 			// remove internal representation of the Landscape
 			log.Info("Unregistering landscape")
 			if err := r.UnsetLandscape(ctx, req.Name); err != nil {
-				rr.ReconcileError = errutils.Join(rr.ReconcileError, errutils.WithReason(fmt.Errorf("error removing internal Landscape representation: %w", err), cconst.ReasonInternalError))
+				rr.ReconcileError = errutils.Join(rr.ReconcileError, errutils.WithReason(fmt.Errorf("error removing internal Landscape representation: %w", err), clusterconst.ReasonInternalError))
 			}
 		}
 	}
@@ -156,15 +156,15 @@ func (r *LandscapeReconciler) reconcile(ctx context.Context, req reconcile.Reque
 
 	// handle operation annotation
 	if ls.GetAnnotations() != nil {
-		op, ok := ls.GetAnnotations()[clustersv1alpha1.OperationAnnotation]
+		op, ok := ls.GetAnnotations()[openmcpconst.OperationAnnotation]
 		if ok {
 			switch op {
-			case clustersv1alpha1.OperationAnnotationValueIgnore:
+			case openmcpconst.OperationAnnotationValueIgnore:
 				log.Info("Ignoring resource due to ignore operation annotation")
 				return ReconcileResult{}, nil
-			case clustersv1alpha1.OperationAnnotationValueReconcile:
+			case openmcpconst.OperationAnnotationValueReconcile:
 				log.Debug("Removing reconcile operation annotation from resource")
-				if err := ctrlutils.EnsureAnnotation(ctx, r.PlatformCluster.Client(), ls, clustersv1alpha1.OperationAnnotation, "", true, ctrlutils.DELETE); err != nil {
+				if err := ctrlutils.EnsureAnnotation(ctx, r.PlatformCluster.Client(), ls, openmcpconst.OperationAnnotation, "", true, ctrlutils.DELETE); err != nil {
 					return ReconcileResult{ReconcileError: errutils.WithReason(fmt.Errorf("error removing operation annotation: %w", err), clusterconst.ReasonPlatformClusterInteractionProblem)}, nil
 				}
 			}
@@ -221,7 +221,7 @@ func (r *LandscapeReconciler) handleCreateOrUpdate(ctx context.Context, req reco
 		secret := &corev1.Secret{}
 		if err := r.PlatformCluster.Client().Get(ctx, ctrlutils.ObjectKey(ref.Name, ref.Namespace), secret); err != nil {
 			if apierrors.IsNotFound(err) {
-				rr.ReconcileError = errutils.WithReason(fmt.Errorf("kubeconfig secret '%s/%s' not found for Landscape '%s': %w", ref.Namespace, ref.Name, ls.Name, err), cconst.ReasonInvalidReference)
+				rr.ReconcileError = errutils.WithReason(fmt.Errorf("kubeconfig secret '%s/%s' not found for Landscape '%s': %w", ref.Namespace, ref.Name, ls.Name, err), clusterconst.ReasonInvalidReference)
 				return rr, lsInt
 			} else {
 				rr.ReconcileError = errutils.WithReason(fmt.Errorf("error getting kubeconfig secret '%s/%s' for Landscape '%s': %w", ref.Namespace, ref.Name, ls.Name, err), clusterconst.ReasonPlatformClusterInteractionProblem)
@@ -321,7 +321,7 @@ func (r *LandscapeReconciler) handleCreateOrUpdate(ctx context.Context, req reco
 		o.Cache.DefaultNamespaces = projectNamespaces
 	})
 	if err := lsInt.Cluster.InitializeClient(gardenerScheme); err != nil {
-		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error initializing client with cache options for Landscape '%s': %w", ls.Name, err), cconst.ReasonInternalError)
+		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error initializing client with cache options for Landscape '%s': %w", ls.Name, err), clusterconst.ReasonInternalError)
 		return rr, lsInt
 	}
 
@@ -402,11 +402,11 @@ func (r *LandscapeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			predicate.Or(
 				predicate.GenerationChangedPredicate{},
 				ctrlutils.DeletionTimestampChangedPredicate{},
-				ctrlutils.GotAnnotationPredicate(clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueReconcile),
-				ctrlutils.LostAnnotationPredicate(clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueIgnore),
+				ctrlutils.GotAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueReconcile),
+				ctrlutils.LostAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueIgnore),
 			),
 			predicate.Not(
-				ctrlutils.HasAnnotationPredicate(clustersv1alpha1.OperationAnnotation, clustersv1alpha1.OperationAnnotationValueIgnore),
+				ctrlutils.HasAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueIgnore),
 			),
 		)).
 		// listen to internally triggered reconciliation requests

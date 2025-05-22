@@ -16,6 +16,7 @@ import (
 	"github.com/openmcp-project/controller-utils/pkg/logging"
 
 	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
+	clusterconst "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1/constants"
 
 	providerv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
 	cconst "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1/constants"
@@ -33,7 +34,7 @@ func GetShoot(ctx context.Context, landscape *shared.Landscape, profile *shared.
 	if c.Status.ProviderStatus != nil {
 		cs := &providerv1alpha1.ClusterStatus{}
 		if err := c.Status.GetProviderStatus(cs); err != nil {
-			return nil, errutils.WithReason(fmt.Errorf("error unmarshalling provider status: %w", err), cconst.ReasonInternalError)
+			return nil, errutils.WithReason(fmt.Errorf("error unmarshalling provider status: %w", err), clusterconst.ReasonInternalError)
 		}
 		log.Debug("Provider status found, checking for shoot manifest")
 		if cs.Shoot != nil {
@@ -65,7 +66,7 @@ func GetShoot(ctx context.Context, landscape *shared.Landscape, profile *shared.
 			return nil, errutils.WithReason(fmt.Errorf("error listing shoots in namespace '%s': %w", profile.Project.Namespace, err), cconst.ReasonGardenClusterInteractionProblem)
 		}
 		if len(shoots.Items) > 1 {
-			return nil, errutils.WithReason(fmt.Errorf("found multiple shoots referencing cluster '%s'/'%s' in namespace '%s', there should never be more than one", c.Namespace, c.Name, profile.Project.Namespace), cconst.ReasonInternalError)
+			return nil, errutils.WithReason(fmt.Errorf("found multiple shoots referencing cluster '%s'/'%s' in namespace '%s', there should never be more than one", c.Namespace, c.Name, profile.Project.Namespace), clusterconst.ReasonInternalError)
 		}
 		if len(shoots.Items) == 1 {
 			shoot = &shoots.Items[0]

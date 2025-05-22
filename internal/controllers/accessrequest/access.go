@@ -92,7 +92,6 @@ func (r *AccessRequestReconciler) cleanupResources(ctx context.Context, getShoot
 	log := logging.FromContextOrPanic(ctx)
 	log.Info("Cleaning up resources that are not required anymore")
 
-	errs := errutils.NewReasonableErrorList()
 	if len(labels) == 0 {
 		return errutils.WithReason(fmt.Errorf("no labels provided for cleanup"), cconst.ReasonInternalError)
 	}
@@ -103,7 +102,30 @@ func (r *AccessRequestReconciler) cleanupResources(ctx context.Context, getShoot
 		return rerr
 	}
 
-	// cleanup RoleBindings
+	if err := r.cleanupRoleBindings(ctx, sac, selector, keep); err != nil {
+		return err
+	}
+	if err := r.cleanupClusterRoleBindings(ctx, sac, selector, keep); err != nil {
+		return err
+	}
+	if err := r.cleanupRoles(ctx, sac, selector, keep); err != nil {
+		return err
+	}
+	if err := r.cleanupClusterRoles(ctx, sac, selector, keep); err != nil {
+		return err
+	}
+	if err := r.cleanupServiceAccounts(ctx, sac, selector, keep); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *AccessRequestReconciler) cleanupRoleBindings(ctx context.Context, sac *shootAccess, selector client.MatchingLabels, keep []client.Object) errutils.ReasonableError {
+	log := logging.FromContextOrPanic(ctx)
+	log.Debug("Cleaning up RoleBindings")
+
+	errs := errutils.NewReasonableErrorList()
 	rbs := &rbacv1.RoleBindingList{}
 	if err := sac.Client.List(ctx, rbs, selector); err != nil {
 		errs.Append(errutils.WithReason(fmt.Errorf("error listing RoleBindings: %w", err), cconst.ReasonShootClusterInteractionProblem))
@@ -130,11 +152,14 @@ func (r *AccessRequestReconciler) cleanupResources(ctx context.Context, getShoot
 			}
 		}
 	}
-	if err := errs.Aggregate(); err != nil {
-		return err
-	}
+	return errs.Aggregate()
+}
 
-	// cleanup ClusterRoleBindings
+func (r *AccessRequestReconciler) cleanupClusterRoleBindings(ctx context.Context, sac *shootAccess, selector client.MatchingLabels, keep []client.Object) errutils.ReasonableError {
+	log := logging.FromContextOrPanic(ctx)
+	log.Debug("Cleaning up ClusterRoleBindings")
+
+	errs := errutils.NewReasonableErrorList()
 	crbs := &rbacv1.ClusterRoleBindingList{}
 	if err := sac.Client.List(ctx, crbs, selector); err != nil {
 		errs.Append(errutils.WithReason(fmt.Errorf("error listing ClusterRoleBindings: %w", err), cconst.ReasonShootClusterInteractionProblem))
@@ -161,11 +186,14 @@ func (r *AccessRequestReconciler) cleanupResources(ctx context.Context, getShoot
 			}
 		}
 	}
-	if err := errs.Aggregate(); err != nil {
-		return err
-	}
+	return errs.Aggregate()
+}
 
-	// cleanup Roles
+func (r *AccessRequestReconciler) cleanupRoles(ctx context.Context, sac *shootAccess, selector client.MatchingLabels, keep []client.Object) errutils.ReasonableError {
+	log := logging.FromContextOrPanic(ctx)
+	log.Debug("Cleaning up Roles")
+
+	errs := errutils.NewReasonableErrorList()
 	roles := &rbacv1.RoleList{}
 	if err := sac.Client.List(ctx, roles, selector); err != nil {
 		errs.Append(errutils.WithReason(fmt.Errorf("error listing Roles: %w", err), cconst.ReasonShootClusterInteractionProblem))
@@ -192,11 +220,14 @@ func (r *AccessRequestReconciler) cleanupResources(ctx context.Context, getShoot
 			}
 		}
 	}
-	if err := errs.Aggregate(); err != nil {
-		return err
-	}
+	return errs.Aggregate()
+}
 
-	// cleanup ClusterRoles
+func (r *AccessRequestReconciler) cleanupClusterRoles(ctx context.Context, sac *shootAccess, selector client.MatchingLabels, keep []client.Object) errutils.ReasonableError {
+	log := logging.FromContextOrPanic(ctx)
+	log.Debug("Cleaning up ClusterRoles")
+
+	errs := errutils.NewReasonableErrorList()
 	crs := &rbacv1.ClusterRoleList{}
 	if err := sac.Client.List(ctx, crs, selector); err != nil {
 		errs.Append(errutils.WithReason(fmt.Errorf("error listing ClusterRoles: %w", err), cconst.ReasonShootClusterInteractionProblem))
@@ -223,11 +254,14 @@ func (r *AccessRequestReconciler) cleanupResources(ctx context.Context, getShoot
 			}
 		}
 	}
-	if err := errs.Aggregate(); err != nil {
-		return err
-	}
+	return errs.Aggregate()
+}
 
-	// cleanup ServiceAccounts
+func (r *AccessRequestReconciler) cleanupServiceAccounts(ctx context.Context, sac *shootAccess, selector client.MatchingLabels, keep []client.Object) errutils.ReasonableError {
+	log := logging.FromContextOrPanic(ctx)
+	log.Debug("Cleaning up ServiceAccounts")
+
+	errs := errutils.NewReasonableErrorList()
 	sas := &corev1.ServiceAccountList{}
 	if err := sac.Client.List(ctx, sas, selector); err != nil {
 		errs.Append(errutils.WithReason(fmt.Errorf("error listing ServiceAccounts: %w", err), cconst.ReasonShootClusterInteractionProblem))
@@ -254,11 +288,7 @@ func (r *AccessRequestReconciler) cleanupResources(ctx context.Context, getShoot
 			}
 		}
 	}
-	if err := errs.Aggregate(); err != nil {
-		return err
-	}
-
-	return nil
+	return errs.Aggregate()
 }
 
 func (r *AccessRequestReconciler) renewToken(ctx context.Context, ac *clustersv1alpha1.AccessRequest, getShootAccess shootAccessGetter, rr ReconcileResult) ([]client.Object, ReconcileResult) {

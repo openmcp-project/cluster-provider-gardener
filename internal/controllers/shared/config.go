@@ -89,6 +89,7 @@ type RuntimeConfiguration struct {
 	ShootWatch              chan event.TypedGenericEvent[*gardenv1beta1.Shoot]             // changes on the watched shoots are sent to the Cluster controller via this channel
 	ReconcileLandscape      chan event.TypedGenericEvent[*providerv1alpha1.Landscape]      // sending a Landscape to this channel will trigger a reconciliation of the corresponding resource
 	ReconcileProviderConfig chan event.TypedGenericEvent[*providerv1alpha1.ProviderConfig] // sending a ProviderConfig to this channel will trigger a reconciliation of the corresponding resource
+	ReconcileCluster        chan event.TypedGenericEvent[*clustersv1alpha1.Cluster]        // sending a Cluster to this channel will trigger a reconciliation of the corresponding resource
 	PlatformCluster         *clusters.Cluster
 }
 
@@ -98,6 +99,7 @@ func NewRuntimeConfiguration(platform *clusters.Cluster, swMgr *threads.ThreadMa
 		ShootWatch:              make(chan event.TypedGenericEvent[*gardenv1beta1.Shoot], 1024),
 		ReconcileLandscape:      make(chan event.TypedGenericEvent[*providerv1alpha1.Landscape], 1024),
 		ReconcileProviderConfig: make(chan event.TypedGenericEvent[*providerv1alpha1.ProviderConfig], 1024),
+		ReconcileCluster:        make(chan event.TypedGenericEvent[*clustersv1alpha1.Cluster], 1024),
 		ShootWatchManager:       swMgr,
 		PlatformCluster:         platform,
 	}

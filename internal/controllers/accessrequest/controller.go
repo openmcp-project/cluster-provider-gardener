@@ -23,13 +23,14 @@ import (
 	errutils "github.com/openmcp-project/controller-utils/pkg/errors"
 	"github.com/openmcp-project/controller-utils/pkg/logging"
 
+	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
+	clusterconst "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1/constants"
+
 	providerv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
 	cconst "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1/constants"
 	gardenv1beta1 "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1"
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/cluster"
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/shared"
-	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
-	clusterconst "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1/constants"
 )
 
 const ControllerName = "AccessRequest"

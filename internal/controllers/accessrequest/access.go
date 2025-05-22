@@ -26,12 +26,13 @@ import (
 	"github.com/openmcp-project/controller-utils/pkg/pairs"
 	"github.com/openmcp-project/controller-utils/pkg/resources"
 
+	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
+	clusterconst "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1/constants"
+
 	cconst "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1/constants"
 	authenticationv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/authentication/v1alpha1"
 	gardenv1beta1 "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1"
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/shared"
-	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
-	clusterconst "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1/constants"
 )
 
 // getAdminKubeconfigForShoot uses the AdminKubeconfigRequest subresource of a shoot to get a admin kubeconfig for the given shoot.

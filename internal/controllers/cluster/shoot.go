@@ -85,6 +85,7 @@ func GetShoot(ctx context.Context, landscape *shared.Landscape, profile *shared.
 func UpdateShootFields(ctx context.Context, shoot *gardenv1beta1.Shoot, profile *shared.Profile, landscape *shared.Landscape, cluster *clustersv1alpha1.Cluster) error {
 	log := logging.FromContextOrPanic(ctx).WithName("UpdateShootFields")
 	tmpl := profile.ProviderConfig.Spec.ShootTemplate
+	oldShoot := shoot.DeepCopy()
 
 	// annotations
 	enforcedAnnotations := maputils.Merge(tmpl.Annotations, map[string]string{
@@ -145,8 +146,11 @@ func UpdateShootFields(ctx context.Context, shoot *gardenv1beta1.Shoot, profile 
 	if err := mergo.Merge(&shoot.Spec, tmpl.Spec, mergo.WithOverride); err != nil {
 		return fmt.Errorf("error merging shoot spec from template into shoot: %w", err)
 	}
+
+	// don't use the default merge logic for some fields
 	shoot.Spec.Kubernetes.Version = newK8sVersion
 	shoot.ObjectMeta.Annotations[clustersv1alpha1.K8sVersionAnnotation] = newK8sVersion
+	shoot.Spec.Provider.ControlPlaneConfig = oldShoot.Spec.Provider.ControlPlaneConfig
 
 	return nil
 }

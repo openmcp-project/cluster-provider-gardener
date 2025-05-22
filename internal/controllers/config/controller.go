@@ -11,6 +11,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -57,14 +58,30 @@ func (r *GardenerProviderConfigReconciler) Reconcile(ctx context.Context, req re
 	if profile == nil && rr.ReconcileError != nil && rr.ReconcileError.Reason() == clusterconst.ReasonPlatformClusterInteractionProblem {
 		// there was a problem communicating with the platform cluster which prevents us from determining the current state
 	} else {
+		if rr.Object != nil {
+			// update internal ProviderConfiguration
+			r.SetProviderConfiguration(req.Name, rr.Object)
+		} else if rr.ReconcileError == nil {
+			// remove ProviderConfiguration from internal representation
+			r.UnsetProviderConfiguration(req.Name)
+		}
 		if profile != nil {
 			// update internal profiles
 			log.Info("Updating profile registrations")
+			oldProfile := r.GetProfileForProviderConfiguration(req.Name)
 			r.SetProfileForProviderConfiguration(req.Name, profile)
-			// update internal ProviderConfiguration
-			if rr.Object != nil {
-				r.SetProviderConfiguration(req.Name, rr.Object)
+			if oldProfile == nil {
+				// notify clusters about new profile
+				// this is required because clusters with unknown profiles are ignored by the controller
+				// so they would only be reconciled if somehow triggered by a modification from the outside
+				if err := r.notifyClustersAboutNewProfile(ctx, profile); err != nil {
+					rr.ReconcileError = errutils.Join(rr.ReconcileError, errutils.Errorf("error notifying clusters about new profile: %s", err, err.Error()))
+				}
 			}
+		} else if rr.ReconcileError == nil {
+			// remove profile from internal representation
+			log.Info("Removing profile registration")
+			r.UnsetProfilesForProviderConfiguration(req.Name)
 		}
 	}
 	// status update
@@ -261,6 +278,29 @@ func (r *GardenerProviderConfigReconciler) handleDelete(ctx context.Context, req
 	rr.Object = nil // this prevents the controller from trying to update an already deleted resource
 
 	return rr
+}
+
+func (r *GardenerProviderConfigReconciler) notifyClustersAboutNewProfile(ctx context.Context, profile *shared.Profile) errutils.ReasonableError {
+	log := logging.FromContextOrPanic(ctx)
+	log.Info("Notifying clusters about new profile")
+
+	// list all clusters that reference the new profile
+	clusters := &clustersv1alpha1.ClusterList{}
+	if err := r.PlatformCluster.Client().List(ctx, clusters, client.MatchingFields{
+		"spec.profile": shared.ProfileK8sName(profile.ProviderConfig.Name),
+	}); err != nil {
+		return errutils.WithReason(fmt.Errorf("error listing clusters: %w", err), clusterconst.ReasonPlatformClusterInteractionProblem)
+	}
+
+	if len(clusters.Items) == 0 {
+		log.Debug("No clusters found that reference the new profile")
+		return nil
+	}
+	for _, c := range clusters.Items {
+		log.Info("Notifying cluster", "clusterName", c.Name, "clusterNamespace", c.Namespace)
+		r.ReconcileCluster <- event.TypedGenericEvent[*clustersv1alpha1.Cluster]{Object: &c}
+	}
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

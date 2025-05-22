@@ -308,5 +308,19 @@ func (r *ClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			}
 			return requests
 		}), builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		// listen to internally triggered reconciliation requests
+		WatchesRawSource(source.TypedChannel(r.ReconcileCluster, handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, c *clustersv1alpha1.Cluster) []ctrl.Request {
+			if c == nil {
+				return nil
+			}
+			return []ctrl.Request{
+				{
+					NamespacedName: client.ObjectKey{
+						Name:      c.Name,
+						Namespace: c.Namespace,
+					},
+				},
+			}
+		}))).
 		Complete(r)
 }

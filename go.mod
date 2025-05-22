@@ -8,7 +8,7 @@ require (
 	dario.cat/mergo v1.0.1
 	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/openmcp-project/cluster-provider-gardener/api v0.0.0-00010101000000-000000000000
-	github.com/openmcp-project/openmcp-operator/api v0.5.1-0.20250521084924-35278002b6ed
+	github.com/openmcp-project/openmcp-operator/api v0.5.1-0.20250522134328-e0421dd44e54
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/apimachinery v0.33.1
 	k8s.io/client-go v0.33.1

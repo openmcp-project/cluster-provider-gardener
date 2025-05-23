@@ -13,5 +13,26 @@
   ],
   "postUpdateOptions": [
     "gomodTidy"
+  ],
+  "packageRules": [
+    {
+      "matchPackageNames": [
+        "github.com/openmcp-project/*"
+      ],
+      "description": "Update all components from openmcp-project immediately",
+      "rebaseWhen": "auto",
+      "minimumReleaseAge": "0 days",
+      "enabled": true
+    },
+    {
+      "description": "Ignore version update for our own API",
+      "matchManagers": [
+        "gomod"
+      ],
+      "enabled": false,
+      "matchPackageNames": [
+        "github.com/openmcp-project/cluster-provider-gardener/api"
+      ]
+    }
   ]
 }

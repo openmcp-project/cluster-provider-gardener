@@ -5,9 +5,9 @@ go 1.24.2
 require (
 	github.com/openmcp-project/controller-utils v0.0.0-20250514103840-36be6cfff45a
 	github.com/openmcp-project/openmcp-operator/api v0.4.0
-	k8s.io/api v0.33.0
-	k8s.io/apiextensions-apiserver v0.33.0
-	k8s.io/client-go v0.33.0
+	k8s.io/api v0.33.1
+	k8s.io/apiextensions-apiserver v0.33.1
+	k8s.io/client-go v0.33.1
 )
 
 require (
@@ -60,7 +60,7 @@ require (
 	golang.org/x/net v0.40.0 // indirect
 	golang.org/x/text v0.25.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
-	k8s.io/apimachinery v0.33.0
+	k8s.io/apimachinery v0.33.1
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/utils v0.0.0-20250502105355-0f33e8f1c979 // indirect
 	sigs.k8s.io/controller-runtime v0.20.4

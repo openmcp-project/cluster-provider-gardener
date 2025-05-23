@@ -17,10 +17,18 @@ jobs:
     name: Release version
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Create GitHub App token
+        uses: actions/create-github-app-token@v2
+        id: app-token
         with:
-          ssh-key: ${{ secrets.PUSH_KEY }}
+          # required
+          app-id: 1312871
+          private-key: ${{ secrets.OPENMCP_CI_APP_PRIVATE_KEY }}
+
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
           fetch-tags: true
           fetch-depth: 0
           submodules: recursive
@@ -49,7 +57,7 @@ jobs:
           exit 0
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3
 
       - name: Set up Docker Context for Buildx
         id: buildx-context
@@ -57,7 +65,7 @@ jobs:
           docker context create builders
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -65,12 +73,12 @@ jobs:
 
       - name: Set up Docker Buildx
         timeout-minutes: 5
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3
         with:
           version: latest
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5
         with:
           go-version-file: go.mod
 

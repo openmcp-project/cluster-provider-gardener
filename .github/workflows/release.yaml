@@ -14,10 +14,18 @@ jobs:
     name: Release version
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Create GitHub App token
+        uses: actions/create-github-app-token@v2
+        id: app-token
         with:
-          ssh-key: ${{ secrets.PUSH_KEY }}
+          # required
+          app-id: 1312871
+          private-key: ${{ secrets.OPENMCP_CI_APP_PRIVATE_KEY }}
+
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
           fetch-tags: true
           fetch-depth: 0
           submodules: recursive
@@ -89,7 +97,7 @@ jobs:
 
       - name: Build Changelog
         id: github_release
-        uses: mikepenz/release-changelog-builder-action@v5
+        uses: mikepenz/release-changelog-builder-action@e92187bd633e680ebfdd15961a7c30b2d097e7ad # v5
         with:
           mode: "PR"
           configurationJson: |
@@ -123,7 +131,7 @@ jobs:
 
       - name: Create GitHub release
         if: ${{ env.SKIP != 'true' }}
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2
         with:
           tag_name: ${{ env.version }}
           name: Release ${{ env.version }}

@@ -34,5 +34,15 @@
         "github.com/openmcp-project/cluster-provider-gardener/api"
       ]
     }
+  ],
+  "customManagers": [
+    {
+      "description": "Match for gardener in hack/external-apis/apis.yaml",
+      "customType": "regex",
+      "fileMatch": "hack/external-apis/apis.yaml",
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-.]+?)\\s.*base: .*\\/(?<currentValue>.+?)\\s.*vendor: .+?\\/(?<packageName>.+?)\\s"
+      ]
+    }
   ]
 }

@@ -112,7 +112,7 @@ func (r *GardenerProviderConfigReconciler) reconcile(ctx context.Context, req re
 			log.Info("Resource not found")
 			return ReconcileResult{}, nil
 		}
-		return ReconcileResult{ReconcileError: errutils.WithReason(fmt.Errorf("unable to get resource '%s' from cluster: %w", req.NamespacedName.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)}, nil
+		return ReconcileResult{ReconcileError: errutils.WithReason(fmt.Errorf("unable to get resource '%s' from cluster: %w", req.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)}, nil
 	}
 
 	// check provider name
@@ -166,7 +166,7 @@ func (r *GardenerProviderConfigReconciler) handleCreateOrUpdate(ctx context.Cont
 	if controllerutil.AddFinalizer(pc, providerv1alpha1.ProviderConfigFinalizer) {
 		log.Info("Adding finalizer")
 		if err := r.PlatformCluster.Client().Patch(ctx, pc, client.MergeFrom(rr.OldObject)); err != nil {
-			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.NamespacedName.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
+			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
 			return rr, nil
 		}
 	}
@@ -174,7 +174,7 @@ func (r *GardenerProviderConfigReconciler) handleCreateOrUpdate(ctx context.Cont
 	// check if Landscape is known
 	ls := r.GetLandscape(pc.Spec.LandscapeRef.Name)
 	if ls == nil {
-		rr.ReconcileError = errutils.WithReason(fmt.Errorf("Landscape '%s' not found", pc.Spec.LandscapeRef.Name), cconst.ReasonUnknownLandscape)
+		rr.ReconcileError = errutils.WithReason(fmt.Errorf("Landscape '%s' not found", pc.Spec.LandscapeRef.Name), cconst.ReasonUnknownLandscape) // nolint:staticcheck
 		return rr, nil
 	}
 
@@ -187,7 +187,7 @@ func (r *GardenerProviderConfigReconciler) handleCreateOrUpdate(ctx context.Cont
 		}
 	}
 	if pData == nil {
-		rr.ReconcileError = errutils.WithReason(fmt.Errorf("Landscape '%s' can not manage the project '%s'", pc.Spec.LandscapeRef.Name, pc.Spec.Project), cconst.ReasonConfigurationProblem)
+		rr.ReconcileError = errutils.WithReason(fmt.Errorf("Landscape '%s' can not manage the project '%s'", pc.Spec.LandscapeRef.Name, pc.Spec.Project), cconst.ReasonConfigurationProblem) // nolint:staticcheck
 	}
 	p.Project = *pData.DeepCopy()
 
@@ -195,15 +195,15 @@ func (r *GardenerProviderConfigReconciler) handleCreateOrUpdate(ctx context.Cont
 	p.SupportedK8sVersions = []shared.K8sVersion{}
 	cpName := pc.CloudProfile()
 	if cpName == "" {
-		rr.ReconcileError = errutils.WithReason(fmt.Errorf("Unable to extract CloudProfile name from ShootTemplate"), cconst.ReasonConfigurationProblem)
+		rr.ReconcileError = errutils.WithReason(fmt.Errorf("unable to extract CloudProfile name from ShootTemplate"), cconst.ReasonConfigurationProblem)
 		return rr, nil
 	}
 	cp := &gardenv1beta1.CloudProfile{}
 	if err := ls.Cluster.Client().Get(ctx, ctrlutils.ObjectKey(cpName), cp); err != nil {
 		if apierrors.IsNotFound(err) {
-			rr.ReconcileError = errutils.WithReason(fmt.Errorf("Gardener landscape '%s' does not have a CloudProfile '%s'", pc.Spec.LandscapeRef.Name, cpName), cconst.ReasonUnknownCloudProfile)
+			rr.ReconcileError = errutils.WithReason(fmt.Errorf("Gardener landscape '%s' does not have a CloudProfile '%s'", pc.Spec.LandscapeRef.Name, cpName), cconst.ReasonUnknownCloudProfile) // nolint:staticcheck
 		} else {
-			rr.ReconcileError = errutils.WithReason(fmt.Errorf("Error while fetching CloudProfile '%s' from landscape '%s': %v", cpName, pc.Spec.LandscapeRef.Name, err), cconst.ReasonGardenClusterInteractionProblem)
+			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error while fetching CloudProfile '%s' from landscape '%s': %v", cpName, pc.Spec.LandscapeRef.Name, err), cconst.ReasonGardenClusterInteractionProblem)
 		}
 		return rr, nil
 	}
@@ -272,7 +272,7 @@ func (r *GardenerProviderConfigReconciler) handleDelete(ctx context.Context, req
 	if controllerutil.RemoveFinalizer(pc, providerv1alpha1.ProviderConfigFinalizer) {
 		log.Info("Removing finalizer")
 		if err := r.PlatformCluster.Client().Patch(ctx, pc, client.MergeFrom(rr.OldObject)); err != nil {
-			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.NamespacedName.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
+			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
 			return rr
 		}
 	}

@@ -151,7 +151,7 @@ func (r *LandscapeReconciler) reconcile(ctx context.Context, req reconcile.Reque
 			log.Info("Resource not found")
 			return ReconcileResult{}, nil
 		}
-		return ReconcileResult{ReconcileError: errutils.WithReason(fmt.Errorf("unable to get resource '%s' from cluster: %w", req.NamespacedName.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)}, nil
+		return ReconcileResult{ReconcileError: errutils.WithReason(fmt.Errorf("unable to get resource '%s' from cluster: %w", req.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)}, nil
 	}
 
 	// handle operation annotation
@@ -200,7 +200,7 @@ func (r *LandscapeReconciler) handleCreateOrUpdate(ctx context.Context, req reco
 	if controllerutil.AddFinalizer(ls, providerv1alpha1.LandscapeFinalizer) {
 		log.Info("Adding finalizer")
 		if err := r.PlatformCluster.Client().Patch(ctx, ls, client.MergeFrom(rr.OldObject)); err != nil {
-			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.NamespacedName.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
+			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
 			return rr, nil
 		}
 	}
@@ -360,7 +360,7 @@ func (r *LandscapeReconciler) handleDelete(ctx context.Context, req reconcile.Re
 	if controllerutil.RemoveFinalizer(ls, providerv1alpha1.LandscapeFinalizer) {
 		log.Info("Removing finalizer")
 		if err := r.PlatformCluster.Client().Patch(ctx, ls, client.MergeFrom(rr.OldObject)); err != nil {
-			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.NamespacedName.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
+			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
 			return rr, nil
 		}
 	}

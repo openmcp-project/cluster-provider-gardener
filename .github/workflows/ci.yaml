@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    tags:
+      - v*
+    branches:
+      - master
+      - main
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+
+      - name: task generate
+        run: |
+          task generate --verbose
+          git diff --exit-code
+
+      - name: task validate
+        run: task validate --verbose
+
+      - name: task test
+        run: task test --verbose

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -87,11 +88,12 @@ type RunOptions struct {
 	RawRunOptions
 
 	// fields filled in Complete()
-	TLSOpts              []func(*tls.Config)
-	WebhookTLSOpts       []func(*tls.Config)
-	MetricsServerOptions metricsserver.Options
-	MetricsCertWatcher   *certwatcher.CertWatcher
-	WebhookCertWatcher   *certwatcher.CertWatcher
+	TLSOpts                              []func(*tls.Config)
+	WebhookTLSOpts                       []func(*tls.Config)
+	MetricsServerOptions                 metricsserver.Options
+	MetricsCertWatcher                   *certwatcher.CertWatcher
+	WebhookCertWatcher                   *certwatcher.CertWatcher
+	AccessRequestServiceAccountNamespace string
 }
 
 func (o *RunOptions) AddFlags(cmd *cobra.Command) {
@@ -214,13 +216,26 @@ func (o *RunOptions) Complete(ctx context.Context) error {
 		})
 	}
 
-	// TODO
-	shared.SetAccessRequestSANamespace("accessrequests")
+	o.AccessRequestServiceAccountNamespace = os.Getenv("ACCESS_REQUEST_SERVICE_ACCOUNT_NAMESPACE")
+	if o.AccessRequestServiceAccountNamespace == "" {
+		o.AccessRequestServiceAccountNamespace = "accessrequests"
+	}
+	shared.SetAccessRequestServiceAccountNamespace(o.AccessRequestServiceAccountNamespace)
 
 	return nil
 }
 
-func (o *RunOptions) PrintCompleted(cmd *cobra.Command) {}
+func (o *RunOptions) PrintCompleted(cmd *cobra.Command) {
+	raw := map[string]any{
+		"accessRequestServiceAccountNamespace": o.AccessRequestServiceAccountNamespace,
+	}
+	data, err := yaml.Marshal(raw)
+	if err != nil {
+		cmd.Println(fmt.Errorf("error marshalling completed options: %w", err).Error())
+		return
+	}
+	cmd.Print(string(data))
+}
 
 func (o *RunOptions) PrintCompletedOptions(cmd *cobra.Command) {
 	cmd.Println("########## COMPLETED OPTIONS START ##########")

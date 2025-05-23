@@ -23,9 +23,9 @@ import (
 )
 
 var (
-	environment              string
-	providerName             string
-	accessRequestSANamespace string
+	environment                          string
+	providerName                         string
+	accessRequestServiceAccountNamespace string
 )
 
 func SetEnvironment(env string) {
@@ -56,18 +56,18 @@ func ProviderName() string {
 	return providerName
 }
 
-func SetAccessRequestSANamespace(ns string) {
-	if accessRequestSANamespace != "" {
+func SetAccessRequestServiceAccountNamespace(ns string) {
+	if accessRequestServiceAccountNamespace != "" {
 		panic("accessrequest namespace already set")
 	}
-	accessRequestSANamespace = ns
+	accessRequestServiceAccountNamespace = ns
 }
 
-func AccessRequestSANamespace() string {
-	if accessRequestSANamespace == "" {
+func AccessRequestServiceAccountNamespace() string {
+	if accessRequestServiceAccountNamespace == "" {
 		panic("accessrequest namespace not set")
 	}
-	return accessRequestSANamespace
+	return accessRequestServiceAccountNamespace
 }
 
 // RuntimeConfiguration is a struct that holds the loaded ProviderConfigurations, enriched with further information gathered during runtime.

@@ -26,6 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	"github.com/openmcp-project/controller-utils/pkg/clusters"
 	clusterutils "github.com/openmcp-project/controller-utils/pkg/clusters"
 	"github.com/openmcp-project/controller-utils/pkg/conditions"
 	ctrlutils "github.com/openmcp-project/controller-utils/pkg/controller"
@@ -46,6 +47,12 @@ const ControllerName = "Landscape"
 const ProjectConditionPrefix = "Project_"
 
 var gardenerScheme = install.InstallGardenerAPIs(runtime.NewScheme())
+
+// This map is meant for testing purposes only.
+// If the Landscape controller reads an inline kubeconfig from a Landscape resource,
+// it tries to find the raw bytes as a key in this map.
+// If found, the corresponding client will be used instead of constructing one from the bytes.
+var FakeClientMappingsForTesting = map[string]client.Client{}
 
 func NewLandscapeReconciler(rc *shared.RuntimeConfiguration) *LandscapeReconciler {
 	return &LandscapeReconciler{
@@ -207,13 +214,19 @@ func (r *LandscapeReconciler) handleCreateOrUpdate(ctx context.Context, req reco
 
 	// load Garden cluster kubeconfig
 	var restCfg *rest.Config
+	var testClient client.Client
 	if ls.Spec.Access.Inline != "" {
 		log.Debug("Garden cluster access via inline kubeconfig")
-		var err error
-		restCfg, err = clientcmd.RESTConfigFromKubeConfig([]byte(ls.Spec.Access.Inline))
-		if err != nil {
-			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error loading inline kubeconfig for Landscape '%s': %w", ls.Name, err), cconst.ReasonKubeconfigError)
-			return rr, lsInt
+		if fakeClient, ok := FakeClientMappingsForTesting[ls.Spec.Access.Inline]; ok {
+			testClient = fakeClient
+			log.Info("Using injected client for testing - you should never see this message outside of unit tests")
+		} else {
+			var err error
+			restCfg, err = clientcmd.RESTConfigFromKubeConfig([]byte(ls.Spec.Access.Inline))
+			if err != nil {
+				rr.ReconcileError = errutils.WithReason(fmt.Errorf("error loading inline kubeconfig for Landscape '%s': %w", ls.Name, err), cconst.ReasonKubeconfigError)
+				return rr, lsInt
+			}
 		}
 	} else if ls.Spec.Access.SecretRef != nil {
 		log.Debug("Garden cluster access via secret reference", "secret", fmt.Sprintf("%s/%s", ls.Spec.Access.SecretRef.Namespace, ls.Spec.Access.SecretRef.Name))
@@ -251,12 +264,16 @@ func (r *LandscapeReconciler) handleCreateOrUpdate(ctx context.Context, req reco
 		return rr, lsInt
 	}
 
-	log.Debug("REST config for Garden cluster created", "apiServer", restCfg.Host)
-	lsInt.Cluster = clusterutils.New(ls.Name).WithRESTConfig(restCfg)
+	if testClient == nil {
+		log.Debug("REST config for Garden cluster created", "apiServer", restCfg.Host)
+		lsInt.Cluster = clusterutils.New(ls.Name).WithRESTConfig(restCfg)
 
-	if err := lsInt.Cluster.InitializeClient(gardenerScheme); err != nil {
-		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error initializing client for Landscape '%s': %w", ls.Name, err), cconst.ReasonKubeconfigError)
-		return rr, lsInt
+		if err := lsInt.Cluster.InitializeClient(gardenerScheme); err != nil {
+			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error initializing client for Landscape '%s': %w", ls.Name, err), cconst.ReasonKubeconfigError)
+			return rr, lsInt
+		}
+	} else {
+		lsInt.Cluster = clusters.NewTestClusterFromClient("garden", testClient)
 	}
 
 	// verify that kubeconfig is working by checking access to projects
@@ -265,6 +282,7 @@ func (r *LandscapeReconciler) handleCreateOrUpdate(ctx context.Context, req reco
 			Namespace: "*",
 		},
 	}
+	ssrr.SetName(ls.Name)
 	if err := lsInt.Cluster.Client().Create(ctx, ssrr); err != nil {
 		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error creating SelfSubjectRulesReview for Landscape '%s': %w", ls.Name, err), cconst.ReasonGardenClusterInteractionProblem)
 	}
@@ -317,12 +335,14 @@ func (r *LandscapeReconciler) handleCreateOrUpdate(ctx context.Context, req reco
 	for _, pr := range ls.Status.Projects {
 		projectNamespaces[pr.Namespace] = cache.Config{}
 	}
-	lsInt.Cluster.WithClusterOptions(clusterutils.DefaultClusterOptions(gardenerScheme), func(o *cluster.Options) {
-		o.Cache.DefaultNamespaces = projectNamespaces
-	})
-	if err := lsInt.Cluster.InitializeClient(gardenerScheme); err != nil {
-		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error initializing client with cache options for Landscape '%s': %w", ls.Name, err), clusterconst.ReasonInternalError)
-		return rr, lsInt
+	if testClient == nil {
+		lsInt.Cluster.WithClusterOptions(clusterutils.DefaultClusterOptions(gardenerScheme), func(o *cluster.Options) {
+			o.Cache.DefaultNamespaces = projectNamespaces
+		})
+		if err := lsInt.Cluster.InitializeClient(gardenerScheme); err != nil {
+			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error initializing client with cache options for Landscape '%s': %w", ls.Name, err), clusterconst.ReasonInternalError)
+			return rr, lsInt
+		}
 	}
 
 	return rr, lsInt

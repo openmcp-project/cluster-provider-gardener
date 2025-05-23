@@ -198,7 +198,7 @@ func (rc *RuntimeConfiguration) SetLandscape(ctx context.Context, ls *Landscape)
 		return fmt.Errorf("error removing old landscape: %w", err)
 	}
 	ctx, ls.stop = context.WithCancel(ctx)
-	if ls.Cluster != nil {
+	if ls.Cluster != nil && rc.ShootWatchManager != nil {
 		// construct a watch for the shoot resources in this landscape
 		enqueueReconcile := func(sh *gardenv1beta1.Shoot) {
 			rc.ShootWatch <- event.TypedGenericEvent[*gardenv1beta1.Shoot]{

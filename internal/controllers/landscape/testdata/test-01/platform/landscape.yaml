@@ -1,0 +1,7 @@
+apiVersion: gardener.clusters.openmcp.cloud/v1alpha1
+kind: Landscape
+metadata:
+  name: my-landscape
+spec:
+  access:
+    inline: fake

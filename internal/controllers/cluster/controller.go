@@ -95,7 +95,7 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 			log.Info("Resource not found")
 			return ReconcileResult{}
 		}
-		return ReconcileResult{ReconcileError: errutils.WithReason(fmt.Errorf("unable to get resource '%s' from cluster: %w", req.NamespacedName.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)}
+		return ReconcileResult{ReconcileError: errutils.WithReason(fmt.Errorf("unable to get resource '%s' from cluster: %w", req.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)}
 	}
 
 	// handle operation annotation
@@ -165,7 +165,7 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 		if controllerutil.AddFinalizer(c, providerv1alpha1.ClusterFinalizer) {
 			log.Info("Adding finalizer")
 			if err := r.PlatformCluster.Client().Patch(ctx, c, client.MergeFrom(rr.OldObject)); err != nil {
-				rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.NamespacedName.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
+				rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
 				return rr
 			}
 		}
@@ -234,7 +234,7 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 		if controllerutil.RemoveFinalizer(c, providerv1alpha1.ClusterFinalizer) {
 			log.Info("Removing finalizer")
 			if err := r.PlatformCluster.Client().Patch(ctx, c, client.MergeFrom(rr.OldObject)); err != nil {
-				rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.NamespacedName.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
+				rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
 				return rr
 			}
 		}

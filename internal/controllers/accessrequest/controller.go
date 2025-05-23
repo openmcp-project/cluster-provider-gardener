@@ -99,7 +99,7 @@ func (r *AccessRequestReconciler) reconcile(ctx context.Context, req reconcile.R
 			log.Info("Resource not found")
 			return ReconcileResult{}
 		}
-		return ReconcileResult{ReconcileError: errutils.WithReason(fmt.Errorf("unable to get resource '%s' from cluster: %w", req.NamespacedName.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)}
+		return ReconcileResult{ReconcileError: errutils.WithReason(fmt.Errorf("unable to get resource '%s' from cluster: %w", req.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)}
 	}
 
 	// handle operation annotation
@@ -179,7 +179,7 @@ func (r *AccessRequestReconciler) handleCreateOrUpdate(ctx context.Context, req 
 	if controllerutil.AddFinalizer(ac, providerv1alpha1.AccessRequestFinalizer) {
 		log.Info("Adding finalizer")
 		if err := r.PlatformCluster.Client().Patch(ctx, ac, client.MergeFrom(rr.OldObject)); err != nil {
-			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.NamespacedName.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
+			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
 			return rr
 		}
 	}
@@ -272,7 +272,7 @@ func (r *AccessRequestReconciler) handleDelete(ctx context.Context, req reconcil
 	if controllerutil.RemoveFinalizer(ar, providerv1alpha1.AccessRequestFinalizer) {
 		log.Info("Removing finalizer")
 		if err := r.PlatformCluster.Client().Patch(ctx, ar, client.MergeFrom(rr.OldObject)); err != nil {
-			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.NamespacedName.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
+			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
 			return rr
 		}
 	}
@@ -296,7 +296,7 @@ func (r *AccessRequestReconciler) getClusterAndProfile(ctx context.Context, ar *
 	log.Debug("Fetching Cluster resource", "clusterName", c.Name, "clusterNamespace", c.Namespace)
 	if err := r.PlatformCluster.Client().Get(ctx, client.ObjectKeyFromObject(c), c); err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil, nil, errutils.WithReason(fmt.Errorf("Cluster '%s/%s' not found", c.Namespace, c.Name), clusterconst.ReasonInvalidReference)
+			return nil, nil, errutils.WithReason(fmt.Errorf("Cluster '%s/%s' not found", c.Namespace, c.Name), clusterconst.ReasonInvalidReference) // nolint:staticcheck
 		}
 		return nil, nil, errutils.WithReason(fmt.Errorf("unable to get Cluster '%s/%s': %w", c.Namespace, c.Name, err), clusterconst.ReasonPlatformClusterInteractionProblem)
 	}

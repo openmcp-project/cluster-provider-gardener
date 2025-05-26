@@ -155,9 +155,11 @@ func UpdateShootFields(ctx context.Context, shoot *gardenv1beta1.Shoot, profile 
 	shoot.Spec.Provider.ControlPlaneConfig = oldShoot.Spec.Provider.ControlPlaneConfig
 	if shoot.Spec.Maintenance != nil {
 		if shoot.Spec.Maintenance.AutoUpdate != nil {
-			// if Gardener updates the machine image version, the merge logic would try to revert it, which doesn't work
-			// but since the machine image version is part of the provider-specific config, it is more complicated to avoid reverting it here than to just prevent Gardener from updating it
-			shoot.Spec.Maintenance.AutoUpdate.MachineImageVersion = ptr.To(false)
+			if shoot.Spec.Maintenance.AutoUpdate.MachineImageVersion != nil && *shoot.Spec.Maintenance.AutoUpdate.MachineImageVersion {
+				// if Gardener updates the machine image version, the merge logic would try to revert it, which doesn't work
+				// but since the machine image version is part of the provider-specific config, it is more complicated to avoid reverting it here than to just prevent Gardener from updating it
+				shoot.Spec.Maintenance.AutoUpdate.MachineImageVersion = ptr.To(false)
+			}
 		}
 	}
 

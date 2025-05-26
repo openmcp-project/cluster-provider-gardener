@@ -121,9 +121,15 @@ func (r *AccessRequestReconciler) reconcile(ctx context.Context, req reconcile.R
 		}
 	}
 
+	rr := ReconcileResult{
+		Object:    ar,
+		OldObject: ar.DeepCopy(),
+	}
+
 	c, p, rerr := r.getClusterAndProfile(ctx, ar)
 	if rerr != nil {
-		return ReconcileResult{ReconcileError: rerr}
+		rr.ReconcileError = rerr
+		return rr
 	}
 
 	getShootAccess := func() (*shootAccess, errutils.ReasonableError) {
@@ -153,24 +159,19 @@ func (r *AccessRequestReconciler) reconcile(ctx context.Context, req reconcile.R
 	}
 
 	inDeletion := !ar.DeletionTimestamp.IsZero()
-	var rr ReconcileResult
 	if !inDeletion {
-		rr = r.handleCreateOrUpdate(ctx, req, ar, getShootAccess, enforceReconcile)
+		rr = r.handleCreateOrUpdate(ctx, req, ar, getShootAccess, enforceReconcile, rr)
 	} else {
-		rr = r.handleDelete(ctx, req, ar, getShootAccess)
+		rr = r.handleDelete(ctx, req, ar, getShootAccess, rr)
 	}
 
 	return rr
 }
 
-func (r *AccessRequestReconciler) handleCreateOrUpdate(ctx context.Context, req reconcile.Request, ac *clustersv1alpha1.AccessRequest, getShootAccess shootAccessGetter, enforceReconcile bool) ReconcileResult {
+func (r *AccessRequestReconciler) handleCreateOrUpdate(ctx context.Context, req reconcile.Request, ac *clustersv1alpha1.AccessRequest, getShootAccess shootAccessGetter, enforceReconcile bool, rr ReconcileResult) ReconcileResult {
 	log := logging.FromContextOrPanic(ctx)
 	log.Info("Creating/updating resource")
 
-	rr := ReconcileResult{
-		Object:    ac,
-		OldObject: ac.DeepCopy(),
-	}
 	if rr.Object.Status.Phase == "" {
 		rr.Object.Status.Phase = clustersv1alpha1.REQUEST_PENDING
 	}
@@ -244,14 +245,9 @@ func (r *AccessRequestReconciler) handleCreateOrUpdate(ctx context.Context, req 
 	return rr
 }
 
-func (r *AccessRequestReconciler) handleDelete(ctx context.Context, req reconcile.Request, ar *clustersv1alpha1.AccessRequest, getShootAccess shootAccessGetter) ReconcileResult {
+func (r *AccessRequestReconciler) handleDelete(ctx context.Context, req reconcile.Request, ar *clustersv1alpha1.AccessRequest, getShootAccess shootAccessGetter, rr ReconcileResult) ReconcileResult {
 	log := logging.FromContextOrPanic(ctx)
 	log.Info("Deleting resource")
-
-	rr := ReconcileResult{
-		Object:    ar,
-		OldObject: ar.DeepCopy(),
-	}
 
 	// no need to delete secret, since it has an owner reference
 	// delete resources on the shoot cluster

@@ -282,11 +282,40 @@ func (r *AccessRequestReconciler) getClusterAndProfile(ctx context.Context, ar *
 
 	// get Cluster that the request refers to
 	c := &clustersv1alpha1.Cluster{}
-	if ar.Spec.ClusterRef == nil {
-		return nil, nil, errutils.WithReason(fmt.Errorf("spec.clusterRef is not set"), cconst.ReasonConfigurationProblem)
+
+	// check if either spec.clusterRef or spec.RequestRef is set
+	if ar.Spec.ClusterRef == nil || ar.Spec.RequestRef == nil {
+		return nil, nil, errutils.WithReason(fmt.Errorf("either spec.clusterRef or spec.RequestRef has to be set"), cconst.ReasonConfigurationProblem)
 	}
-	c.SetName(ar.Spec.ClusterRef.Name)
-	c.SetNamespace(ar.Spec.ClusterRef.Namespace)
+
+	// check if both spec.clusterRef and spec.RequestRef are set, which is illegal
+	if ar.Spec.ClusterRef != nil && ar.Spec.RequestRef != nil {
+		return nil, nil, errutils.WithReason(fmt.Errorf("both spec.clusterRef and spec.RequestRef are set, only one is allowed"), cconst.ReasonConfigurationProblem)
+	}
+
+	// set the cluster name and namespace from the spec if spec.ClusterRef is set
+	if ar.Spec.ClusterRef != nil {
+		c.SetName(ar.Spec.ClusterRef.Name)
+		c.SetNamespace(ar.Spec.ClusterRef.Namespace)
+	}
+
+	// get the referenced ClusterRequest if the spec.RequestRef is set
+	if ar.Spec.RequestRef != nil {
+		cr := &clustersv1alpha1.ClusterRequest{}
+		if err := r.PlatformCluster.Client().Get(ctx, client.ObjectKey{Name: ar.Spec.RequestRef.Name, Namespace: ar.Spec.RequestRef.Namespace}, cr); err != nil {
+			if apierrors.IsNotFound(err) {
+				return nil, nil, errutils.WithReason(fmt.Errorf("ClusterRequest '%s/%s' not found", ar.Spec.RequestRef.Namespace, ar.Spec.RequestRef.Name), clusterconst.ReasonInvalidReference)
+			}
+			return nil, nil, errutils.WithReason(fmt.Errorf("unable to get ClusterRequest '%s/%s': %w", ar.Spec.RequestRef.Namespace, ar.Spec.RequestRef.Name, err), clusterconst.ReasonPlatformClusterInteractionProblem)
+		}
+
+		if cr.Status.Cluster == nil {
+			return nil, nil, errutils.WithReason(fmt.Errorf("ClusterRequest '%s/%s' does not have a Cluster assigned", cr.Namespace, cr.Name), clusterconst.ReasonInvalidReference)
+		}
+
+		c.SetName(cr.Status.Cluster.Name)
+		c.SetNamespace(cr.Status.Cluster.Namespace)
+	}
 
 	// fetch Cluster resource
 	log.Debug("Fetching Cluster resource", "clusterName", c.Name, "clusterNamespace", c.Namespace)

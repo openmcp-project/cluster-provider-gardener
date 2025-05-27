@@ -81,6 +81,12 @@ type SeedSpec struct {
 	// AccessRestrictions describe a list of access restrictions for this seed cluster.
 	// +optional
 	AccessRestrictions []AccessRestriction `json:"accessRestrictions,omitempty" protobuf:"bytes,10,rep,name=accessRestrictions"`
+	// Extensions contain type and provider information for Seed extensions.
+	// +optional
+	Extensions []Extension `json:"extensions,omitempty" protobuf:"bytes,11,rep,name=extensions"`
+	// Resources holds a list of named resource references that can be referred to in extension configs by their names.
+	// +optional
+	Resources []NamedResourceReference `json:"resources,omitempty" protobuf:"bytes,12,rep,name=resources"`
 }
 
 // SeedStatus is the status of a Seed.
@@ -131,7 +137,16 @@ type SeedBackup struct {
 	// SecretRef is a reference to a Secret object containing the cloud provider credentials for
 	// the object store where backups should be stored. It should have enough privileges to manipulate
 	// the objects as well as buckets.
+	// Deprecated: This field will be removed after v1.121.0 has been released. Use `CredentialsRef` instead.
+	// Until removed, this field is synced with the `CredentialsRef` field when it refers to a secret.
 	SecretRef corev1.SecretReference `json:"secretRef" protobuf:"bytes,4,opt,name=secretRef"`
+
+	// CredentialsRef is reference to a resource holding the credentials used for
+	// authentication with the object store service where the backups are stored.
+	// Supported referenced resources are v1.Secrets and
+	// security.gardener.cloud/v1alpha1.WorkloadIdentity
+	// +optional
+	CredentialsRef *corev1.ObjectReference `json:"credentialsRef,omitempty" protobuf:"bytes,5,opt,name=credentialsRef"`
 }
 
 // SeedDNS contains DNS-relevant information about this seed cluster.

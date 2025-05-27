@@ -7,7 +7,6 @@ package v1beta1
 import (
 	"time"
 
-	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -214,6 +213,9 @@ type ShootStatus struct {
 	// Networking contains information about cluster networking such as CIDRs.
 	// +optional
 	Networking *NetworkingStatus `json:"networking,omitempty" protobuf:"bytes,19,opt,name=networking"`
+	// InPlaceUpdates contains information about in-place updates for the Shoot workers.
+	// +optional
+	InPlaceUpdates *InPlaceUpdatesStatus `json:"inPlaceUpdates,omitempty" protobuf:"bytes,20,opt,name=inPlaceUpdates"`
 }
 
 // LastMaintenance holds information about a maintenance operation on the Shoot.
@@ -245,6 +247,23 @@ type NetworkingStatus struct {
 	// extension controller may opt to not populate this field.
 	// +optional
 	EgressCIDRs []string `json:"egressCIDRs,omitempty" protobuf:"bytes,4,rep,name=egressCIDRs"`
+}
+
+// InPlaceUpdatesStatus contains information about in-place updates for the Shoot workers.
+type InPlaceUpdatesStatus struct {
+	// PendingWorkerUpdates contains information about worker pools pending in-place updates.
+	// +optional
+	PendingWorkerUpdates *PendingWorkerUpdates `json:"pendingWorkerUpdates,omitempty" protobuf:"bytes,1,opt,name=pendingWorkerUpdates"`
+}
+
+// PendingWorkerUpdates contains information about worker pools pending in-place update.
+type PendingWorkerUpdates struct {
+	// AutoInPlaceUpdate contains the names of the pending worker pools with strategy AutoInPlaceUpdate.
+	// +optional
+	AutoInPlaceUpdate []string `json:"autoInPlaceUpdate,omitempty" protobuf:"bytes,1,rep,name=autoInPlaceUpdate"`
+	// ManualInPlaceUpdate contains the names of the pending worker pools with strategy ManualInPlaceUpdate..
+	// +optional
+	ManualInPlaceUpdate []string `json:"manualInPlaceUpdate,omitempty" protobuf:"bytes,2,rep,name=manualInPlaceUpdate"`
 }
 
 // ShootCredentials contains information about the shoot credentials.
@@ -534,26 +553,6 @@ type DNSIncludeExclude struct {
 
 // DefaultDomain is the default value in the Shoot's '.spec.dns.domain' when '.spec.dns.provider' is 'unmanaged'
 const DefaultDomain = "cluster.local"
-
-// Extension contains type and provider information for Shoot extensions.
-type Extension struct {
-	// Type is the type of the extension resource.
-	Type string `json:"type" protobuf:"bytes,1,opt,name=type"`
-	// ProviderConfig is the configuration passed to extension resource.
-	// +optional
-	ProviderConfig *runtime.RawExtension `json:"providerConfig,omitempty" protobuf:"bytes,2,opt,name=providerConfig"`
-	// Disabled allows to disable extensions that were marked as 'globally enabled' by Gardener administrators.
-	// +optional
-	Disabled *bool `json:"disabled,omitempty" protobuf:"varint,3,opt,name=disabled"`
-}
-
-// NamedResourceReference is a named reference to a resource.
-type NamedResourceReference struct {
-	// Name of the resource reference.
-	Name string `json:"name" protobuf:"bytes,1,opt,name=name"`
-	// ResourceRef is a reference to a resource.
-	ResourceRef autoscalingv1.CrossVersionObjectReference `json:"resourceRef" protobuf:"bytes,2,opt,name=resourceRef"`
-}
 
 // Hibernation contains information whether the Shoot is suspended or not.
 type Hibernation struct {
@@ -892,6 +891,10 @@ type KubeAPIServerConfig struct {
 	// Requests contains configuration for request-specific settings for the kube-apiserver.
 	// +optional
 	Requests *APIServerRequests `json:"requests,omitempty" protobuf:"bytes,10,opt,name=requests"`
+	// Deprecated: This field is deprecated and will be removed in a future release.
+	// Please use anonymous authentication configuration instead.
+	// For more information see: https://kubernetes.io/docs/reference/access-authn-authz/authentication/#anonymous-authenticator-configuration
+	// TODO(marc1404): Forbid this field when the feature gate AnonymousAuthConfigurableEndpoints has graduated.
 	// EnableAnonymousAuthentication defines whether anonymous requests to the secure port
 	// of the API server should be allowed (flag `--anonymous-auth`).
 	// See: https://kubernetes.io/docs/reference/command-line-tools-reference/kube-apiserver/
@@ -1958,8 +1961,13 @@ const (
 	// ShootAPIServerProxyUsesHTTPProxy is a constant for a constraint type indicating that the Shoot cluster uses
 	// the new HTTP proxy connection method for in-cluster API server traffic (See https://github.com/gardener/gardener/blob/master/docs/proposals/30-apiserver-proxy.md)
 	ShootAPIServerProxyUsesHTTPProxy ConditionType = "APIServerProxyUsesHTTPProxy"
+	// ShootManualInPlaceWorkersUpdated is a constant for a condition type indicating that the Shoot cluster does not have
+	// any worker pools with update strategy "ManualInPlaceUpdate" and pending update.
+	ShootManualInPlaceWorkersUpdated ConditionType = "ManualInPlaceWorkersUpdated"
 	// ShootReadyForMigration is a constant for a condition type indicating whether the Shoot can be migrated.
 	ShootReadyForMigration ConditionType = "ReadyForMigration"
+	// ShootDualStackNodesMigrationReady is a constant for a condition type indicating whether all nodes are migrated to dual-stack .
+	ShootDualStackNodesMigrationReady ConditionType = "DualStackNodesMigrationReady"
 )
 
 // ShootPurpose is a type alias for string.

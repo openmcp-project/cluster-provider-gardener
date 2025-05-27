@@ -302,9 +302,9 @@ func (r *AccessRequestReconciler) renewToken(ctx context.Context, ac *clustersv1
 	}
 
 	// ensure namespace
-	_, err := clusteraccess.EnsureNamespace(ctx, sac.Client, shared.AccessRequestSANamespace())
+	_, err := clusteraccess.EnsureNamespace(ctx, sac.Client, shared.AccessRequestServiceAccountNamespace())
 	if err != nil {
-		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error ensuring AccessRequest namespace '%s' in shoot '%s/%s': %w", shared.AccessRequestSANamespace(), sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonShootClusterInteractionProblem)
+		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error ensuring AccessRequest namespace '%s' in shoot '%s/%s': %w", shared.AccessRequestServiceAccountNamespace(), sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonShootClusterInteractionProblem)
 		return nil, rr
 	}
 
@@ -313,9 +313,9 @@ func (r *AccessRequestReconciler) renewToken(ctx context.Context, ac *clustersv1
 
 	// ensure service account
 	name := ctrlutils.K8sNameHash(shared.Environment(), shared.ProviderName(), ac.Namespace, ac.Name)
-	sa, err := clusteraccess.EnsureServiceAccount(ctx, sac.Client, name, shared.AccessRequestSANamespace(), expectedLabels...)
+	sa, err := clusteraccess.EnsureServiceAccount(ctx, sac.Client, name, shared.AccessRequestServiceAccountNamespace(), expectedLabels...)
 	if err != nil {
-		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error ensuring service account '%s/%s' in shoot '%s/%s': %w", shared.AccessRequestSANamespace(), name, sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonShootClusterInteractionProblem)
+		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error ensuring service account '%s/%s' in shoot '%s/%s': %w", shared.AccessRequestServiceAccountNamespace(), name, sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonShootClusterInteractionProblem)
 		return nil, rr
 	}
 	if sa.GroupVersionKind().Kind == "" {

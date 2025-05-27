@@ -14,6 +14,7 @@ includes:
       CODE_DIRS: '{{.ROOT_DIR}}/cmd/... {{.ROOT_DIR}}/internal/... {{.ROOT_DIR}}/api/core/...'
       COMPONENTS: 'cluster-provider-gardener'
       REPO_URL: 'https://github.com/openmcp-project/cluster-provider-gardener'
+      CHART_COMPONENTS: "[]"
   common: # imported a second time so that overwriting task definitions can call the overwritten task with a 'c:' prefix
     taskfile: hack/common/Taskfile_controller.yaml
     internal: true
@@ -26,6 +27,7 @@ includes:
       CODE_DIRS: '{{.ROOT_DIR}}/cmd/... {{.ROOT_DIR}}/internal/... {{.ROOT_DIR}}/api/core/...'
       COMPONENTS: 'cluster-provider-gardener'
       REPO_URL: 'https://github.com/openmcp-project/cluster-provider-gardener'
+      CHART_COMPONENTS: "[]"
 
 tasks:
   generate:code: # overwrites shared code task to add external API fetching

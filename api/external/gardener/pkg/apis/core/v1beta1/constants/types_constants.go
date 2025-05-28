@@ -208,6 +208,9 @@ const (
 	// GardenerOperationReconcile is a constant for the value of the operation annotation describing a reconcile
 	// operation.
 	GardenerOperationReconcile = "reconcile"
+	// OperationForceRedeploy is a constant for the value of the operation annotation describing a forceful redeployment
+	// of the gardenlet via gardener-operator.
+	OperationForceRedeploy = "force-redeploy"
 	// GardenerTimestamp is a constant for an annotation on a resource that describes the timestamp when a reconciliation has been requested.
 	// It is only used to guarantee an update event for watching clients in case the operation-annotation is already present.
 	GardenerTimestamp = "gardener.cloud/timestamp"
@@ -261,6 +264,8 @@ const (
 	GardenRoleKubeconfig = "kubeconfig"
 	// GardenRoleCACluster is the value of the GardenRole key indicating type 'ca-cluster'.
 	GardenRoleCACluster = "ca-cluster"
+	// GardenRoleCAKubelet is the value of the GardenRole key indicating type 'ca-kubelet'.
+	GardenRoleCAKubelet = "ca-kubelet"
 	// GardenRoleCAClient is the value of the GardenRole key indicating type 'ca-client'.
 	GardenRoleCAClient = "ca-client"
 	// GardenRoleSSHKeyPair is the value of the GardenRole key indicating type 'ssh-keypair'.
@@ -324,10 +329,6 @@ const (
 	// ShootAlphaControlPlaneVPNVPAUpdateDisabled is a constant for an annotation on the Shoot resource to enforce
 	// disabling the vertical pod autoscaler update resources related to the VPN connection.
 	ShootAlphaControlPlaneVPNVPAUpdateDisabled = "alpha.control-plane.shoot.gardener.cloud/vpn-vpa-update-disabled"
-	// ShootAlphaControlPlaneDisableNewVPN is a constant for an annotation on the Shoot resource to disabling the
-	// new Go implementation of VPN.
-	// TODO(MartinWeindel) Remove after feature gate `NewVPN` gets promoted to GA.
-	ShootAlphaControlPlaneDisableNewVPN = "alpha.control-plane.shoot.gardener.cloud/disable-new-vpn"
 	// ShootExpirationTimestamp is an annotation on a Shoot resource whose value represents the time when the Shoot lifetime
 	// is expired. The lifetime can be extended, but at most by the minimal value of the 'clusterLifetimeDays' property
 	// of referenced quotas.
@@ -364,6 +365,9 @@ const (
 	// ShootOperationRetry is a constant for an annotation on a Shoot indicating that a failed Shoot reconciliation shall be
 	// retried.
 	ShootOperationRetry = "retry"
+	// ShootOperationForceInPlaceUpdate is a constant for the value of the operation annotation that must be set
+	// to forcibly trigger an in-place update when a previous update is still in progress.
+	ShootOperationForceInPlaceUpdate = "force-in-place-update"
 	// OperationRotateCredentialsStart is a constant for an annotation indicating that the rotation of all credentials
 	// shall be started. This includes CAs, certificates, kubeconfigs, SSH keypairs, observability credentials, and
 	// ServiceAccount signing key.
@@ -462,7 +466,8 @@ const (
 	// LabelKeyAggregateToProjectMember is a constant for a label on ClusterRoles that are aggregated to the project
 	// member ClusterRole.
 	LabelKeyAggregateToProjectMember = "rbac.gardener.cloud/aggregate-to-project-member"
-
+	// LabelAutonomousShootCluster is a constant for a label on a Seed indicating that it is an autonomous shoot cluster.
+	LabelAutonomousShootCluster = "seed.gardener.cloud/autonomous-shoot-cluster"
 	// LabelSecretBindingReference is used to identify secrets which are referred by a SecretBinding (not necessarily in the same namespace).
 	LabelSecretBindingReference = "reference.gardener.cloud/secretbinding"
 	// LabelCredentialsBindingReference is used to identify credentials which are referred by a CredentialsBinding (not necessarily in the same namespace).
@@ -665,12 +670,6 @@ const (
 	// AnnotationConfirmationForceDeletion is a constant for an annotation on a Shoot resource whose value must be set to "true" in order to
 	// trigger force-deletion of the cluster. It can only be set if the Shoot has a deletion timestamp and contains an ErrorCode in the Shoot Status.
 	AnnotationConfirmationForceDeletion = "confirmation.gardener.cloud/force-deletion"
-	// AnnotationManagedSeedAPIServer is a constant for an annotation on a Shoot resource containing the API server settings for a managed seed.
-	//
-	// Deprecated: The annotation is deprecated and will be removed in a future release.
-	// Instead, consider enabling high availability for the ManagedSeed's Shoot control plane.
-	// TODO(ialidzhikov): Remove the support for the annotation in v1.119.
-	AnnotationManagedSeedAPIServer = "shoot.gardener.cloud/managed-seed-api-server"
 	// AnnotationShootIgnoreAlerts is the key for an annotation of a Shoot cluster whose value indicates
 	// if alerts for this cluster should be ignored
 	AnnotationShootIgnoreAlerts = "shoot.gardener.cloud/ignore-alerts"
@@ -742,6 +741,8 @@ const (
 	// ObservabilityComponentsHealthy is a constant for a condition type indicating the health of observability components.
 	ObservabilityComponentsHealthy = "ObservabilityComponentsHealthy"
 
+	// LabelWorkerName is a constant for a label that indicates the name of the Worker resource the MachineDeployment belongs to.
+	LabelWorkerName = "worker.gardener.cloud/name"
 	// LabelWorkerPool is a constant for a label that indicates the worker pool the node belongs to
 	LabelWorkerPool = "worker.gardener.cloud/pool"
 	// LabelWorkerKubernetesVersion is a constant for a label that indicates the Kubernetes version used for the worker pool nodes.
@@ -812,12 +813,20 @@ const (
 	// or the specified namespace was not present.
 	NamespaceCreatedByProjectController = "namespace.gardener.cloud/created-by-project-controller"
 
-	// DefaultVPNRange is the default IPv4 network range for the VPN between seed and shoot cluster.
-	DefaultVPNRange = "192.168.123.0/24"
 	// DefaultVPNRangeV6 is the default IPv6 network range for the VPN between seed and shoot cluster.
 	DefaultVPNRangeV6 = "fd8f:6d53:b97a:1::/96"
 	// ReservedKubeApiServerMappingRange is the IPv4 network range for the "kubernetes" service used by apiserver-proxy
 	ReservedKubeApiServerMappingRange = "240.0.0.0/8"
+	// ReservedSeedPodNetworkMappedRange is the IPv4 network range for the seed pod network used in the VPN between seed and shoot cluster.
+	ReservedSeedPodNetworkMappedRange = "241.0.0.0/8"
+	// ReservedShootNodeNetworkMappedRange is the IPv4 network range for the shoot node network used in the VPN between seed and shoot cluster.
+	ReservedShootNodeNetworkMappedRange = "242.0.0.0/8"
+	// ReservedShootServiceNetworkMappedRange is the IPv4 network range for the shoot service network used in the VPN between seed and shoot cluster.
+	ReservedShootServiceNetworkMappedRange = "243.0.0.0/8"
+	// ReservedShootPodNetworkMappedRange is the IPv4 network range for the shoot pod network used in the VPN between seed and shoot cluster.
+	ReservedShootPodNetworkMappedRange = "244.0.0.0/8"
+	// EnvoyNonRootUserId is the user ID for the non-root user in the envoy container.
+	EnvoyNonRootUserId = 65532
 
 	// BackupSecretName is the name of secret having credentials for etcd backups.
 	BackupSecretName string = "etcd-backup"
@@ -834,6 +843,8 @@ const (
 	// DNSRecordExternalName is a constant for DNSRecord objects used for the external domain name.
 	DNSRecordExternalName = "external"
 
+	// ArchitectureName is a constant for the 'architecture' cloud profile capability name.
+	ArchitectureName = "architecture"
 	// ArchitectureAMD64 is a constant for the 'amd64' architecture.
 	ArchitectureAMD64 = "amd64"
 	// ArchitectureARM64 is a constant for the 'arm64' architecture.

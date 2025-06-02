@@ -6,5 +6,5 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  run_reuse:
     uses: openmcp-project/build/.github/workflows/reuse.lib.yaml@main

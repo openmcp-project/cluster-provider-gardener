@@ -10,5 +10,5 @@ permissions:
   packages: write
 
 jobs:
-  release_tag:
+  release_publish:
    uses: openmcp-project/build/.github/workflows/publish.lib.yaml@main

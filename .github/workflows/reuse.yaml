@@ -8,3 +8,4 @@ permissions:
 jobs:
   run_reuse:
     uses: openmcp-project/build/.github/workflows/reuse.lib.yaml@main
+    secrets: inherit

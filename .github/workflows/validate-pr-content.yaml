@@ -12,3 +12,4 @@ permissions:
 jobs:
   validate_pr_content:
     uses: openmcp-project/build/.github/workflows/validate-pr-content.lib.yaml@main
+    secrets: inherit

@@ -152,7 +152,9 @@ func UpdateShootFields(ctx context.Context, shoot *gardenv1beta1.Shoot, profile 
 	// don't use the default merge logic for some fields
 	shoot.Spec.Kubernetes.Version = newK8sVersion
 	shoot.Annotations[clustersv1alpha1.K8sVersionAnnotation] = newK8sVersion
-	shoot.Spec.Provider.ControlPlaneConfig = oldShoot.Spec.Provider.ControlPlaneConfig
+	if oldShoot.Spec.Provider.ControlPlaneConfig != nil {
+		shoot.Spec.Provider.ControlPlaneConfig = oldShoot.Spec.Provider.ControlPlaneConfig
+	}
 	if shoot.Spec.Maintenance != nil {
 		if shoot.Spec.Maintenance.AutoUpdate != nil {
 			if shoot.Spec.Maintenance.AutoUpdate.MachineImageVersion != nil && *shoot.Spec.Maintenance.AutoUpdate.MachineImageVersion {

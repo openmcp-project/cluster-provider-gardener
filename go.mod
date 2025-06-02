@@ -7,7 +7,7 @@ replace github.com/openmcp-project/cluster-provider-gardener/api => ./api
 require (
 	dario.cat/mergo v1.0.2
 	github.com/Masterminds/semver/v3 v3.3.1
-	github.com/openmcp-project/cluster-provider-gardener/api v0.1.1
+	github.com/openmcp-project/cluster-provider-gardener/api v0.1.2
 	github.com/openmcp-project/openmcp-operator/api v0.6.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/apimachinery v0.33.1

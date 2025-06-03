@@ -1,0 +1,12 @@
+apiVersion: clusters.openmcp.cloud/v1alpha1
+kind: Cluster
+metadata:
+  name: my-cluster
+  namespace: my-namespace
+spec:
+  profile: test.gardener.gcp
+  kubernetes:
+    version: "1.32"
+  purposes:
+  - test
+  tenancy: Exclusive

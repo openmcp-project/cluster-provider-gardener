@@ -26,7 +26,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	"github.com/openmcp-project/controller-utils/pkg/clusters"
 	clusterutils "github.com/openmcp-project/controller-utils/pkg/clusters"
 	"github.com/openmcp-project/controller-utils/pkg/conditions"
 	ctrlutils "github.com/openmcp-project/controller-utils/pkg/controller"
@@ -273,7 +272,7 @@ func (r *LandscapeReconciler) handleCreateOrUpdate(ctx context.Context, req reco
 			return rr, lsInt
 		}
 	} else {
-		lsInt.Cluster = clusters.NewTestClusterFromClient("garden", testClient)
+		lsInt.Cluster = clusterutils.NewTestClusterFromClient("garden", testClient)
 	}
 
 	// verify that kubeconfig is working by checking access to projects

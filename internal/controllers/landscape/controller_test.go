@@ -53,7 +53,7 @@ func defaultTestSetup(testDirPathSegments ...string) (*landscape.LandscapeReconc
 var _ = Describe("Landscape Controller", func() {
 
 	It("should sync a reconciled landscape into the internal cache and notify referencing provider configs", func() {
-		lsr, env := defaultTestSetup("testdata", "test-01")
+		lsr, env := defaultTestSetup("..", "cluster", "testdata", "test-01")
 		lsr.SetProviderConfiguration("my-pc", &providerv1alpha1.ProviderConfig{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "my-pc",

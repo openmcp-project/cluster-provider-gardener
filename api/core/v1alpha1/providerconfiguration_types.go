@@ -34,9 +34,8 @@ type ProviderConfigStatus struct {
 type ProviderConfigPhase string
 
 const (
-	PROVIDER_CONFIG_PHASE_AVAILABLE           ProviderConfigPhase = "Available"
-	PROVIDER_CONFIG_PHASE_UNAVAILABLE         ProviderConfigPhase = "Unavailable"
-	PROVIDER_CONFIG_PHASE_PARTIALLY_AVAILABLE ProviderConfigPhase = "Partially Available"
+	PROVIDER_CONFIG_PHASE_AVAILABLE   ProviderConfigPhase = "Available"
+	PROVIDER_CONFIG_PHASE_UNAVAILABLE ProviderConfigPhase = "Unavailable"
 )
 
 // +kubebuilder:object:root=true

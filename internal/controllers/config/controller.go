@@ -188,6 +188,7 @@ func (r *GardenerProviderConfigReconciler) handleCreateOrUpdate(ctx context.Cont
 	}
 	if pData == nil {
 		rr.ReconcileError = errutils.WithReason(fmt.Errorf("Landscape '%s' can not manage the project '%s'", pc.Spec.LandscapeRef.Name, pc.Spec.Project), cconst.ReasonConfigurationProblem) // nolint:staticcheck
+		return rr, nil
 	}
 	p.Project = *pData.DeepCopy()
 

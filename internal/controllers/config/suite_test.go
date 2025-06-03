@@ -1,4 +1,4 @@
-package landscape_test
+package config_test
 
 import (
 	"testing"
@@ -15,5 +15,5 @@ func TestComponentUtils(t *testing.T) {
 	shared.SetProviderName("gardener")
 	shared.SetEnvironment("test")
 
-	RunSpecs(t, "Landscape Controller Test Suite")
+	RunSpecs(t, "ProviderConfig Controller Test Suite")
 }

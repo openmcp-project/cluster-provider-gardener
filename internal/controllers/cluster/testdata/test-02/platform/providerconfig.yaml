@@ -1,0 +1,27 @@
+apiVersion: gardener.clusters.openmcp.cloud/v1alpha1
+kind: ProviderConfig
+metadata:
+  name: my-config
+spec:
+  providerRef:
+    name: gardener
+  landscapeRef:
+    name: my-landscape
+  project: my-project
+  shootTemplate:
+    spec:
+      provider:
+        type: gcp
+      kubernetes:
+        version: 1.32.2
+      cloudProfile:
+        kind: CloudProfile
+        name: gcp
+      purpose: evaluation
+      region: europe-west1
+      maintenance:
+        autoUpdate:
+          kubernetesVersion: true
+        timeWindow:
+          begin: 220000+0200
+          end: 230000+0200

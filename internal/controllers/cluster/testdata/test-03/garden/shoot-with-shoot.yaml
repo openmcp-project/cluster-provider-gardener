@@ -1,0 +1,103 @@
+kind: Shoot
+apiVersion: core.gardener.cloud/v1beta1
+metadata:
+  name: shoot-with-shoot
+  namespace: garden-clusters
+  generation: 1
+  labels:
+    gardener.clusters.openmcp.cloud/cluster-name: with-shoot
+    gardener.clusters.openmcp.cloud/cluster-namespace: clusters
+    gardener.clusters.openmcp.cloud/environment: test
+    gardener.clusters.openmcp.cloud/provider-name: gardener
+  annotations:
+    clusters.openmcp.cloud/environment: test
+    clusters.openmcp.cloud/k8sversion: 1.32.4
+    clusters.openmcp.cloud/profile: gcp
+    clusters.openmcp.cloud/provider: gardener
+spec:
+  cloudProfileName: gcp
+  dns:
+    domain: shoot-with-shoot.clusters.shoot.example.com
+  extensions:
+    - type: shoot-dns-service
+      providerConfig:
+        apiVersion: service.dns.extensions.gardener.cloud/v1alpha1
+        kind: DNSConfig
+        syncProvidersFromShootSpecDNS: true
+  kubernetes:
+    kubeAPIServer:
+      requests:
+        maxNonMutatingInflight: 400
+        maxMutatingInflight: 200
+      enableAnonymousAuthentication: false
+      eventTTL: 1h0m0s
+      logging:
+        verbosity: 2
+    version: 1.32.4
+  networking:
+    services: 100.104.0.0/13
+    ipFamilies:
+      - IPv4
+  maintenance:
+    autoUpdate:
+      kubernetesVersion: true
+    timeWindow:
+      begin: 220000+0200
+      end: 230000+0200
+  provider:
+    type: gcp
+  purpose: evaluation
+  region: europe-west1
+  seedName: gcp-seed1
+  schedulerName: default-scheduler
+  cloudProfile:
+    kind: CloudProfile
+    name: gcp
+status:
+  conditions:
+    - type: APIServerAvailable
+      status: 'True'
+      lastTransitionTime: '2025-06-02T20:01:56Z'
+      lastUpdateTime: '2025-06-02T20:02:06Z'
+      reason: HealthzRequestSucceeded
+      message: API server /healthz endpoint responded with success status code.
+    - type: ControlPlaneHealthy
+      status: 'True'
+      lastTransitionTime: '2025-06-03T00:38:47Z'
+      lastUpdateTime: '2025-06-03T00:38:47Z'
+      reason: ControlPlaneRunning
+      message: All control plane components are healthy.
+    - type: ObservabilityComponentsHealthy
+      status: 'True'
+      lastTransitionTime: '2025-06-03T00:38:47Z'
+      lastUpdateTime: '2025-06-03T00:38:47Z'
+      reason: ObservabilityComponentsRunning
+      message: All observability components are healthy.
+    - type: SystemComponentsHealthy
+      status: 'True'
+      lastTransitionTime: '2025-06-02T20:02:06Z'
+      lastUpdateTime: '2025-06-02T20:02:06Z'
+      reason: SystemComponentsRunning
+      message: All system components are healthy.
+  constraints:
+    - type: HibernationPossible
+      status: 'True'
+      lastTransitionTime: '2025-06-02T20:02:06Z'
+      lastUpdateTime: '2025-06-02T20:02:06Z'
+      reason: NoProblematicWebhooks
+      message: All webhooks are properly configured.
+    - type: MaintenancePreconditionsSatisfied
+      status: 'True'
+      lastTransitionTime: '2025-06-02T20:02:06Z'
+      lastUpdateTime: '2025-06-02T20:02:06Z'
+      reason: NoProblematicWebhooks
+      message: All webhooks are properly configured.
+  hibernated: false
+  lastOperation:
+    description: Shoot cluster has been successfully reconciled.
+    lastUpdateTime: '2025-06-02T20:02:06Z'
+    progress: 100
+    state: Succeeded
+    type: Reconcile
+  observedGeneration: 1
+  seedName: gcp-seed1

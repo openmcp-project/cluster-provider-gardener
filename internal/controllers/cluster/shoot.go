@@ -25,7 +25,7 @@ import (
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/shared"
 )
 
-func GetShoot(ctx context.Context, landscape *shared.Landscape, profile *shared.Profile, c *clustersv1alpha1.Cluster) (*gardenv1beta1.Shoot, errutils.ReasonableError) {
+func GetShoot(ctx context.Context, landscapeClient client.Client, projectNamespace string, c *clustersv1alpha1.Cluster) (*gardenv1beta1.Shoot, errutils.ReasonableError) {
 	log := logging.FromContextOrPanic(ctx)
 	// check if shoot already exists
 	shoot := &gardenv1beta1.Shoot{}
@@ -41,7 +41,7 @@ func GetShoot(ctx context.Context, landscape *shared.Landscape, profile *shared.
 			log.Debug("Found shoot in provider status", "shootName", cs.Shoot.GetName(), "shootNamespace", cs.Shoot.GetNamespace())
 			shoot.SetName(cs.Shoot.GetName())
 			shoot.SetNamespace(cs.Shoot.GetNamespace())
-			if err := landscape.Cluster.Client().Get(ctx, client.ObjectKeyFromObject(shoot), shoot); err != nil {
+			if err := landscapeClient.Get(ctx, client.ObjectKeyFromObject(shoot), shoot); err != nil {
 				if apierrors.IsNotFound(err) {
 					log.Info("Found shoot reference in provider status, but shoot does not exist", "shootName", shoot.Name, "shootNamespace", shoot.Namespace)
 				} else {
@@ -57,23 +57,23 @@ func GetShoot(ctx context.Context, landscape *shared.Landscape, profile *shared.
 	}
 	if shoot.Name == "" {
 		// search for shoot with fitting labels in project
-		log.Debug("Shoot name and namespace could not be recovered from provider status, checking shoots in project namespace for fitting cluster reference labels", "projectNamespace", profile.Project.Namespace)
+		log.Debug("Shoot name and namespace could not be recovered from provider status, checking shoots in project namespace for fitting cluster reference labels", "projectNamespace", projectNamespace)
 		shoots := &gardenv1beta1.ShootList{}
-		if err := landscape.Cluster.Client().List(ctx, shoots, client.InNamespace(profile.Project.Namespace), client.MatchingLabels{
+		if err := landscapeClient.List(ctx, shoots, client.InNamespace(projectNamespace), client.MatchingLabels{
 			providerv1alpha1.ClusterReferenceLabelName:      c.Name,
 			providerv1alpha1.ClusterReferenceLabelNamespace: c.Namespace,
 		}); err != nil {
-			return nil, errutils.WithReason(fmt.Errorf("error listing shoots in namespace '%s': %w", profile.Project.Namespace, err), cconst.ReasonGardenClusterInteractionProblem)
+			return nil, errutils.WithReason(fmt.Errorf("error listing shoots in namespace '%s': %w", projectNamespace, err), cconst.ReasonGardenClusterInteractionProblem)
 		}
 		if len(shoots.Items) > 1 {
-			return nil, errutils.WithReason(fmt.Errorf("found multiple shoots referencing cluster '%s'/'%s' in namespace '%s', there should never be more than one", c.Namespace, c.Name, profile.Project.Namespace), clusterconst.ReasonInternalError)
+			return nil, errutils.WithReason(fmt.Errorf("found multiple shoots referencing cluster '%s'/'%s' in namespace '%s', there should never be more than one", c.Namespace, c.Name, projectNamespace), clusterconst.ReasonInternalError)
 		}
 		if len(shoots.Items) == 1 {
 			shoot = &shoots.Items[0]
 			log.Info("Found shoot from cluster reference labels", "shootName", shoot.Name, "shootNamespace", shoot.Namespace)
 			exists = true
 		} else {
-			log.Info("No shoot found from cluster reference labels", "namespace", profile.Project.Namespace)
+			log.Info("No shoot found from cluster reference labels", "namespace", projectNamespace)
 		}
 	}
 	if !exists {
@@ -84,7 +84,7 @@ func GetShoot(ctx context.Context, landscape *shared.Landscape, profile *shared.
 
 // UpdateShootFields updates the shoot with the values from the profile.
 // It tries to avoid invalid changes, such as downgrading the kubernetes version or removing required fields.
-func UpdateShootFields(ctx context.Context, shoot *gardenv1beta1.Shoot, profile *shared.Profile, landscape *shared.Landscape, cluster *clustersv1alpha1.Cluster) error {
+func UpdateShootFields(ctx context.Context, shoot *gardenv1beta1.Shoot, profile *shared.Profile, cluster *clustersv1alpha1.Cluster) error {
 	log := logging.FromContextOrPanic(ctx).WithName("UpdateShootFields")
 	tmpl := profile.ProviderConfig.Spec.ShootTemplate
 	oldShoot := shoot.DeepCopy()
@@ -151,7 +151,6 @@ func UpdateShootFields(ctx context.Context, shoot *gardenv1beta1.Shoot, profile 
 
 	// don't use the default merge logic for some fields
 	shoot.Spec.Kubernetes.Version = newK8sVersion
-	shoot.Annotations[clustersv1alpha1.K8sVersionAnnotation] = newK8sVersion
 	if oldShoot.Spec.Provider.ControlPlaneConfig != nil {
 		shoot.Spec.Provider.ControlPlaneConfig = oldShoot.Spec.Provider.ControlPlaneConfig
 	}

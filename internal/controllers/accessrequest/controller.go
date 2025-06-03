@@ -140,7 +140,7 @@ func (r *AccessRequestReconciler) reconcile(ctx context.Context, req reconcile.R
 		}
 
 		// get shoot
-		shoot, rerr := cluster.GetShoot(ctx, ls, p, c)
+		shoot, rerr := cluster.GetShoot(ctx, ls.Cluster.Client(), p.Project.Namespace, c)
 		if rerr != nil {
 			return nil, rerr
 		}

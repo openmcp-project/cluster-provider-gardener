@@ -17,20 +17,11 @@ import (
 	providerv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
 	gardenv1beta1 "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1"
 	gardenconstants "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1/constants"
-	"github.com/openmcp-project/cluster-provider-gardener/api/install"
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/cluster"
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/shared"
 )
 
-const (
-	platformCluster = "platform"
-	gardenCluster   = "garden"
-)
-
-var providerScheme = install.InstallProviderAPIs(runtime.NewScheme())
-var gardenScheme = install.InstallGardenerAPIs(runtime.NewScheme())
-
-func defaultTestSetup(testDirPathSegments ...string) (*shared.RuntimeConfiguration, *testutils.ComplexEnvironment) {
+func defaultTestSetupForShootLogic(testDirPathSegments ...string) (*shared.RuntimeConfiguration, *testutils.ComplexEnvironment) {
 	env := testutils.NewComplexEnvironmentBuilder().
 		WithFakeClient(platformCluster, providerScheme).
 		WithFakeClient(gardenCluster, gardenScheme).
@@ -47,7 +38,7 @@ var _ = Describe("Shoot Logic", func() {
 	Context("GetShoot", func() {
 
 		It("should return the shoot referenced in the Cluster status, if set", func() {
-			_, env := defaultTestSetup("..", "cluster", "testdata", "test-03")
+			_, env := defaultTestSetupForShootLogic("..", "cluster", "testdata", "test-03")
 			c := &clustersv1alpha1.Cluster{}
 			c.SetName("with-shoot")
 			c.SetNamespace("clusters")
@@ -60,7 +51,7 @@ var _ = Describe("Shoot Logic", func() {
 		})
 
 		It("should recover the shoot from labels, if the Cluster status does not contain a shoot reference", func() {
-			_, env := defaultTestSetup("..", "cluster", "testdata", "test-03")
+			_, env := defaultTestSetupForShootLogic("..", "cluster", "testdata", "test-03")
 			c := &clustersv1alpha1.Cluster{}
 			c.SetName("from-labels")
 			c.SetNamespace("clusters")
@@ -73,7 +64,7 @@ var _ = Describe("Shoot Logic", func() {
 		})
 
 		It("should return nil if no shoot exists for the Cluster", func() {
-			_, env := defaultTestSetup("..", "cluster", "testdata", "test-03")
+			_, env := defaultTestSetupForShootLogic("..", "cluster", "testdata", "test-03")
 			c := &clustersv1alpha1.Cluster{}
 			c.SetName("no-shoot")
 			c.SetNamespace("clusters")
@@ -88,7 +79,7 @@ var _ = Describe("Shoot Logic", func() {
 	Context("UpdateShootFields", func() {
 
 		It("should update the shoot fields with the expected values", func() {
-			rc, env := defaultTestSetup("..", "cluster", "testdata", "test-04")
+			rc, env := defaultTestSetupForShootLogic("..", "cluster", "testdata", "test-04")
 
 			// fake landscape
 			ls := &providerv1alpha1.Landscape{}
@@ -175,7 +166,7 @@ var _ = Describe("Shoot Logic", func() {
 		})
 
 		It("should not update fields in an invalid way", func() {
-			rc, env := defaultTestSetup("..", "cluster", "testdata", "test-04")
+			rc, env := defaultTestSetupForShootLogic("..", "cluster", "testdata", "test-04")
 
 			// fake landscape
 			ls := &providerv1alpha1.Landscape{}

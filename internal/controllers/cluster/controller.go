@@ -175,6 +175,11 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error updating shoot fields: %w", err), clusterconst.ReasonInternalError)
 			return rr
 		}
+		// set actual k8s version as annotation on the cluster resource
+		if err := ctrlutils.EnsureAnnotation(ctx, r.PlatformCluster.Client(), c, clustersv1alpha1.K8sVersionAnnotation, shoot.Spec.Kubernetes.Version, true, ctrlutils.OVERWRITE); err != nil {
+			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error setting k8s version annotation on cluster resource '%s': %w", req.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
+			return rr
+		}
 		// set shoot in ProviderStatus
 		manifest := &gardenv1beta1.ShootTemplate{
 			ObjectMeta: *shoot.ObjectMeta.DeepCopy(),
@@ -187,11 +192,6 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 		manifest.Finalizers = nil
 		if err := c.Status.SetProviderStatus(providerv1alpha1.ClusterStatus{Shoot: manifest}); err != nil {
 			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error setting provider status: %w", err), clusterconst.ReasonInternalError)
-			return rr
-		}
-		// set actual k8s version as annotation on the cluster resource
-		if err := ctrlutils.EnsureAnnotation(ctx, r.PlatformCluster.Client(), c, clustersv1alpha1.K8sVersionAnnotation, shoot.Spec.Kubernetes.Version, true, ctrlutils.OVERWRITE); err != nil {
-			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error setting k8s version annotation on cluster resource '%s': %w", req.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
 			return rr
 		}
 		var err error

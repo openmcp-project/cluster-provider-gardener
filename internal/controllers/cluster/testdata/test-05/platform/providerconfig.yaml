@@ -1,0 +1,58 @@
+apiVersion: gardener.clusters.openmcp.cloud/v1alpha1
+kind: ProviderConfig
+metadata:
+  name: gcp
+spec:
+  providerRef:
+    name: gardener
+  landscapeRef:
+    name: my-landscape
+  project: my-project
+  shootTemplate:
+    spec:
+      provider:
+        type: gcp
+        infrastructureConfig:
+          apiVersion: gcp.provider.extensions.gardener.cloud/v1alpha1
+          kind: InfrastructureConfig
+          networks:
+            workers: 10.180.0.0/16
+        controlPlaneConfig:
+          apiVersion: gcp.provider.extensions.gardener.cloud/v1alpha1
+          kind: ControlPlaneConfig
+          zone: europe-west1-c
+        workers:
+        - name: workers
+          minimum: 1
+          maximum: 10
+          maxSurge: 2
+          machine:
+            type: n1-standard-2
+            image:
+              name: gardenlinux
+              version: 2000.0.0
+            architecture: amd64
+          zones:
+          - europe-west1-c
+          cri:
+            name: containerd
+          volume:
+            type: pd-balanced
+            size: 50Gi
+      kubernetes:
+        version: 1.32.2
+      cloudProfile:
+        kind: CloudProfile
+        name: gcp
+      purpose: evaluation
+      region: europe-west1
+      maintenance:
+        autoUpdate:
+          kubernetesVersion: true
+        timeWindow:
+          begin: 220000+0200
+          end: 230000+0200
+      networking:
+        nodes: 10.180.0.0/16
+        type: calico
+      secretBindingName: my-secret

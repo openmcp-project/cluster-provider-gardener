@@ -11,7 +11,6 @@ metadata:
     gardener.clusters.openmcp.cloud/provider-name: gardener
   annotations:
     clusters.openmcp.cloud/environment: test
-    clusters.openmcp.cloud/k8sversion: 1.32.4
     clusters.openmcp.cloud/profile: gcp
     clusters.openmcp.cloud/provider: gardener
 spec:

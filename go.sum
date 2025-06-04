@@ -101,8 +101,8 @@ github.com/onsi/ginkgo/v2 v2.23.4 h1:ktYTpKJAVZnDT4VjxSbiBenUjmlL/5QkBEocaWXiQus
 github.com/onsi/ginkgo/v2 v2.23.4/go.mod h1:Bt66ApGPBFzHyR+JO10Zbt0Gsp4uWxu5mIOTusL46e8=
 github.com/onsi/gomega v1.37.0 h1:CdEG8g0S133B4OswTDC/5XPSzE1OeP29QOioj2PID2Y=
 github.com/onsi/gomega v1.37.0/go.mod h1:8D9+Txp43QWKhM24yyOBEdpkzN8FvJyAwecBgsU4KU0=
-github.com/openmcp-project/controller-utils v0.9.1-0.20250521072357-dbcffa3a78d1 h1:Ctnzscr9OZJTRmdqzyRyC7UA4COzd00QizUi6X22DHo=
-github.com/openmcp-project/controller-utils v0.9.1-0.20250521072357-dbcffa3a78d1/go.mod h1:j0FuxU5JhlDq+XkWNhDUY+k8AuqFINqXWjX7dlpQlNU=
+github.com/openmcp-project/controller-utils v0.9.1-0.20250604052153-938a0b3de2ed h1:sd0zbiCTWvCq2lnGKrtn9siRcE2g4gPM/BsY53Hb5r4=
+github.com/openmcp-project/controller-utils v0.9.1-0.20250604052153-938a0b3de2ed/go.mod h1:j0FuxU5JhlDq+XkWNhDUY+k8AuqFINqXWjX7dlpQlNU=
 github.com/openmcp-project/openmcp-operator/api v0.6.0 h1:OUYd2h1vKLBUIk2mnLPgibCvZOAWALQySk9XEsU4wxs=
 github.com/openmcp-project/openmcp-operator/api v0.6.0/go.mod h1:C32sb80ML95+ivrR18yj8v2F5dH6v/540nfnQihyN2k=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=

@@ -32,8 +32,8 @@ github.com/fsnotify/fsnotify v1.8.0/go.mod h1:8jBTzvmWwFyi3Pb8djgCCO5IBqzKJ/Jwo8
 github.com/fxamacker/cbor/v2 v2.7.0 h1:iM5WgngdRBanHcxugY4JySA0nk1wZorNOpTgCMedv5E=
 github.com/fxamacker/cbor/v2 v2.7.0/go.mod h1:pxXPTn3joSm21Gbwsv0w9OSA2y1HFR9qXEeXQVeNoDQ=
 github.com/go-logr/logr v1.2.2/go.mod h1:jdQByPbusPIv2/zmleS9BjJVeZ6kBagPoEUsqbVz/1A=
-github.com/go-logr/logr v1.4.2 h1:6pFjapn8bFcIbiKo3XT4j/BhANplGihG6tvd+8rYgrY=
-github.com/go-logr/logr v1.4.2/go.mod h1:9T104GzyrTigFIr8wt5mBrctHMim0Nb2HLGrmQ40KvY=
+github.com/go-logr/logr v1.4.3 h1:CjnDlHq8ikf6E492q6eKboGOC0T8CDaOvkHCIg8idEI=
+github.com/go-logr/logr v1.4.3/go.mod h1:9T104GzyrTigFIr8wt5mBrctHMim0Nb2HLGrmQ40KvY=
 github.com/go-logr/stdr v1.2.2 h1:hSWxHoqTgW2S2qGc0LTAI563KZ5YKYRhT3MFKZMbjag=
 github.com/go-logr/stdr v1.2.2/go.mod h1:mMo/vtBO5dYbehREoey6XUKy/eSumjCCveDpRre4VKE=
 github.com/go-logr/zapr v1.3.0 h1:XGdV8XW8zdwFiwOA2Dryh1gj2KRQyOOoNmBy4EplIcQ=
@@ -101,8 +101,8 @@ github.com/onsi/ginkgo/v2 v2.23.4 h1:ktYTpKJAVZnDT4VjxSbiBenUjmlL/5QkBEocaWXiQus
 github.com/onsi/ginkgo/v2 v2.23.4/go.mod h1:Bt66ApGPBFzHyR+JO10Zbt0Gsp4uWxu5mIOTusL46e8=
 github.com/onsi/gomega v1.37.0 h1:CdEG8g0S133B4OswTDC/5XPSzE1OeP29QOioj2PID2Y=
 github.com/onsi/gomega v1.37.0/go.mod h1:8D9+Txp43QWKhM24yyOBEdpkzN8FvJyAwecBgsU4KU0=
-github.com/openmcp-project/controller-utils v0.9.1-0.20250521072357-dbcffa3a78d1 h1:Ctnzscr9OZJTRmdqzyRyC7UA4COzd00QizUi6X22DHo=
-github.com/openmcp-project/controller-utils v0.9.1-0.20250521072357-dbcffa3a78d1/go.mod h1:j0FuxU5JhlDq+XkWNhDUY+k8AuqFINqXWjX7dlpQlNU=
+github.com/openmcp-project/controller-utils v0.10.0 h1:2WGSBeoVqoVebVKzjNF4DR8raT2v96hIPvyVBqufz/Y=
+github.com/openmcp-project/controller-utils v0.10.0/go.mod h1:QAAeb7VOEE2PRfRRJHcYm8bRKiLShpIruZIRjO1u+bc=
 github.com/openmcp-project/openmcp-operator/api v0.6.0 h1:OUYd2h1vKLBUIk2mnLPgibCvZOAWALQySk9XEsU4wxs=
 github.com/openmcp-project/openmcp-operator/api v0.6.0/go.mod h1:C32sb80ML95+ivrR18yj8v2F5dH6v/540nfnQihyN2k=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=

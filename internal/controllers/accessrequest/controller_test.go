@@ -50,7 +50,6 @@ func defaultTestSetup(testDirPathSegments ...string) (*accessrequest.AccessReque
 		WithFakeClient(shootCluster, nil).
 		WithInitObjectPath(platformCluster, append(testDirPathSegments, "platform")...).
 		WithInitObjectPath(gardenCluster, append(testDirPathSegments, "garden")...).
-		WithInitObjectPath(shootCluster, append(testDirPathSegments, "shoot")...).
 		WithFakeClientBuilderCall(gardenCluster, "WithInterceptorFuncs", interceptor.Funcs{
 			SubResourceCreate: func(ctx context.Context, c client.Client, subResourceName string, obj, subResource client.Object, opts ...client.SubResourceCreateOption) error {
 				switch subResourceName {

@@ -15,6 +15,7 @@ includes:
       COMPONENTS: 'cluster-provider-gardener'
       REPO_URL: 'https://github.com/openmcp-project/cluster-provider-gardener'
       CHART_COMPONENTS: "[]"
+      GENERATE_DOCS_INDEX: "true"
   common: # imported a second time so that overwriting task definitions can call the overwritten task with a 'c:' prefix
     taskfile: hack/common/Taskfile_controller.yaml
     internal: true
@@ -28,6 +29,7 @@ includes:
       COMPONENTS: 'cluster-provider-gardener'
       REPO_URL: 'https://github.com/openmcp-project/cluster-provider-gardener'
       CHART_COMPONENTS: "[]"
+      GENERATE_DOCS_INDEX: "true"
 
 tasks:
   generate:code: # overwrites shared code task to add external API fetching

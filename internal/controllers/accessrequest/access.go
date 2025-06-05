@@ -1,13 +1,11 @@
 package accessrequest
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"strconv"
 	"time"
 
-	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -16,8 +14,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	"github.com/openmcp-project/controller-utils/pkg/clusteraccess"
 	ctrlutils "github.com/openmcp-project/controller-utils/pkg/controller"
@@ -34,6 +30,12 @@ import (
 	gardenv1beta1 "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1"
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/shared"
 )
+
+// This map is meant for testing purposes only.
+// When the AdminKubeconfigRequest sent to the garden cluster returns a kubeconfig,
+// it tries to find the raw bytes as a key in this map.
+// If found, the corresponding client will be used instead of constructing one from the bytes.
+var FakeClientMappingsForTesting = map[string]client.Client{}
 
 // getAdminKubeconfigForShoot uses the AdminKubeconfigRequest subresource of a shoot to get a admin kubeconfig for the given shoot.
 func getAdminKubeconfigForShoot(ctx context.Context, c client.Client, shoot *gardenv1beta1.Shoot, desiredValidity time.Duration) ([]byte, error) {
@@ -54,28 +56,14 @@ func getAdminKubeconfigForShoot(ctx context.Context, c client.Client, shoot *gar
 // Also returns the rest.Config used to create the client.
 // The token used by the client has a validity of one hour.
 func getTemporaryClientForShoot(ctx context.Context, c client.Client, shoot *gardenv1beta1.Shoot) (client.Client, *rest.Config, error) {
+	log := logging.FromContextOrPanic(ctx)
 	kcfg, err := getAdminKubeconfigForShoot(ctx, c, shoot, time.Hour)
 	if err != nil {
 		return nil, nil, err
 	}
-	if bytes.Equal(kcfg, []byte("fake")) {
-		// inject fake client for tests
-		return fake.NewClientBuilder().WithInterceptorFuncs(interceptor.Funcs{
-			SubResourceCreate: func(ctx context.Context, c client.Client, subResourceName string, obj, subResource client.Object, opts ...client.SubResourceCreateOption) error {
-				switch subResourceName {
-				case "token":
-					tr, ok := subResource.(*authenticationv1.TokenRequest)
-					if !ok {
-						return fmt.Errorf("unexpected object type %T", subResource)
-					}
-					tr.Status.Token = "fake"
-					tr.Status.ExpirationTimestamp = metav1.Time{Time: time.Now().Add(time.Duration(*tr.Spec.ExpirationSeconds * int64(time.Second)))}
-					return nil
-				}
-				// use default logic
-				return c.SubResource(subResourceName).Create(ctx, obj, subResource, opts...)
-			},
-		}).Build(), &rest.Config{}, nil
+	if fakeClient, ok := FakeClientMappingsForTesting[string(kcfg)]; ok {
+		log.Info("Using injected client for testing - you should never see this message outside of unit tests")
+		return fakeClient, &rest.Config{}, nil
 	}
 	cfg, err := clientcmd.RESTConfigFromKubeConfig(kcfg)
 	if err != nil {

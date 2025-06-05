@@ -1,0 +1,14 @@
+apiVersion: gardener.clusters.openmcp.cloud/v1alpha1
+kind: Landscape
+metadata:
+  name: my-landscape
+  generation: 1
+spec:
+  access:
+    inline: fake
+status:
+  observedGeneration: 1
+  phase: Available
+  projects:
+  - name: my-project
+    namespace: garden-my-project

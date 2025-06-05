@@ -133,7 +133,7 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 		return rr
 	}
 
-	shoot, rerr := GetShoot(ctx, landscape, profile, c)
+	shoot, rerr := GetShoot(ctx, landscape.Cluster.Client(), profile.Project.Namespace, c)
 	if rerr != nil {
 		rr.ReconcileError = errutils.Errorf("error getting shoot: %w", rerr, rerr)
 		return rr
@@ -171,8 +171,13 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 		}
 
 		// take over fields from shoot template and update shoot
-		if err := UpdateShootFields(ctx, shoot, profile, landscape, c); err != nil {
+		if err := UpdateShootFields(ctx, shoot, profile, c); err != nil {
 			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error updating shoot fields: %w", err), clusterconst.ReasonInternalError)
+			return rr
+		}
+		// set actual k8s version as annotation on the cluster resource
+		if err := ctrlutils.EnsureAnnotation(ctx, r.PlatformCluster.Client(), c, clustersv1alpha1.K8sVersionAnnotation, shoot.Spec.Kubernetes.Version, true, ctrlutils.OVERWRITE); err != nil {
+			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error setting k8s version annotation on cluster resource '%s': %w", req.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
 			return rr
 		}
 		// set shoot in ProviderStatus

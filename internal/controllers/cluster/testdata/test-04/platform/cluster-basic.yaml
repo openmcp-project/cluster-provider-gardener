@@ -1,0 +1,13 @@
+apiVersion: clusters.openmcp.cloud/v1alpha1
+kind: Cluster
+metadata:
+  name: basic
+  namespace: clusters
+spec:
+  profile: test.gardener.gcp
+  purposes:
+  - test
+  tenancy: Exclusive
+status:
+  observedGeneration: 1
+  phase: Ready

@@ -16,11 +16,11 @@ const (
 	ManagedByNamespaceLabel = GroupName + "/managed-by-namespace"
 
 	// ClusterReferenceLabelName is the label on the shoot that holds the name of the Cluster resource that created it.
-	ClusterReferenceLabelName = "cluster-name." + GroupName
+	ClusterReferenceLabelName = GroupName + "/cluster-name"
 	// ClusterReferenceLabelNamespace is the label on the shoot that holds the namespace of the Cluster resource that created it.
-	ClusterReferenceLabelNamespace = "cluster-namespace." + GroupName
+	ClusterReferenceLabelNamespace = GroupName + "/cluster-namespace"
 	// ClusterReferenceLabelProvider is the label on the shoot that holds the name of the provider that is responsible for the Cluster resource that created it.
-	ClusterReferenceLabelProvider = "provider-name." + GroupName
+	ClusterReferenceLabelProvider = GroupName + "/provider-name"
 	// ClusterReferenceLabelEnvironment is the label on the shoot that holds the name of the environment that the responsible provider is in.
-	ClusterReferenceLabelEnvironment = "environment." + GroupName
+	ClusterReferenceLabelEnvironment = GroupName + "/environment"
 )

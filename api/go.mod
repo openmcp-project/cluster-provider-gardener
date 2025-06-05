@@ -3,7 +3,7 @@ module github.com/openmcp-project/cluster-provider-gardener/api
 go 1.24.2
 
 require (
-	github.com/openmcp-project/controller-utils v0.9.0
+	github.com/openmcp-project/controller-utils v0.10.0
 	github.com/openmcp-project/openmcp-operator/api v0.4.0
 	k8s.io/api v0.33.1
 	k8s.io/apiextensions-apiserver v0.33.1
@@ -51,7 +51,7 @@ require (
 
 require (
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
-	github.com/go-logr/logr v1.4.2 // indirect
+	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect

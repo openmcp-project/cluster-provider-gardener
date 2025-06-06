@@ -129,9 +129,6 @@ var _ = Describe("Shoot Logic", func() {
 
 			// verify annotations
 			expectedAnnotations := map[string]string{
-				clustersv1alpha1.ProfileNameAnnotation:                                     pc.Name,
-				clustersv1alpha1.EnvironmentAnnotation:                                     shared.Environment(),
-				clustersv1alpha1.ProviderAnnotation:                                        shared.ProviderName(),
 				"shoot.gardener.cloud/cleanup-extended-apis-finalize-grace-period-seconds": "30",
 				gardenconstants.AnnotationAuthenticationIssuer:                             gardenconstants.AnnotationAuthenticationIssuerManaged,
 			}

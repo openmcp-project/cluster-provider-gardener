@@ -85,7 +85,7 @@ func (o *SharedOptions) Complete() error {
 	}
 	shared.SetEnvironment(o.Environment)
 
-	o.ProviderName = os.Getenv("PROVIDER_NAME")
+	o.ProviderName = os.Getenv("OPENMCP_PROVIDER_NAME")
 	if o.ProviderName == "" {
 		o.ProviderName = "gardener"
 	}

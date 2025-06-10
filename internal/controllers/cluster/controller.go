@@ -175,9 +175,9 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error updating shoot fields: %w", err), clusterconst.ReasonInternalError)
 			return rr
 		}
-		// set actual k8s version as annotation on the cluster resource
-		if err := ctrlutils.EnsureAnnotation(ctx, r.PlatformCluster.Client(), c, clustersv1alpha1.K8sVersionAnnotation, shoot.Spec.Kubernetes.Version, true, ctrlutils.OVERWRITE); err != nil {
-			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error setting k8s version annotation on cluster resource '%s': %w", req.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
+		// set labels on the Cluster resource
+		if rerr := r.ensureClusterLabels(ctx, c, shoot.Spec.Kubernetes.Version); rerr != nil {
+			rr.ReconcileError = rerr
 			return rr
 		}
 		// set shoot in ProviderStatus
@@ -329,4 +329,30 @@ func (r *ClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			}
 		}))).
 		Complete(r)
+}
+
+func (r *ClusterReconciler) ensureClusterLabels(ctx context.Context, c *clustersv1alpha1.Cluster, k8sVersion string) errutils.ReasonableError {
+	log := logging.FromContextOrPanic(ctx)
+	old := c.DeepCopy()
+	changed := false
+	labels := c.Labels
+	if labels == nil {
+		labels = map[string]string{}
+	}
+	if labels[clustersv1alpha1.K8sVersionLabel] != k8sVersion {
+		labels[clustersv1alpha1.K8sVersionLabel] = k8sVersion
+		changed = true
+	}
+	if labels[clustersv1alpha1.ProviderLabel] != shared.ProviderName() {
+		labels[clustersv1alpha1.ProviderLabel] = shared.ProviderName()
+		changed = true
+	}
+	if changed {
+		c.Labels = labels
+		log.Info("Updating labels on Cluster resource", "labels", labels)
+		if err := r.PlatformCluster.Client().Patch(ctx, c, client.MergeFrom(old)); err != nil {
+			return errutils.WithReason(fmt.Errorf("error patching labels on Cluster: %w", err), clusterconst.ReasonPlatformClusterInteractionProblem)
+		}
+	}
+	return nil
 }

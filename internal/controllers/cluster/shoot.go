@@ -91,9 +91,6 @@ func UpdateShootFields(ctx context.Context, shoot *gardenv1beta1.Shoot, profile 
 
 	// annotations
 	enforcedAnnotations := maputils.Merge(tmpl.Annotations, map[string]string{
-		clustersv1alpha1.ProfileNameAnnotation:                                     profile.ProviderConfig.Name,
-		clustersv1alpha1.EnvironmentAnnotation:                                     shared.Environment(),
-		clustersv1alpha1.ProviderAnnotation:                                        shared.ProviderName(),
 		"shoot.gardener.cloud/cleanup-extended-apis-finalize-grace-period-seconds": "30",
 		gardenconstants.AnnotationAuthenticationIssuer:                             gardenconstants.AnnotationAuthenticationIssuerManaged,
 	})

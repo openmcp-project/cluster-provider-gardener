@@ -97,7 +97,8 @@ var _ = Describe("Cluster Controller", func() {
 
 		// verify shoot existence
 		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(Succeed())
-		Expect(c.Annotations).To(HaveKeyWithValue(clustersv1alpha1.K8sVersionAnnotation, "1.32.2"))
+		Expect(c.Labels).To(HaveKeyWithValue(clustersv1alpha1.K8sVersionLabel, "1.32.2"))
+		Expect(c.Labels).To(HaveKeyWithValue(clustersv1alpha1.ProviderLabel, shared.ProviderName()))
 		Expect(c.Status.ProviderStatus).ToNot(BeNil())
 		cs := &providerv1alpha1.ClusterStatus{}
 		Expect(c.Status.GetProviderStatus(cs)).To(Succeed())
@@ -129,7 +130,8 @@ var _ = Describe("Cluster Controller", func() {
 
 		env.ShouldReconcile(cRec, testutils.RequestFromObject(c))
 		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(Succeed())
-		Expect(c.Annotations).To(HaveKeyWithValue(clustersv1alpha1.K8sVersionAnnotation, "1.32.2"))
+		Expect(c.Labels).To(HaveKeyWithValue(clustersv1alpha1.K8sVersionLabel, "1.32.2"))
+		Expect(c.Labels).To(HaveKeyWithValue(clustersv1alpha1.ProviderLabel, shared.ProviderName()))
 		Expect(env.Client(gardenCluster).Get(env.Ctx, client.ObjectKeyFromObject(shoot), shoot)).To(Succeed())
 
 		// verify that the fields were updated

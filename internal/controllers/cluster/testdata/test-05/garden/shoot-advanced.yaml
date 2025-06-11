@@ -127,3 +127,8 @@ status:
     type: Reconcile
   observedGeneration: 1
   seedName: gcp-seed1
+  advertisedAddresses:
+    - name: external
+      url: https://api.advanced.clusters.shoot.example.com
+    - name: internal
+      url: https://api.advanced.clusters.internal.example.com

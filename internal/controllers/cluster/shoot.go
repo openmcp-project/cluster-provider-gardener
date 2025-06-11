@@ -21,7 +21,7 @@ import (
 	providerv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
 	cconst "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1/constants"
 	gardenv1beta1 "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1"
-	gardenconstants "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1/constants"
+	gardenconst "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/shared"
 )
 
@@ -92,7 +92,7 @@ func UpdateShootFields(ctx context.Context, shoot *gardenv1beta1.Shoot, profile 
 	// annotations
 	enforcedAnnotations := maputils.Merge(tmpl.Annotations, map[string]string{
 		"shoot.gardener.cloud/cleanup-extended-apis-finalize-grace-period-seconds": "30",
-		gardenconstants.AnnotationAuthenticationIssuer:                             gardenconstants.AnnotationAuthenticationIssuerManaged,
+		gardenconst.AnnotationAuthenticationIssuer:                                 gardenconst.AnnotationAuthenticationIssuerManaged,
 	})
 	existingAnnotations := shoot.GetAnnotations()
 	if existingAnnotations == nil {

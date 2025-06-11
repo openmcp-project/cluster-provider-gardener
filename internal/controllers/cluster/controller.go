@@ -26,6 +26,7 @@ import (
 	providerv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
 	cconst "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1/constants"
 	gardenv1beta1 "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1"
+	gardenconst "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/shared"
 )
 
@@ -184,6 +185,15 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 		manifest := &gardenv1beta1.ShootTemplate{
 			ObjectMeta: *shoot.ObjectMeta.DeepCopy(),
 			Spec:       *shoot.Spec.DeepCopy(),
+		}
+		// set shoot apiserver endpoint in status
+		if len(shoot.Status.AdvertisedAddresses) > 0 {
+			for _, addr := range shoot.Status.AdvertisedAddresses {
+				if addr.Name == gardenconst.AdvertisedAddressExternal {
+					rr.Object.Status.APIServer = addr.URL
+					break
+				}
+			}
 		}
 		manifest.ManagedFields = nil
 		manifest.ResourceVersion = ""

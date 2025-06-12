@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024 SAP SE or an SAP affiliate company and Gardener contributors
+// SPDX-FileCopyrightText: SAP SE or an SAP affiliate company and Gardener contributors
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -261,7 +261,7 @@ type PendingWorkerUpdates struct {
 	// AutoInPlaceUpdate contains the names of the pending worker pools with strategy AutoInPlaceUpdate.
 	// +optional
 	AutoInPlaceUpdate []string `json:"autoInPlaceUpdate,omitempty" protobuf:"bytes,1,rep,name=autoInPlaceUpdate"`
-	// ManualInPlaceUpdate contains the names of the pending worker pools with strategy ManualInPlaceUpdate..
+	// ManualInPlaceUpdate contains the names of the pending worker pools with strategy ManualInPlaceUpdate.
 	// +optional
 	ManualInPlaceUpdate []string `json:"manualInPlaceUpdate,omitempty" protobuf:"bytes,2,rep,name=manualInPlaceUpdate"`
 }
@@ -1370,6 +1370,20 @@ type KubeletConfig struct {
 	// MemorySwap configures swap memory available to container workloads.
 	// +optional
 	MemorySwap *MemorySwapConfiguration `json:"memorySwap,omitempty" protobuf:"bytes,26,opt,name=memorySwap"`
+	// MaxParallelImagePulls describes the maximum number of image pulls in parallel. The value must be a positive number.
+	// This field cannot be set if SerializeImagePulls (pull one image at a time) is set to true.
+	// Setting it to nil means no limit.
+	// Default: nil
+	// +optional
+	MaxParallelImagePulls *int32 `json:"maxParallelImagePulls,omitempty" protobuf:"varint,27,opt,name=maxParallelImagePulls"`
+	// ImageMinimumGCAge is the minimum age of an unused image before it can be garbage collected.
+	// Default: 2m0s
+	// +optional
+	ImageMinimumGCAge *metav1.Duration `json:"imageMinimumGCAge,omitempty" protobuf:"bytes,28,opt,name=imageMinimumGCAge"`
+	// ImageMaximumGCAge is the maximum age of an unused image before it can be garbage collected.
+	// Default: 0s
+	// +optional
+	ImageMaximumGCAge *metav1.Duration `json:"imageMaximumGCAge,omitempty" protobuf:"bytes,29,opt,name=imageMaximumGCAge"`
 }
 
 // KubeletConfigEviction contains kubelet eviction thresholds supporting either a resource.Quantity or a percentage based value.
@@ -1669,7 +1683,12 @@ type Worker struct {
 }
 
 // WorkerControlPlane specifies that the shoot cluster control plane components should be running in this worker pool.
-type WorkerControlPlane struct{}
+type WorkerControlPlane struct {
+	// Backup holds the object store configuration for the backups of shoot (currently only etcd).
+	// If it is not specified, then there won't be any backups taken.
+	// +optional
+	Backup *Backup `json:"backup,omitempty" protobuf:"bytes,1,opt,name=backup"`
+}
 
 // MachineUpdateStrategy specifies the machine update strategy for the worker pool.
 type MachineUpdateStrategy string

@@ -17,6 +17,7 @@ import (
 
 	providerv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
 	gardenv1beta1 "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1"
+	gardenconst "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/openmcp-project/cluster-provider-gardener/api/install"
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/cluster"
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/landscape"
@@ -138,6 +139,35 @@ var _ = Describe("Cluster Controller", func() {
 		Expect(shoot.Spec.Kubernetes.Version).To(Equal("1.32.2"))
 		Expect(shoot.Spec.Provider.Workers[0].Maximum).To(BeNumerically("==", 10))
 		Expect(shoot.Spec.Provider.Workers[0].Machine.Image.Version).To(PointTo(Equal("2000.0.0")))
+	})
+
+	It("should set the shoot's apiserver endpoint in the cluster status", func() {
+		c := &clustersv1alpha1.Cluster{}
+		c.SetName("advanced")
+		c.SetNamespace("clusters")
+		env.ShouldReconcile(cRec, testutils.RequestFromObject(c))
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(Succeed())
+
+		Expect(c.Status.ProviderStatus).ToNot(BeNil())
+		cs := &providerv1alpha1.ClusterStatus{}
+		Expect(c.Status.GetProviderStatus(cs)).To(Succeed())
+		Expect(cs.Shoot).ToNot(BeNil())
+		shoot := &gardenv1beta1.Shoot{}
+		shoot.SetName(cs.Shoot.Name)
+		shoot.SetNamespace(cs.Shoot.Namespace)
+		Expect(env.Client(gardenCluster).Get(env.Ctx, client.ObjectKeyFromObject(shoot), shoot)).To(Succeed())
+		Expect(shoot.Status.AdvertisedAddresses).ToNot(BeEmpty())
+		var shootEndpoint string
+		for _, addr := range shoot.Status.AdvertisedAddresses {
+			if addr.Name == gardenconst.AdvertisedAddressExternal {
+				shootEndpoint = addr.URL
+				break
+			}
+		}
+		Expect(shootEndpoint).ToNot(BeEmpty())
+
+		Expect(c.Status.APIServer).ToNot(BeEmpty())
+		Expect(c.Status.APIServer).To(Equal(shootEndpoint))
 	})
 
 	It("should delete the shoot when the cluster is deleted", func() {

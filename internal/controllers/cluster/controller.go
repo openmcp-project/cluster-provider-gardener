@@ -86,6 +86,7 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req reconcile.Request
 		UpdateStatus(ctx, r.PlatformCluster.Client(), rr)
 }
 
+// nolint:gocyclo
 func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request) ReconcileResult {
 	log := logging.FromContextOrPanic(ctx)
 

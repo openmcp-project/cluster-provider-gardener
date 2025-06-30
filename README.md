@@ -4,11 +4,32 @@
 
 ## About this project
 
-Cluster provider Gardner manages the lifecycle of Gardner Shoot clusters.
+ClusterProvider Gardener is a `ClusterProvider` as described in [the OpenMCP Architecture Docs](https://github.com/openmcp-project/docs/blob/main/architecture/general/open-mcp-landscape-overview.md). It implements our [Cluster API](https://github.com/openmcp-project/docs/blob/main/adrs/cluster-api.md).
+
+It is a k8s contorller which manages [Gardener](https://gardener.cloud/) shoot clusters based on `Cluster` resources and can grant access to these shoot clusters based on `ClusterRequest` resources.
 
 ## Requirements and Setup
 
-*Insert a short description what is required to get your project running...*
+In combination with the [openMCP Operator](https://github.com/openmcp-project/openmcp-operator), this controller can be deployed via a simple k8s resource:
+```yaml
+apiVersion: openmcp.cloud/v1alpha1
+kind: ClusterProvider
+metadata:
+  name: gardener
+spec:
+  image: "ghcr.io/openmcp-project/images/cluster-provider-gardener:v0.2.0"
+```
+
+To run it locally, run
+```shell
+go run ./cmd/cluster-provider-gardener/main.go init --environment default --kubeconfig path/to/kubeconfig
+```
+to deploy the CRDs that are required for the controller and then
+```shell
+go run ./cmd/cluster-provider-gardener/main.go run --environment default --kubeconfig path/to/kubeconfig
+```
+
+See the [documentation](docs/README.md) for further details regarding resources and configuration.
 
 ## Support, Feedback, Contributing
 

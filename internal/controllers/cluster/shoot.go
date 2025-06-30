@@ -25,6 +25,8 @@ import (
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/shared"
 )
 
+const GardenerOIDCExtensionType = "shoot-oidc-service"
+
 func GetShoot(ctx context.Context, landscapeClient client.Client, projectNamespace string, c *clustersv1alpha1.Cluster) (*gardenv1beta1.Shoot, errutils.ReasonableError) {
 	log := logging.FromContextOrPanic(ctx)
 	// check if shoot already exists
@@ -159,6 +161,23 @@ func UpdateShootFields(ctx context.Context, shoot *gardenv1beta1.Shoot, profile 
 				shoot.Spec.Maintenance.AutoUpdate.MachineImageVersion = ptr.To(false)
 			}
 		}
+	}
+
+	// as long as we don't have our own OIDC solution, let's ensure that the Gardener OIDC extension is enabled
+	found := false
+	for _, ext := range shoot.Spec.Extensions {
+		if ext.Type == GardenerOIDCExtensionType {
+			found = true
+			break
+		}
+	}
+	if !found {
+		if shoot.Spec.Extensions == nil {
+			shoot.Spec.Extensions = []gardenv1beta1.Extension{}
+		}
+		shoot.Spec.Extensions = append(shoot.Spec.Extensions, gardenv1beta1.Extension{
+			Type: GardenerOIDCExtensionType,
+		})
 	}
 
 	return nil

@@ -160,6 +160,9 @@ var _ = Describe("Shoot Logic", func() {
 			Expect(shoot.Spec.CloudProfile).To(Equal(pc.Spec.ShootTemplate.Spec.CloudProfile))
 			Expect(shoot.Spec.Region).To(Equal(pc.Spec.ShootTemplate.Spec.Region))
 			Expect(shoot.Spec.Maintenance).To(Equal(pc.Spec.ShootTemplate.Spec.Maintenance))
+			Expect(shoot.Spec.Extensions).To(ContainElements(MatchFields(IgnoreExtras, Fields{
+				"Type": Equal(cluster.GardenerOIDCExtensionType),
+			})))
 		})
 
 		It("should not update fields in an invalid way", func() {

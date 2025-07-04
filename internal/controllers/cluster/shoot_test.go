@@ -112,6 +112,12 @@ var _ = Describe("Shoot Logic", func() {
 			c.SetNamespace("clusters")
 			Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(Succeed())
 
+			// fake cluster configuration
+			cc := &providerv1alpha1.ClusterConfig{}
+			cc.SetName("basic")
+			cc.SetNamespace("clusters")
+			Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(cc), cc)).To(Succeed())
+
 			// create empty shoot
 			shoot := &gardenv1beta1.Shoot{}
 			shoot.SetName("basic")
@@ -125,7 +131,7 @@ var _ = Describe("Shoot Logic", func() {
 			oldShoot := shoot.DeepCopy()
 
 			// verify update
-			Expect(cluster.UpdateShootFields(env.Ctx, shoot, p, c)).To(Succeed())
+			Expect(cluster.UpdateShootFields(env.Ctx, shoot, p, c, cc)).To(Succeed())
 
 			// verify annotations
 			expectedAnnotations := map[string]string{
@@ -163,6 +169,16 @@ var _ = Describe("Shoot Logic", func() {
 			Expect(shoot.Spec.Extensions).To(ContainElements(MatchFields(IgnoreExtras, Fields{
 				"Type": Equal(cluster.GardenerOIDCExtensionType),
 			})))
+
+			// verify changes from cluster configuration
+			Expect(shoot.Spec.Extensions).To(ContainElements(MatchFields(0, Fields{
+				"Type":     Equal("test-extension"),
+				"Disabled": PointTo(BeTrue()),
+				"ProviderConfig": PointTo(MatchFields(IgnoreExtras, Fields{
+					"Raw": Equal([]byte(`{"foo":"bar"}`)),
+				})),
+			})))
+			Expect(shoot.Spec.SeedName).To(PointTo(Equal("test-seed")))
 		})
 
 		It("should not update fields in an invalid way", func() {
@@ -215,7 +231,7 @@ var _ = Describe("Shoot Logic", func() {
 			oldShoot := shoot.DeepCopy()
 
 			// verify update
-			Expect(cluster.UpdateShootFields(env.Ctx, shoot, p, c)).To(Succeed())
+			Expect(cluster.UpdateShootFields(env.Ctx, shoot, p, c, nil)).To(Succeed())
 
 			// verify spec
 			Expect(shoot.Spec.Provider.InfrastructureConfig).To(Equal(pc.Spec.ShootTemplate.Spec.Provider.InfrastructureConfig))

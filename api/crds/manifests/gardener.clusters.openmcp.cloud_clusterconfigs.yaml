@@ -1,0 +1,99 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  labels:
+    openmcp.cloud/cluster: platform
+  name: clusterconfigs.gardener.clusters.openmcp.cloud
+spec:
+  group: gardener.clusters.openmcp.cloud
+  names:
+    kind: ClusterConfig
+    listKind: ClusterConfigList
+    plural: clusterconfigs
+    shortNames:
+    - gccfg
+    singular: clusterconfig
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              patchOptions:
+                description: PatchOptions allows to configure how the patches are
+                  applied to the shoot manifest.
+                properties:
+                  createMissingOnAdd:
+                    description: CreateMissingOnAdd instructs the patch to create
+                      missing parent fields on add operations.
+                    type: boolean
+                  ignoreMissingOnRemove:
+                    description: IgnoreMissingOnRemove instructs the patch to ignore
+                      missing fields when removing them.
+                    type: boolean
+                type: object
+              patches:
+                description: |-
+                  Patches contains a list of JSON patches that are applied to the shoot manifest before it is sent to the Gardener API server.
+                  These patches are applied to the shoot manifest in the order they are defined.
+                items:
+                  description: |-
+                    JSONPatch represents a JSON patch operation.
+                    Technically, a single JSON patch (as defined by RFC 6902) is a list of patch operations.
+                    Opposed to that, this type represents a single operation. Use the JSONPatches type for a list of operations instead.
+                  properties:
+                    from:
+                      description: From is the source location for move and copy operations.
+                      type: string
+                    op:
+                      description: |-
+                        Operation is the operation to perform.
+                        Valid values are: add, remove, replace, move, copy, test
+                      enum:
+                      - add
+                      - remove
+                      - replace
+                      - move
+                      - copy
+                      - test
+                      type: string
+                    path:
+                      description: Path is the path to the target location in the
+                        JSON document.
+                      type: string
+                    value:
+                      description: |-
+                        Value is the value to set at the target location.
+                        Required for add, replace, and test operations.
+                      x-kubernetes-preserve-unknown-fields: true
+                  required:
+                  - op
+                  - path
+                  type: object
+                type: array
+            type: object
+        type: object
+    served: true
+    storage: true

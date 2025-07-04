@@ -13,6 +13,7 @@ import (
 
 	maputils "github.com/openmcp-project/controller-utils/pkg/collections/maps"
 	errutils "github.com/openmcp-project/controller-utils/pkg/errors"
+	"github.com/openmcp-project/controller-utils/pkg/jsonpatch"
 	"github.com/openmcp-project/controller-utils/pkg/logging"
 
 	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
@@ -86,7 +87,7 @@ func GetShoot(ctx context.Context, landscapeClient client.Client, projectNamespa
 
 // UpdateShootFields updates the shoot with the values from the profile.
 // It tries to avoid invalid changes, such as downgrading the kubernetes version or removing required fields.
-func UpdateShootFields(ctx context.Context, shoot *gardenv1beta1.Shoot, profile *shared.Profile, cluster *clustersv1alpha1.Cluster) error {
+func UpdateShootFields(ctx context.Context, shoot *gardenv1beta1.Shoot, profile *shared.Profile, cluster *clustersv1alpha1.Cluster, clusterConfig *providerv1alpha1.ClusterConfig) error {
 	log := logging.FromContextOrPanic(ctx).WithName("UpdateShootFields")
 	tmpl := profile.ProviderConfig.Spec.ShootTemplate
 	oldShoot := shoot.DeepCopy()
@@ -178,6 +179,29 @@ func UpdateShootFields(ctx context.Context, shoot *gardenv1beta1.Shoot, profile 
 		shoot.Spec.Extensions = append(shoot.Spec.Extensions, gardenv1beta1.Extension{
 			Type: GardenerOIDCExtensionType,
 		})
+	}
+
+	// apply cluster config, if not nil
+	if clusterConfig != nil {
+		log.Debug("Evaluating cluster config", "ccName", clusterConfig.Name, "ccNamespace", clusterConfig.Namespace)
+		if len(clusterConfig.Spec.Patches) > 0 {
+			log.Debug("Applying patches from cluster config", "ccName", clusterConfig.Name, "ccNamespace", clusterConfig.Namespace)
+			patch := jsonpatch.NewTyped[*gardenv1beta1.Shoot](clusterConfig.Spec.Patches)
+			opts := []jsonpatch.Option{}
+			if clusterConfig.Spec.PatchOptions != nil {
+				if clusterConfig.Spec.PatchOptions.IgnoreMissingOnRemove != nil {
+					opts = append(opts, jsonpatch.AllowMissingPathOnRemove(*clusterConfig.Spec.PatchOptions.IgnoreMissingOnRemove))
+				}
+				if clusterConfig.Spec.PatchOptions.CreateMissingOnAdd != nil {
+					opts = append(opts, jsonpatch.EnsurePathExistsOnAdd(*clusterConfig.Spec.PatchOptions.CreateMissingOnAdd))
+				}
+			}
+			patchedShoot, err := patch.Apply(shoot, opts...)
+			if err != nil {
+				return fmt.Errorf("error applying patches from cluster config '%s/%s': %w", clusterConfig.Namespace, clusterConfig.Name, err)
+			}
+			*shoot = *patchedShoot
+		}
 	}
 
 	return nil

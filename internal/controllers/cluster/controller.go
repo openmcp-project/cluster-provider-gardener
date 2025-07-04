@@ -6,6 +6,8 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -38,14 +40,18 @@ const GardenerDeletionConfirmationAnnotation = "confirmation.gardener.cloud/dele
 
 func NewClusterReconciler(rc *shared.RuntimeConfiguration, eventRecorder record.EventRecorder) *ClusterReconciler {
 	return &ClusterReconciler{
-		RuntimeConfiguration: rc,
-		eventRecorder:        eventRecorder,
+		RuntimeConfiguration:    rc,
+		eventRecorder:           eventRecorder,
+		ClusterConfigReferences: newClusterConfigReferences(),
 	}
 }
 
 type ClusterReconciler struct {
 	*shared.RuntimeConfiguration
 	eventRecorder record.EventRecorder
+	// ClusterConfigReferences maps ClusterConfig references to the set of clusters that reference them.
+	// This is used to trigger reconciliations on Clusters when a ClusterConfig is updated.
+	ClusterConfigReferences clusterConfigReferences
 }
 
 var _ reconcile.Reconciler = &ClusterReconciler{}
@@ -181,8 +187,35 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 			}
 		}
 
+		// fetch cluster config, if specified
+		var clusterConfig *providerv1alpha1.ClusterConfig
+		if c.Spec.ClusterConfigRef != nil && c.Spec.ClusterConfigRef.Name != "" {
+			log.Info("Fetching cluster config", "clusterConfigName", c.Spec.ClusterConfigRef.Name, "clusterConfigNamespace", c.Namespace)
+			r.ClusterConfigReferences.Set(types.NamespacedName{
+				Name:      c.Spec.ClusterConfigRef.Name,
+				Namespace: c.Namespace,
+			}, types.NamespacedName{
+				Name:      c.Name,
+				Namespace: c.Namespace,
+			})
+			clusterConfig = &providerv1alpha1.ClusterConfig{}
+			if err := r.PlatformCluster.Client().Get(ctx, ctrlutils.ObjectKey(c.Spec.ClusterConfigRef.Name, c.Namespace), clusterConfig); err != nil {
+				if apierrors.IsNotFound(err) {
+					rr.ReconcileError = errutils.WithReason(fmt.Errorf("cluster config '%s/%s' not found", c.Namespace, c.Spec.ClusterConfigRef.Name), clusterconst.ReasonInvalidReference)
+					return rr
+				}
+				rr.ReconcileError = errutils.WithReason(fmt.Errorf("error getting cluster config '%s/%s': %w", c.Namespace, c.Spec.ClusterConfigRef.Name, err), clusterconst.ReasonPlatformClusterInteractionProblem)
+				return rr
+			}
+		} else {
+			r.ClusterConfigReferences.UnsetCluster(types.NamespacedName{
+				Name:      c.Name,
+				Namespace: c.Namespace,
+			})
+		}
+
 		// take over fields from shoot template and update shoot
-		if err := UpdateShootFields(ctx, shoot, profile, c); err != nil {
+		if err := UpdateShootFields(ctx, shoot, profile, c, clusterConfig); err != nil {
 			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error updating shoot fields: %w", err), clusterconst.ReasonInternalError)
 			createCon(providerv1alpha1.ClusterConditionShootManagement, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 			return rr
@@ -359,6 +392,24 @@ func (r *ClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				},
 			}
 		}))).
+		// watch ClusterConfig resources
+		Watches(&providerv1alpha1.ClusterConfig{}, handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []ctrl.Request {
+			if obj == nil {
+				return nil
+			}
+			// reconcile all clusters that reference this ClusterConfig
+			clusters := r.ClusterConfigReferences.GetClustersForConfig(types.NamespacedName{
+				Name:      obj.GetName(),
+				Namespace: obj.GetNamespace(),
+			})
+			requests := make([]ctrl.Request, 0, len(clusters))
+			for cluster := range clusters {
+				requests = append(requests, ctrl.Request{
+					NamespacedName: cluster,
+				})
+			}
+			return requests
+		}), builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Complete(r)
 }
 
@@ -386,4 +437,47 @@ func (r *ClusterReconciler) ensureClusterLabels(ctx context.Context, c *clusters
 		}
 	}
 	return nil
+}
+
+func newClusterConfigReferences() clusterConfigReferences {
+	return clusterConfigReferences{
+		ConfigToCluster: make(map[types.NamespacedName]sets.Set[types.NamespacedName]),
+		ClusterToConfig: make(map[types.NamespacedName]types.NamespacedName),
+	}
+}
+
+type clusterConfigReferences struct {
+	ConfigToCluster map[types.NamespacedName]sets.Set[types.NamespacedName]
+	ClusterToConfig map[types.NamespacedName]types.NamespacedName
+}
+
+func (ccr clusterConfigReferences) Set(clusterConfig types.NamespacedName, cluster types.NamespacedName) {
+	if _, ok := ccr.ConfigToCluster[clusterConfig]; !ok {
+		ccr.ConfigToCluster[clusterConfig] = sets.New[types.NamespacedName]()
+	}
+	ccr.ConfigToCluster[clusterConfig].Insert(cluster)
+	ccr.ClusterToConfig[cluster] = clusterConfig
+}
+
+func (ccr clusterConfigReferences) UnsetClusterConfig(clusterConfig types.NamespacedName) {
+	clusters := ccr.ConfigToCluster[clusterConfig]
+	delete(ccr.ConfigToCluster, clusterConfig)
+	for cluster := range clusters {
+		delete(ccr.ClusterToConfig, cluster)
+	}
+}
+
+func (ccr clusterConfigReferences) UnsetCluster(cluster types.NamespacedName) {
+	if clusterConfig, ok := ccr.ClusterToConfig[cluster]; ok {
+		clusters := ccr.ConfigToCluster[clusterConfig]
+		clusters.Delete(cluster)
+		if clusters.Len() == 0 {
+			delete(ccr.ConfigToCluster, clusterConfig)
+		}
+		delete(ccr.ClusterToConfig, cluster)
+	}
+}
+
+func (ccr clusterConfigReferences) GetClustersForConfig(clusterConfig types.NamespacedName) sets.Set[types.NamespacedName] {
+	return ccr.ConfigToCluster[clusterConfig]
 }

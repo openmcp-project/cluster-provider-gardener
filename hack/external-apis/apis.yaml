@@ -1,7 +1,7 @@
 apis:
   gardener:
     # renovate: datasource=github-releases
-    base: https://raw.githubusercontent.com/gardener/gardener/v1.120.1
+    base: https://raw.githubusercontent.com/gardener/gardener/v1.122.1
     vendor: github.com/gardener/gardener
     patches:
     - replace: "github.com/gardener/gardener/pkg/apis/core"

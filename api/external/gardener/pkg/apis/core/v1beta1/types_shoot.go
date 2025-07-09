@@ -615,12 +615,10 @@ type Kubernetes struct {
 	// VerticalPodAutoscaler contains the configuration flags for the Kubernetes vertical pod autoscaler.
 	// +optional
 	VerticalPodAutoscaler *VerticalPodAutoscaler `json:"verticalPodAutoscaler,omitempty" protobuf:"bytes,9,opt,name=verticalPodAutoscaler"`
-	// EnableStaticTokenKubeconfig indicates whether static token kubeconfig secret will be created for the Shoot cluster.
-	// Setting this field to true is not supported.
-	// +optional
-	//
-	// Deprecated: This field is deprecated and will be removed in gardener v1.120
-	EnableStaticTokenKubeconfig *bool `json:"enableStaticTokenKubeconfig,omitempty" protobuf:"varint,10,opt,name=enableStaticTokenKubeconfig"`
+
+	// EnableStaticTokenKubeconfig is tombstoned to show why 10 is reserved protobuf tag.
+	// EnableStaticTokenKubeconfig *bool `json:"enableStaticTokenKubeconfig,omitempty" protobuf:"varint,10,opt,name=enableStaticTokenKubeconfig"`
+
 	// ETCD contains configuration for etcds of the shoot cluster.
 	// +optional
 	ETCD *ETCD `json:"etcd,omitempty" protobuf:"bytes,11,opt,name=etcd"`
@@ -681,7 +679,9 @@ type ClusterAutoscaler struct {
 	// NewPodScaleUpDelay specifies how long CA should ignore newly created pods before they have to be considered for scale-up (default: 0s).
 	// +optional
 	NewPodScaleUpDelay *metav1.Duration `json:"newPodScaleUpDelay,omitempty" protobuf:"bytes,11,opt,name=newPodScaleUpDelay"`
-	// MaxEmptyBulkDelete specifies the maximum number of empty nodes that can be deleted at the same time (default: 10).
+	// MaxEmptyBulkDelete specifies the maximum number of empty nodes that can be deleted at the same time (default: MaxScaleDownParallelism when that is set).
+	// Deprecated: This field is deprecated and will be removed once gardener drops support for Kubernetes v1.32.
+	// This cluster-autoscaler field is deprecated upstream, use --max-scale-down-parallelism instead.
 	// +optional
 	MaxEmptyBulkDelete *int32 `json:"maxEmptyBulkDelete,omitempty" protobuf:"varint,12,opt,name=maxEmptyBulkDelete"`
 	// IgnoreDaemonsetsUtilization allows CA to ignore DaemonSet pods when calculating resource utilization for scaling down (default: false).
@@ -698,6 +698,15 @@ type ClusterAutoscaler struct {
 	// Cluster Autoscaler internally treats nodes tainted with status taints as ready, but filtered out during scale up logic.
 	// +optional
 	StatusTaints []string `json:"statusTaints,omitempty" protobuf:"bytes,16,opt,name=statusTaints"`
+
+	// MaxScaleDownParallelism specifies the maximum number of nodes (both empty and needing drain) that can be deleted in parallel.
+	// Default: 10 or MaxEmptyBulkDelete when that is set
+	// +optional
+	MaxScaleDownParallelism *int32 `json:"maxScaleDownParallelism,omitempty" protobuf:"varint,17,opt,name=maxScaleDownParallelism"`
+	// MaxDrainParallelism specifies the maximum number of nodes needing drain, that can be drained and deleted in parallel.
+	// Default: 1
+	// +optional
+	MaxDrainParallelism *int32 `json:"maxDrainParallelism,omitempty" protobuf:"varint,18,opt,name=maxDrainParallelism"`
 }
 
 // ExpanderMode is type used for Expander values
@@ -891,13 +900,14 @@ type KubeAPIServerConfig struct {
 	// Requests contains configuration for request-specific settings for the kube-apiserver.
 	// +optional
 	Requests *APIServerRequests `json:"requests,omitempty" protobuf:"bytes,10,opt,name=requests"`
+	// EnableAnonymousAuthentication defines whether anonymous requests to the secure port
+	// of the API server should be allowed (flag `--anonymous-auth`).
+	// See: https://kubernetes.io/docs/reference/command-line-tools-reference/kube-apiserver/
+	//
 	// Deprecated: This field is deprecated and will be removed in a future release.
 	// Please use anonymous authentication configuration instead.
 	// For more information see: https://kubernetes.io/docs/reference/access-authn-authz/authentication/#anonymous-authenticator-configuration
 	// TODO(marc1404): Forbid this field when the feature gate AnonymousAuthConfigurableEndpoints has graduated.
-	// EnableAnonymousAuthentication defines whether anonymous requests to the secure port
-	// of the API server should be allowed (flag `--anonymous-auth`).
-	// See: https://kubernetes.io/docs/reference/command-line-tools-reference/kube-apiserver/
 	// +optional
 	EnableAnonymousAuthentication *bool `json:"enableAnonymousAuthentication,omitempty" protobuf:"varint,11,opt,name=enableAnonymousAuthentication"`
 	// EventTTL controls the amount of time to retain events.
@@ -1153,7 +1163,9 @@ type KubeControllerManagerConfig struct {
 	// The `--pod-eviction-timeout` flag does not have effect when the taint based eviction is enabled. The taint
 	// based eviction is beta (enabled by default) since Kubernetes 1.13 and GA since Kubernetes 1.18. Hence,
 	// instead of setting this field, set the `spec.kubernetes.kubeAPIServer.defaultNotReadyTolerationSeconds` and
-	// `spec.kubernetes.kubeAPIServer.defaultUnreachableTolerationSeconds`. This field will be removed in gardener v1.120.
+	// `spec.kubernetes.kubeAPIServer.defaultUnreachableTolerationSeconds`. Setting this field is forbidden starting
+	// from Kubernetes 1.33.
+	// TODO(plkokanov): Drop this field after support for Kubernetes 1.32 is dropped.
 	PodEvictionTimeout *metav1.Duration `json:"podEvictionTimeout,omitempty" protobuf:"bytes,4,opt,name=podEvictionTimeout"`
 	// NodeMonitorGracePeriod defines the grace period before an unresponsive node is marked unhealthy.
 	// +optional
@@ -1870,8 +1882,12 @@ type SSHAccess struct {
 var (
 	// DefaultWorkerMaxSurge is the default value for Worker MaxSurge.
 	DefaultWorkerMaxSurge = intstr.FromInt32(1)
+	// DefaultInPlaceWorkerMaxSurge is the default value for In-Place Worker MaxSurge.
+	DefaultInPlaceWorkerMaxSurge = intstr.FromInt32(0)
 	// DefaultWorkerMaxUnavailable is the default value for Worker MaxUnavailable.
 	DefaultWorkerMaxUnavailable = intstr.FromInt32(0)
+	// DefaultInPlaceWorkerMaxUnavailable is the default value for In-Place Worker MaxUnavailable.
+	DefaultInPlaceWorkerMaxUnavailable = intstr.FromInt32(1)
 	// DefaultWorkerSystemComponentsAllow is the default value for Worker AllowSystemComponents
 	DefaultWorkerSystemComponentsAllow = true
 )

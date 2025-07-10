@@ -1,6 +1,6 @@
 module github.com/openmcp-project/cluster-provider-gardener
 
-go 1.24.4
+go 1.24.5
 
 replace github.com/openmcp-project/cluster-provider-gardener/api => ./api
 

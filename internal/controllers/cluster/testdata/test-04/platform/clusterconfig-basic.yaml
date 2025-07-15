@@ -9,7 +9,7 @@ spec:
   patches:
   - op: add
     path: .spec.extensions[-1]
-    value: 
+    value:
       type: "test-extension"
       providerConfig:
         foo: bar

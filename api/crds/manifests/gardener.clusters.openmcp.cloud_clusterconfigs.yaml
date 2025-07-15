@@ -60,33 +60,36 @@ spec:
                   These patches are applied to the shoot manifest in the order they are defined.
                 items:
                   description: |-
-                    JSONPatch represents a JSON patch operation.
-                    Technically, a single JSON patch (as defined by RFC 6902) is a list of patch operations.
-                    Opposed to that, this type represents a single operation. Use the JSONPatches type for a list of operations instead.
+                    JSON6902 is a JSON6902 operation object.
+                    https://datatracker.ietf.org/doc/html/rfc6902#section-4
                   properties:
                     from:
-                      description: From is the source location for move and copy operations.
+                      description: |-
+                        From contains a JSON-pointer value that references a location within the target document where the operation is
+                        performed. The meaning of the value depends on the value of Op, and is NOT taken into account by all operations.
                       type: string
                     op:
                       description: |-
-                        Operation is the operation to perform.
-                        Valid values are: add, remove, replace, move, copy, test
+                        Op indicates the operation to perform. Its value MUST be one of "add", "remove", "replace", "move", "copy", or
+                        "test".
+                        https://datatracker.ietf.org/doc/html/rfc6902#section-4
                       enum:
-                      - add
+                      - test
                       - remove
+                      - add
                       - replace
                       - move
                       - copy
-                      - test
                       type: string
                     path:
-                      description: Path is the path to the target location in the
-                        JSON document.
+                      description: |-
+                        Path contains the JSON-pointer value that references a location within the target document where the operation
+                        is performed. The meaning of the value depends on the value of Op.
                       type: string
                     value:
                       description: |-
-                        Value is the value to set at the target location.
-                        Required for add, replace, and test operations.
+                        Value contains a valid JSON structure. The meaning of the value depends on the value of Op, and is NOT taken into
+                        account by all operations.
                       x-kubernetes-preserve-unknown-fields: true
                   required:
                   - op

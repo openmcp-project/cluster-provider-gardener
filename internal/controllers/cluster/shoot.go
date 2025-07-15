@@ -186,7 +186,7 @@ func UpdateShootFields(ctx context.Context, shoot *gardenv1beta1.Shoot, profile 
 		log.Debug("Evaluating cluster config", "ccName", clusterConfig.Name, "ccNamespace", clusterConfig.Namespace)
 		if len(clusterConfig.Spec.Patches) > 0 {
 			log.Debug("Applying patches from cluster config", "ccName", clusterConfig.Name, "ccNamespace", clusterConfig.Namespace)
-			patch := jsonpatch.NewTyped[*gardenv1beta1.Shoot](clusterConfig.Spec.Patches)
+			patch := jsonpatch.NewTyped[*gardenv1beta1.Shoot](clusterConfig.Spec.Patches...)
 			opts := []jsonpatch.Option{}
 			if clusterConfig.Spec.PatchOptions != nil {
 				if clusterConfig.Spec.PatchOptions.IgnoreMissingOnRemove != nil {

@@ -14,6 +14,8 @@ github.com/evanphx/json-patch v4.12.0+incompatible h1:4onqiflcdA9EOZ4RxV643DvftH
 github.com/evanphx/json-patch v4.12.0+incompatible/go.mod h1:50XU6AFN0ol/bzJsmQLiYLvXMP4fmwYFNcr97nuDLSk=
 github.com/evanphx/json-patch/v5 v5.9.11 h1:/8HVnzMq13/3x9TPvjG08wUGqBTmZBsCWzjTM0wiaDU=
 github.com/evanphx/json-patch/v5 v5.9.11/go.mod h1:3j+LviiESTElxA4p3EMKAB9HXj3/XEtnUf6OZxqIQTM=
+github.com/fluxcd/pkg/apis/kustomize v1.10.0 h1:47EeSzkQvlQZdH92vHMe2lK2iR8aOSEJq95avw5idts=
+github.com/fluxcd/pkg/apis/kustomize v1.10.0/go.mod h1:UsqMV4sqNa1Yg0pmTsdkHRJr7bafBOENIJoAN+3ezaQ=
 github.com/fsnotify/fsnotify v1.8.0 h1:dAwr6QBTBZIkG8roQaJjGof0pp0EeF+tNV7YBP3F/8M=
 github.com/fsnotify/fsnotify v1.8.0/go.mod h1:8jBTzvmWwFyi3Pb8djgCCO5IBqzKJ/Jwo8TRcHyHii0=
 github.com/fxamacker/cbor/v2 v2.7.0 h1:iM5WgngdRBanHcxugY4JySA0nk1wZorNOpTgCMedv5E=
@@ -79,6 +81,8 @@ github.com/onsi/gomega v1.37.0 h1:CdEG8g0S133B4OswTDC/5XPSzE1OeP29QOioj2PID2Y=
 github.com/onsi/gomega v1.37.0/go.mod h1:8D9+Txp43QWKhM24yyOBEdpkzN8FvJyAwecBgsU4KU0=
 github.com/openmcp-project/controller-utils v0.13.1 h1:+06c0bs1BIO+hBsTcuiEK5y8vpDFoZPml59WNm8fagM=
 github.com/openmcp-project/controller-utils v0.13.1/go.mod h1:Z1ytVshYcgJq3VQVGqkuZsjO/BCr4UYAaVpHl6JSIMI=
+github.com/openmcp-project/controller-utils/api v0.13.1 h1:vNHzfEwMy371mhuoVw1g6IX2uvxGjpYMklrWWyArhUE=
+github.com/openmcp-project/controller-utils/api v0.13.1/go.mod h1:O5TCgsXeoxQMNUV8YvjAm4E1e21I/iqE5V0Hib0tU7k=
 github.com/openmcp-project/openmcp-operator/api v0.9.0 h1:Ss2XTHci3QDwtVQ9QCpAez68WPJNHpabpwMTpFYn0NE=
 github.com/openmcp-project/openmcp-operator/api v0.9.0/go.mod h1:cqSmw3+8QJ2Va15aeCmISKIqcWnTpPSb8kch6eyfa6U=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=

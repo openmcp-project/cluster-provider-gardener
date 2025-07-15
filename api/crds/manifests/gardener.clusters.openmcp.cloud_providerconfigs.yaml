@@ -380,7 +380,8 @@ spec:
                               maxEmptyBulkDelete:
                                 description: |-
                                   MaxEmptyBulkDelete specifies the maximum number of empty nodes that can be deleted at the same time (default: MaxScaleDownParallelism when that is set).
-                                  Deprecated: This field is deprecated and will be removed once gardener drops support for Kubernetes v1.32.
+
+                                  Deprecated: This field is deprecated. Setting this field will be forbidden starting from Kubernetes 1.33 and will be removed once gardener drops support for kubernetes v1.32.
                                   This cluster-autoscaler field is deprecated upstream, use --max-scale-down-parallelism instead.
                                 format: int32
                                 type: integer
@@ -1743,28 +1744,8 @@ spec:
                                           description: Region is a region name. This
                                             field is immutable.
                                           type: string
-                                        secretRef:
-                                          description: |-
-                                            SecretRef is a reference to a Secret object containing the cloud provider credentials for
-                                            the object store where backups should be stored. It should have enough privileges to manipulate
-                                            the objects as well as buckets.
-                                            Deprecated: This field will be removed after v1.121.0 has been released. Use `CredentialsRef` instead.
-                                            Until removed, this field is synced with the `CredentialsRef` field when it refers to a secret.
-                                          properties:
-                                            name:
-                                              description: name is unique within a
-                                                namespace to reference a secret resource.
-                                              type: string
-                                            namespace:
-                                              description: namespace defines the space
-                                                within which the secret name must
-                                                be unique.
-                                              type: string
-                                          type: object
-                                          x-kubernetes-map-type: atomic
                                       required:
                                       - provider
-                                      - secretRef
                                       type: object
                                   type: object
                                 cri:

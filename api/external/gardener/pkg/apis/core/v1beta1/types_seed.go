@@ -20,6 +20,7 @@ type Seed struct {
 	metav1.TypeMeta `json:",inline"`
 	// Standard object metadata.
 	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+
 	// Spec contains the specification of this installation.
 	Spec SeedSpec `json:"spec,omitempty" protobuf:"bytes,2,opt,name=spec"`
 	// Status contains the status of this installation.
@@ -34,6 +35,7 @@ type SeedList struct {
 	// Standard list object metadata.
 	// +optional
 	metav1.ListMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+
 	// Items is the list of Seeds.
 	Items []Seed `json:"items" protobuf:"bytes,2,rep,name=items"`
 }
@@ -43,6 +45,7 @@ type SeedTemplate struct {
 	// Standard object metadata.
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+
 	// Specification of the desired behavior of the Seed.
 	// +optional
 	Spec SeedSpec `json:"spec,omitempty" protobuf:"bytes,2,opt,name=spec"`
@@ -134,12 +137,9 @@ type Backup struct {
 	// Region is a region name. This field is immutable.
 	// +optional
 	Region *string `json:"region,omitempty" protobuf:"bytes,3,opt,name=region"`
-	// SecretRef is a reference to a Secret object containing the cloud provider credentials for
-	// the object store where backups should be stored. It should have enough privileges to manipulate
-	// the objects as well as buckets.
-	// Deprecated: This field will be removed after v1.121.0 has been released. Use `CredentialsRef` instead.
-	// Until removed, this field is synced with the `CredentialsRef` field when it refers to a secret.
-	SecretRef corev1.SecretReference `json:"secretRef" protobuf:"bytes,4,opt,name=secretRef"`
+
+	// SecretRef is tombstoned to show why 4 is reserved protobuf tag.
+	// SecretRef corev1.SecretReference `json:"secretRef" protobuf:"bytes,4,opt,name=secretRef"`
 
 	// CredentialsRef is reference to a resource holding the credentials used for
 	// authentication with the object store service where the backups are stored.

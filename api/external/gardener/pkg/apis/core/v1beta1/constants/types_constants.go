@@ -171,6 +171,10 @@ const (
 	// the machine-controller-manager pod.
 	DeploymentNameMachineControllerManager = "machine-controller-manager"
 
+	// DeploymentNameOpenTelemetryOperator is a constant for the name of a Kubernetes deployment object that contains
+	// the opentelemetry-operator pod.
+	DeploymentNameOpenTelemetryOperator = "opentelemetry-operator"
+
 	// ConfigMapNameShootInfo is the name of a ConfigMap in the kube-system namespace of shoot clusters which contains
 	// information about the shoot cluster.
 	ConfigMapNameShootInfo = "shoot-info"
@@ -292,6 +296,8 @@ const (
 	GardenRoleShootServiceAccountIssuer = "shoot-service-account-issuer"
 	// GardenRoleHelmPullSecret is the value of the GardenRole key indicating type 'helm-pull-secret'.
 	GardenRoleHelmPullSecret = "helm-pull-secret"
+	// GardenRoleObservability is the value of the GardenRole key indicating type 'observability'.
+	GardenRoleObservability = "observability"
 
 	// ShootUID is an annotation key for the shoot namespace in the seed cluster,
 	// which value will be the value of `shoot.status.uid`
@@ -474,6 +480,8 @@ const (
 	LabelCredentialsBindingReference = "reference.gardener.cloud/credentialsbinding"
 	// LabelPrefixSeedName is the prefix for the label key describing the name of a seed, e.g. name.seed.gardener.cloud/my-seed=true.
 	LabelPrefixSeedName = "name.seed.gardener.cloud/"
+	// LabelObservability is a constant for a label for observability stack configurations
+	LabelObservability = "observability"
 
 	// LabelExtensionExtensionTypePrefix is used to prefix extension label for extension types.
 	LabelExtensionExtensionTypePrefix = "extensions.extensions.gardener.cloud/"
@@ -649,6 +657,8 @@ const (
 	DefaultSNIIngressServiceName = "istio-ingressgateway"
 	// DefaultIngressGatewayAppLabelValue is the ingress gateway value for the app label.
 	DefaultIngressGatewayAppLabelValue = "istio-ingressgateway"
+	// InternalSNIIngressServiceName is the internal sni ingress service name.
+	InternalSNIIngressServiceName = DefaultSNIIngressServiceName + "-internal"
 
 	// DataTypeSecret is a constant for a value of the 'Type' field in 'GardenerResourceData' structs describing that
 	// the data is a secret.
@@ -885,6 +895,11 @@ const (
 	CloudProfileReferenceKindCloudProfile = "CloudProfile"
 	// CloudProfileReferenceKindNamespacedCloudProfile is a constant for the NamespacedCloudProfile kind reference.
 	CloudProfileReferenceKindNamespacedCloudProfile = "NamespacedCloudProfile"
+
+	// APIServerFQDNPrefix is the part of a FQDN which will be used to construct the domain name for the kube-apiserver of
+	// a Shoot cluster. For example, when a Shoot specifies domain 'cluster.example.com', the apiserver domain would be
+	// 'api.cluster.example.com'.
+	APIServerFQDNPrefix = "api"
 )
 
 var (

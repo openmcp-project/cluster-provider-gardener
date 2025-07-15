@@ -159,6 +159,9 @@ func (r *AccessRequestReconciler) reconcile(ctx context.Context, req reconcile.R
 		if rerr != nil {
 			return nil, rerr
 		}
+		if shoot == nil {
+			return nil, errutils.WithReason(fmt.Errorf("no shoot found for cluster '%s/%s'", c.Namespace, c.Name), clusterconst.ReasonInternalError)
+		}
 
 		// get temporary admin access for the cluster
 		shootClient, shootREST, err := getTemporaryClientForShoot(ctx, ls.Cluster.Client(), shoot)

@@ -40,6 +40,9 @@ var FakeClientMappingsForTesting = map[string]client.Client{}
 
 // getAdminKubeconfigForShoot uses the AdminKubeconfigRequest subresource of a shoot to get a admin kubeconfig for the given shoot.
 func getAdminKubeconfigForShoot(ctx context.Context, c client.Client, shoot *gardenv1beta1.Shoot, desiredValidity time.Duration) ([]byte, error) {
+	if shoot == nil {
+		return nil, fmt.Errorf("shoot must not be nil")
+	}
 	expirationSeconds := int64(desiredValidity.Seconds())
 	adminKubeconfigRequest := &authenticationv1alpha1.AdminKubeconfigRequest{
 		Spec: authenticationv1alpha1.AdminKubeconfigRequestSpec{

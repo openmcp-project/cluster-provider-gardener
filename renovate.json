@@ -47,17 +47,6 @@
       ]
     }
   ],
-  "allowedCommands": [
-    "task generate"
-  ],
-  "postUpgradeTasks": {
-    "commands": [
-      "task generate"
-    ],
-    "fileFilters": [
-      "/hack/external-apis/apis.yaml/"
-    ]
-  },
   "customManagers": [
     {
       "description": "Match for gardener in hack/external-apis/apis.yaml",

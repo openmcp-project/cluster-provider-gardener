@@ -10,7 +10,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.23.4
 	github.com/onsi/gomega v1.37.0
 	github.com/openmcp-project/cluster-provider-gardener/api v0.2.0
-	github.com/openmcp-project/openmcp-operator/api v0.8.3
+	github.com/openmcp-project/openmcp-operator/api v0.8.4-0.20250716132410-2b26043ba577
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/apimachinery v0.33.2
 	k8s.io/client-go v0.33.2

@@ -7,7 +7,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -18,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	"github.com/openmcp-project/controller-utils/pkg/collections"
 	"github.com/openmcp-project/controller-utils/pkg/conditions"
 	ctrlutils "github.com/openmcp-project/controller-utils/pkg/controller"
 	errutils "github.com/openmcp-project/controller-utils/pkg/errors"
@@ -187,35 +187,15 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 			}
 		}
 
-		// fetch cluster config, if specified
-		var clusterConfig *providerv1alpha1.ClusterConfig
-		if c.Spec.ClusterConfigRef != nil && c.Spec.ClusterConfigRef.Name != "" {
-			log.Info("Fetching cluster config", "clusterConfigName", c.Spec.ClusterConfigRef.Name, "clusterConfigNamespace", c.Namespace)
-			r.ClusterConfigReferences.Set(types.NamespacedName{
-				Name:      c.Spec.ClusterConfigRef.Name,
-				Namespace: c.Namespace,
-			}, types.NamespacedName{
-				Name:      c.Name,
-				Namespace: c.Namespace,
-			})
-			clusterConfig = &providerv1alpha1.ClusterConfig{}
-			if err := r.PlatformCluster.Client().Get(ctx, ctrlutils.ObjectKey(c.Spec.ClusterConfigRef.Name, c.Namespace), clusterConfig); err != nil {
-				if apierrors.IsNotFound(err) {
-					rr.ReconcileError = errutils.WithReason(fmt.Errorf("cluster config '%s/%s' not found", c.Namespace, c.Spec.ClusterConfigRef.Name), clusterconst.ReasonInvalidReference)
-					return rr
-				}
-				rr.ReconcileError = errutils.WithReason(fmt.Errorf("error getting cluster config '%s/%s': %w", c.Namespace, c.Spec.ClusterConfigRef.Name, err), clusterconst.ReasonPlatformClusterInteractionProblem)
-				return rr
-			}
-		} else {
-			r.ClusterConfigReferences.UnsetCluster(types.NamespacedName{
-				Name:      c.Name,
-				Namespace: c.Namespace,
-			})
+		// fetch referenced ClusterConfigs
+		clusterConfigs, rerr := r.getClusterConfigs(ctx, c)
+		if rerr != nil {
+			rr.ReconcileError = rerr
+			return rr
 		}
 
 		// take over fields from shoot template and update shoot
-		if err := UpdateShootFields(ctx, shoot, profile, c, clusterConfig); err != nil {
+		if err := UpdateShootFields(ctx, shoot, profile, c, clusterConfigs); err != nil {
 			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error updating shoot fields: %w", err), clusterconst.ReasonInternalError)
 			createCon(providerv1alpha1.ClusterConditionShootManagement, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 			return rr
@@ -397,16 +377,16 @@ func (r *ClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			if obj == nil {
 				return nil
 			}
-			// reconcile all clusters that reference this ClusterConfig
-			clusters := r.ClusterConfigReferences.GetClustersForConfig(types.NamespacedName{
-				Name:      obj.GetName(),
-				Namespace: obj.GetNamespace(),
-			})
-			requests := make([]ctrl.Request, 0, len(clusters))
-			for cluster := range clusters {
-				requests = append(requests, ctrl.Request{
-					NamespacedName: cluster,
-				})
+			requests := make([]ctrl.Request, 0, len(obj.GetOwnerReferences()))
+			for _, owner := range obj.GetOwnerReferences() {
+				if owner.APIVersion == clustersv1alpha1.GroupVersion.String() && owner.Kind == "Cluster" {
+					requests = append(requests, ctrl.Request{
+						NamespacedName: types.NamespacedName{
+							Name:      owner.Name,
+							Namespace: obj.GetNamespace(),
+						},
+					})
+				}
 			}
 			return requests
 		}), builder.WithPredicates(predicate.GenerationChangedPredicate{})).
@@ -439,45 +419,86 @@ func (r *ClusterReconciler) ensureClusterLabels(ctx context.Context, c *clusters
 	return nil
 }
 
-func newClusterConfigReferences() clusterConfigReferences {
-	return clusterConfigReferences{
-		ConfigToCluster: make(map[types.NamespacedName]sets.Set[types.NamespacedName]),
-		ClusterToConfig: make(map[types.NamespacedName]types.NamespacedName),
+func (r *ClusterReconciler) getClusterConfigs(ctx context.Context, c *clustersv1alpha1.Cluster) ([]*providerv1alpha1.ClusterConfig, errutils.ReasonableError) {
+	log := logging.FromContextOrPanic(ctx)
+
+	// first, check if the cluster config references have changed
+	// because we might need to remove some owner references in that case
+	cchash := ""
+	if len(c.Spec.ClusterConfigs) > 0 {
+		cchash = ctrlutils.K8sNameHash(collections.ProjectSlice(c.Spec.ClusterConfigs, func(ref clustersv1alpha1.ObjectReference) string { return ref.Name })...)
 	}
-}
-
-type clusterConfigReferences struct {
-	ConfigToCluster map[types.NamespacedName]sets.Set[types.NamespacedName]
-	ClusterToConfig map[types.NamespacedName]types.NamespacedName
-}
-
-func (ccr clusterConfigReferences) Set(clusterConfig types.NamespacedName, cluster types.NamespacedName) {
-	if _, ok := ccr.ConfigToCluster[clusterConfig]; !ok {
-		ccr.ConfigToCluster[clusterConfig] = sets.New[types.NamespacedName]()
-	}
-	ccr.ConfigToCluster[clusterConfig].Insert(cluster)
-	ccr.ClusterToConfig[cluster] = clusterConfig
-}
-
-func (ccr clusterConfigReferences) UnsetClusterConfig(clusterConfig types.NamespacedName) {
-	clusters := ccr.ConfigToCluster[clusterConfig]
-	delete(ccr.ConfigToCluster, clusterConfig)
-	for cluster := range clusters {
-		delete(ccr.ClusterToConfig, cluster)
-	}
-}
-
-func (ccr clusterConfigReferences) UnsetCluster(cluster types.NamespacedName) {
-	if clusterConfig, ok := ccr.ClusterToConfig[cluster]; ok {
-		clusters := ccr.ConfigToCluster[clusterConfig]
-		clusters.Delete(cluster)
-		if clusters.Len() == 0 {
-			delete(ccr.ConfigToCluster, clusterConfig)
+	oldCChash := c.Annotations[providerv1alpha1.ClusterConfigHashAnnotation]
+	if cchash != oldCChash {
+		log.Info("ClusterConfig references have changed")
+		// list all ClusterConfig resources in the Cluster's namespace and remove the Cluster's owner reference, if it doesn't still reference the Cluster
+		allCCs := &providerv1alpha1.ClusterConfigList{}
+		if err := r.PlatformCluster.Client().List(ctx, allCCs, client.InNamespace(c.Namespace)); err != nil {
+			return nil, errutils.WithReason(fmt.Errorf("error listing ClusterConfig resources in namespace '%s': %w", c.Namespace, err), clusterconst.ReasonPlatformClusterInteractionProblem)
 		}
-		delete(ccr.ClusterToConfig, cluster)
+		for _, cc := range allCCs.Items {
+			found := false
+			for _, ref := range c.Spec.ClusterConfigs {
+				if ref.Name == cc.Name {
+					found = true
+					break
+				}
+			}
+			if !found {
+				// check if the ClusterConfig has an owner reference of the Cluster, which needs to be removed
+				orIdx, err := ctrlutils.HasOwnerReference(&cc, c, r.PlatformCluster.Scheme())
+				if err != nil {
+					return nil, errutils.WithReason(fmt.Errorf("error checking owner references on ClusterConfig '%s/%s': %w", c.Namespace, cc.Name, err), clusterconst.ReasonInternalError)
+				}
+				if orIdx >= 0 {
+					log.Debug("Removing owner reference from ClusterConfig", "clusterConfigName", cc.Name, "clusterConfigNamespace", c.Namespace)
+					oldCC := cc.DeepCopy()
+					cc.OwnerReferences = append(cc.OwnerReferences[:orIdx], cc.OwnerReferences[orIdx+1:]...)
+					if err := r.PlatformCluster.Client().Patch(ctx, &cc, client.MergeFrom(oldCC)); err != nil {
+						return nil, errutils.WithReason(fmt.Errorf("error removing owner reference from ClusterConfig '%s/%s': %w", c.Namespace, cc.Name, err), clusterconst.ReasonPlatformClusterInteractionProblem)
+					}
+				}
+			}
+		}
 	}
-}
 
-func (ccr clusterConfigReferences) GetClustersForConfig(clusterConfig types.NamespacedName) sets.Set[types.NamespacedName] {
-	return ccr.ConfigToCluster[clusterConfig]
+	// fetch cluster configs, if specified
+	clusterConfigs := []*providerv1alpha1.ClusterConfig{}
+	for _, ref := range c.Spec.ClusterConfigs {
+		log.Info("Fetching cluster config", "clusterConfigName", ref.Name, "clusterConfigNamespace", c.Namespace)
+		cc := &providerv1alpha1.ClusterConfig{}
+		if err := r.PlatformCluster.Client().Get(ctx, ctrlutils.ObjectKey(ref.Name, c.Namespace), cc); err != nil {
+			if apierrors.IsNotFound(err) {
+				return nil, errutils.WithReason(fmt.Errorf("cluster config '%s/%s' not found", c.Namespace, ref.Name), clusterconst.ReasonInvalidReference)
+			}
+			return nil, errutils.WithReason(fmt.Errorf("error getting cluster config '%s/%s': %w", c.Namespace, ref.Name, err), clusterconst.ReasonPlatformClusterInteractionProblem)
+		}
+		clusterConfigs = append(clusterConfigs, cc)
+		// ensure that the cluster config has an owner reference pointing to the cluster
+		orIdx, err := ctrlutils.HasOwnerReference(cc, c, r.PlatformCluster.Scheme())
+		if err != nil {
+			return nil, errutils.WithReason(fmt.Errorf("error checking owner references on cluster config '%s/%s': %w", c.Namespace, ref.Name, err), clusterconst.ReasonInternalError)
+		}
+		if orIdx < 0 {
+			// add owner reference
+			log.Info("Adding owner reference to cluster config", "clusterConfigName", ref.Name, "clusterConfigNamespace", c.Namespace)
+			oldCC := cc.DeepCopy()
+			if err := controllerutil.SetOwnerReference(c, cc, r.PlatformCluster.Scheme()); err != nil {
+				return nil, errutils.WithReason(fmt.Errorf("error setting owner reference on cluster config '%s/%s': %w", c.Namespace, ref.Name, err), clusterconst.ReasonInternalError)
+			}
+			if err := r.PlatformCluster.Client().Patch(ctx, cc, client.MergeFrom(oldCC)); err != nil {
+				return nil, errutils.WithReason(fmt.Errorf("error patching owner reference on cluster config '%s/%s': %w", c.Namespace, ref.Name, err), clusterconst.ReasonPlatformClusterInteractionProblem)
+			}
+		}
+	}
+
+	if cchash != oldCChash {
+		// update hash in annotation
+		log.Debug("Updating ClusterConfig hash annotation", "hash", cchash)
+		if err := ctrlutils.EnsureAnnotation(ctx, r.PlatformCluster.Client(), c, providerv1alpha1.ClusterConfigHashAnnotation, cchash, true, ctrlutils.OVERWRITE); err != nil {
+			return nil, errutils.WithReason(fmt.Errorf("error updating ClusterConfig hash annotation: %w", err), clusterconst.ReasonPlatformClusterInteractionProblem)
+		}
+	}
+
+	return clusterConfigs, nil
 }

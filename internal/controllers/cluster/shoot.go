@@ -87,7 +87,7 @@ func GetShoot(ctx context.Context, landscapeClient client.Client, projectNamespa
 
 // UpdateShootFields updates the shoot with the values from the profile.
 // It tries to avoid invalid changes, such as downgrading the kubernetes version or removing required fields.
-func UpdateShootFields(ctx context.Context, shoot *gardenv1beta1.Shoot, profile *shared.Profile, cluster *clustersv1alpha1.Cluster, clusterConfig *providerv1alpha1.ClusterConfig) error {
+func UpdateShootFields(ctx context.Context, shoot *gardenv1beta1.Shoot, profile *shared.Profile, cluster *clustersv1alpha1.Cluster, clusterConfigs []*providerv1alpha1.ClusterConfig) error {
 	log := logging.FromContextOrPanic(ctx).WithName("UpdateShootFields")
 	tmpl := profile.ProviderConfig.Spec.ShootTemplate
 	oldShoot := shoot.DeepCopy()
@@ -181,8 +181,8 @@ func UpdateShootFields(ctx context.Context, shoot *gardenv1beta1.Shoot, profile 
 		})
 	}
 
-	// apply cluster config, if not nil
-	if clusterConfig != nil {
+	// apply cluster configs, if specified
+	for _, clusterConfig := range clusterConfigs {
 		log.Debug("Evaluating cluster config", "ccName", clusterConfig.Name, "ccNamespace", clusterConfig.Namespace)
 		if len(clusterConfig.Spec.Patches) > 0 {
 			log.Debug("Applying patches from cluster config", "ccName", clusterConfig.Name, "ccNamespace", clusterConfig.Namespace)

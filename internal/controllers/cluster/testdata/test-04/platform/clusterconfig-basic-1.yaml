@@ -1,7 +1,7 @@
 apiVersion: gardener.clusters.openmcp.cloud/v1alpha1
 kind: ClusterConfig
 metadata:
-  name: basic
+  name: basic-1
   namespace: clusters
 spec:
   patchOptions:

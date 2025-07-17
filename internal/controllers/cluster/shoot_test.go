@@ -113,10 +113,15 @@ var _ = Describe("Shoot Logic", func() {
 			Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(Succeed())
 
 			// fake cluster configuration
-			cc := &providerv1alpha1.ClusterConfig{}
-			cc.SetName("basic")
-			cc.SetNamespace("clusters")
-			Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(cc), cc)).To(Succeed())
+			cc1 := &providerv1alpha1.ClusterConfig{}
+			cc1.SetName("basic-1")
+			cc1.SetNamespace("clusters")
+			Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(cc1), cc1)).To(Succeed())
+			cc2 := &providerv1alpha1.ClusterConfig{}
+			cc2.SetName("basic-2")
+			cc2.SetNamespace("clusters")
+			Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(cc2), cc2)).To(Succeed())
+			clusterConfigs := []*providerv1alpha1.ClusterConfig{cc1, cc2}
 
 			// create empty shoot
 			shoot := &gardenv1beta1.Shoot{}
@@ -131,7 +136,7 @@ var _ = Describe("Shoot Logic", func() {
 			oldShoot := shoot.DeepCopy()
 
 			// verify update
-			Expect(cluster.UpdateShootFields(env.Ctx, shoot, p, c, cc)).To(Succeed())
+			Expect(cluster.UpdateShootFields(env.Ctx, shoot, p, c, clusterConfigs)).To(Succeed())
 
 			// verify annotations
 			expectedAnnotations := map[string]string{
@@ -178,7 +183,7 @@ var _ = Describe("Shoot Logic", func() {
 					"Raw": Equal([]byte(`{"foo":"bar"}`)),
 				})),
 			})))
-			Expect(shoot.Spec.SeedName).To(PointTo(Equal("test-seed")))
+			Expect(shoot.Spec.SeedName).To(PointTo(Equal("test-seed-altered")))
 		})
 
 		It("should not update fields in an invalid way", func() {

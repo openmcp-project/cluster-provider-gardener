@@ -41,6 +41,29 @@ spec:
             type: object
           spec:
             properties:
+              extensions:
+                description: Extensions is a list of Gardener extensions that are
+                  to be ensured on the shoot.
+                items:
+                  description: Extension contains type and provider information for
+                    extensions.
+                  properties:
+                    disabled:
+                      description: Disabled allows to disable extensions that were
+                        marked as 'automatically enabled' by Gardener administrators.
+                      type: boolean
+                    providerConfig:
+                      description: ProviderConfig is the configuration passed to extension
+                        resource.
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
+                    type:
+                      description: Type is the type of the extension resource.
+                      type: string
+                  required:
+                  - type
+                  type: object
+                type: array
               patchOptions:
                 description: PatchOptions allows to configure how the patches are
                   applied to the shoot manifest.

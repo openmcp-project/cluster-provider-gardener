@@ -182,26 +182,8 @@ func UpdateShootFields(ctx context.Context, shoot *gardenv1beta1.Shoot, profile 
 	}
 
 	// apply cluster configs, if specified
-	for _, clusterConfig := range clusterConfigs {
-		log.Debug("Evaluating cluster config", "ccName", clusterConfig.Name, "ccNamespace", clusterConfig.Namespace)
-		if len(clusterConfig.Spec.Patches) > 0 {
-			log.Debug("Applying patches from cluster config", "ccName", clusterConfig.Name, "ccNamespace", clusterConfig.Namespace)
-			patch := jsonpatch.NewTyped[*gardenv1beta1.Shoot](clusterConfig.Spec.Patches...)
-			opts := []jsonpatch.Option{}
-			if clusterConfig.Spec.PatchOptions != nil {
-				if clusterConfig.Spec.PatchOptions.IgnoreMissingOnRemove != nil {
-					opts = append(opts, jsonpatch.AllowMissingPathOnRemove(*clusterConfig.Spec.PatchOptions.IgnoreMissingOnRemove))
-				}
-				if clusterConfig.Spec.PatchOptions.CreateMissingOnAdd != nil {
-					opts = append(opts, jsonpatch.EnsurePathExistsOnAdd(*clusterConfig.Spec.PatchOptions.CreateMissingOnAdd))
-				}
-			}
-			patchedShoot, err := patch.Apply(shoot, opts...)
-			if err != nil {
-				return fmt.Errorf("error applying patches from cluster config '%s/%s': %w", clusterConfig.Namespace, clusterConfig.Name, err)
-			}
-			*shoot = *patchedShoot
-		}
+	if err := applyClusterConfigs(ctx, shoot, clusterConfigs); err != nil {
+		return err
 	}
 
 	return nil
@@ -227,4 +209,50 @@ func computeK8sVersion(configured, existing string) string {
 	}
 
 	return existing
+}
+
+func applyClusterConfigs(ctx context.Context, shoot *gardenv1beta1.Shoot, clusterConfigs []*providerv1alpha1.ClusterConfig) error {
+	log := logging.FromContextOrPanic(ctx)
+
+	for _, clusterConfig := range clusterConfigs {
+		log.Debug("Evaluating cluster config", "ccName", clusterConfig.Name, "ccNamespace", clusterConfig.Namespace)
+		if len(clusterConfig.Spec.Extensions) > 0 {
+			log.Debug("Ensuring extensions from cluster config", "ccName", clusterConfig.Name, "ccNamespace", clusterConfig.Namespace)
+			for _, ext := range clusterConfig.Spec.Extensions {
+				found := false
+				for i := range shoot.Spec.Extensions {
+					shootExt := &shoot.Spec.Extensions[i]
+					if shootExt.Type == ext.Type {
+						found = true
+						shootExt.Disabled = ext.Disabled
+						shootExt.ProviderConfig = ext.ProviderConfig
+						break
+					}
+				}
+				if !found {
+					shoot.Spec.Extensions = append(shoot.Spec.Extensions, ext)
+				}
+			}
+		}
+		if len(clusterConfig.Spec.Patches) > 0 {
+			log.Debug("Applying patches from cluster config", "ccName", clusterConfig.Name, "ccNamespace", clusterConfig.Namespace)
+			patch := jsonpatch.NewTyped[*gardenv1beta1.Shoot](clusterConfig.Spec.Patches...)
+			opts := []jsonpatch.Option{}
+			if clusterConfig.Spec.PatchOptions != nil {
+				if clusterConfig.Spec.PatchOptions.IgnoreMissingOnRemove != nil {
+					opts = append(opts, jsonpatch.AllowMissingPathOnRemove(*clusterConfig.Spec.PatchOptions.IgnoreMissingOnRemove))
+				}
+				if clusterConfig.Spec.PatchOptions.CreateMissingOnAdd != nil {
+					opts = append(opts, jsonpatch.EnsurePathExistsOnAdd(*clusterConfig.Spec.PatchOptions.CreateMissingOnAdd))
+				}
+			}
+			patchedShoot, err := patch.Apply(shoot, opts...)
+			if err != nil {
+				return fmt.Errorf("error applying patches from cluster config '%s/%s': %w", clusterConfig.Namespace, clusterConfig.Name, err)
+			}
+			*shoot = *patchedShoot
+		}
+	}
+
+	return nil
 }

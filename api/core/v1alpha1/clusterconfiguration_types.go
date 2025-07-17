@@ -4,6 +4,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	jpapi "github.com/openmcp-project/controller-utils/api/jsonpatch"
+
+	gardenv1beta1 "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1"
 )
 
 type ClusterConfigSpec struct {
@@ -12,6 +14,9 @@ type ClusterConfigSpec struct {
 	// Patches contains a list of JSON patches that are applied to the shoot manifest before it is sent to the Gardener API server.
 	// These patches are applied to the shoot manifest in the order they are defined.
 	Patches jpapi.JSONPatches `json:"patches,omitempty"`
+
+	// Extensions is a list of Gardener extensions that are to be ensured on the shoot.
+	Extensions []gardenv1beta1.Extension `json:"extensions,omitempty"`
 }
 
 type PatchOptions struct {

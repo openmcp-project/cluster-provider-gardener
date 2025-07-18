@@ -6,30 +6,30 @@ The Gardener ClusterProvider watches `Shoot` resources on all Gardener landscape
 
 ```yaml
 apiVersion: gardener.clusters.openmcp.cloud/v1alpha1
-  kind: Landscape
-  metadata:
-    name: canary
-  spec:
-    access:
-      # either inline or secretRef must be specified
-      inline: |
-        apiVersion: v1
-        kind: Config
-      secretRef:
-        name: foo
-        namespace: bar
-  status:
-    apiServer: https://api.gardener.openmcp.cloud
-    conditions:
-    - lastTransitionTime: "2025-05-21T12:30:05Z"
-      status: "True"
-      type: Project_mcptest
-    lastReconcileTime: "2025-05-21T12:30:05Z"
-    observedGeneration: 1
-    phase: Available
-    projects:
-    - name: mcptest
-      namespace: garden-mcptest
+kind: Landscape
+metadata:
+  name: canary
+spec:
+  access:
+    # either inline or secretRef must be specified
+    inline: |
+      apiVersion: v1
+      kind: Config
+    secretRef:
+      name: foo
+      namespace: bar
+status:
+  apiServer: https://api.gardener.openmcp.cloud
+  conditions:
+  - lastTransitionTime: "2025-05-21T12:30:05Z"
+    status: "True"
+    type: Project_mcptest
+  lastReconcileTime: "2025-05-21T12:30:05Z"
+  observedGeneration: 1
+  phase: Available
+  projects:
+  - name: mcptest
+    namespace: garden-mcptest
 ```
 
 ## Spec

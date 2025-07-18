@@ -7,6 +7,7 @@
 
 ## Resources
 
+- [ClusterConfig](resources/clusterconfig.md)
 - [Landscape](resources/landscape.md)
 - [ProviderConfig](resources/providerconfig.md)
 

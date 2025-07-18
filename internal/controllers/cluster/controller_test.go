@@ -33,7 +33,7 @@ const (
 var providerScheme = install.InstallProviderAPIs(runtime.NewScheme())
 var gardenScheme = install.InstallGardenerAPIs(runtime.NewScheme())
 
-func defaultTestSetup(testDirPathSegments ...string) (*cluster.ClusterReconciler, *testutils.ComplexEnvironment) {
+func defaultTestSetup(testDirPathSegments ...string) *testutils.ComplexEnvironment {
 	env := testutils.NewComplexEnvironmentBuilder().
 		WithFakeClient(platformCluster, providerScheme).
 		WithFakeClient(gardenCluster, gardenScheme).
@@ -50,46 +50,40 @@ func defaultTestSetup(testDirPathSegments ...string) (*cluster.ClusterReconciler
 	}
 	cr, ok := env.Reconciler(cRec).(*cluster.ClusterReconciler)
 	Expect(ok).To(BeTrue(), "Reconciler is not of type ClusterReconciler")
-	return cr, env
+
+	// fake landscape
+	ls := &providerv1alpha1.Landscape{}
+	ls.SetName("my-landscape")
+	Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(ls), ls)).To(Succeed())
+	Expect(cr.SetLandscape(env.Ctx, &shared.Landscape{
+		Name:     ls.Name,
+		Cluster:  clusters.NewTestClusterFromClient(gardenCluster, env.Client(gardenCluster)),
+		Resource: ls,
+	})).To(Succeed())
+
+	// fake profile
+	pc := &providerv1alpha1.ProviderConfig{}
+	pc.SetName("gcp")
+	Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(pc), pc)).To(Succeed())
+	p := &shared.Profile{
+		ProviderConfig: pc,
+		RuntimeData: shared.RuntimeData{
+			Project: providerv1alpha1.ProjectData{
+				Name:      "my-project",
+				Namespace: "garden-my-project",
+			},
+		},
+	}
+	cr.SetProfileForProviderConfiguration(pc.Name, p)
+
+	return env
 }
 
 var _ = Describe("Cluster Controller", func() {
 
-	var (
-		cr  *cluster.ClusterReconciler
-		env *testutils.ComplexEnvironment
-	)
-
-	BeforeEach(func() {
-		cr, env = defaultTestSetup("..", "cluster", "testdata", "test-05")
-
-		// fake landscape
-		ls := &providerv1alpha1.Landscape{}
-		ls.SetName("my-landscape")
-		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(ls), ls)).To(Succeed())
-		Expect(cr.SetLandscape(env.Ctx, &shared.Landscape{
-			Name:     ls.Name,
-			Cluster:  clusters.NewTestClusterFromClient(gardenCluster, env.Client(gardenCluster)),
-			Resource: ls,
-		})).To(Succeed())
-
-		// fake profile
-		pc := &providerv1alpha1.ProviderConfig{}
-		pc.SetName("gcp")
-		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(pc), pc)).To(Succeed())
-		p := &shared.Profile{
-			ProviderConfig: pc,
-			RuntimeData: shared.RuntimeData{
-				Project: providerv1alpha1.ProjectData{
-					Name:      "my-project",
-					Namespace: "garden-my-project",
-				},
-			},
-		}
-		cr.SetProfileForProviderConfiguration(pc.Name, p)
-	})
-
 	It("should create a shoot for a new cluster", func() {
+		env := defaultTestSetup("..", "cluster", "testdata", "test-05")
+
 		c := &clustersv1alpha1.Cluster{}
 		c.SetName("basic")
 		c.SetNamespace("clusters")
@@ -111,6 +105,8 @@ var _ = Describe("Cluster Controller", func() {
 	})
 
 	It("should update an existing shoot for an existing cluster", func() {
+		env := defaultTestSetup("..", "cluster", "testdata", "test-05")
+
 		c := &clustersv1alpha1.Cluster{}
 		c.SetName("advanced")
 		c.SetNamespace("clusters")
@@ -142,6 +138,8 @@ var _ = Describe("Cluster Controller", func() {
 	})
 
 	It("should set the shoot's apiserver endpoint in the cluster status", func() {
+		env := defaultTestSetup("..", "cluster", "testdata", "test-05")
+
 		c := &clustersv1alpha1.Cluster{}
 		c.SetName("advanced")
 		c.SetNamespace("clusters")
@@ -171,6 +169,8 @@ var _ = Describe("Cluster Controller", func() {
 	})
 
 	It("should delete the shoot when the cluster is deleted", func() {
+		env := defaultTestSetup("..", "cluster", "testdata", "test-05")
+
 		c := &clustersv1alpha1.Cluster{}
 		c.SetName("advanced")
 		c.SetNamespace("clusters")
@@ -196,6 +196,71 @@ var _ = Describe("Cluster Controller", func() {
 		// shoot is gone, reconcile again to remove cluster finalizer
 		env.ShouldReconcile(cRec, testutils.RequestFromObject(c))
 		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(MatchError(apierrors.IsNotFound, "cluster should be deleted"))
+	})
+
+	It("should handle cluster configs correctly", func() {
+		env := defaultTestSetup("..", "cluster", "testdata", "test-04")
+
+		c := &clustersv1alpha1.Cluster{}
+		c.SetName("basic")
+		c.SetNamespace("clusters")
+		env.ShouldReconcile(cRec, testutils.RequestFromObject(c))
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(Succeed())
+
+		cc1 := &providerv1alpha1.ClusterConfig{}
+		cc1.SetName("basic-1")
+		cc1.SetNamespace("clusters")
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(cc1), cc1)).To(Succeed())
+		cc2 := &providerv1alpha1.ClusterConfig{}
+		cc2.SetName("basic-2")
+		cc2.SetNamespace("clusters")
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(cc2), cc2)).To(Succeed())
+		cc3 := &providerv1alpha1.ClusterConfig{}
+		cc3.SetName("ext-1")
+		cc3.SetNamespace("clusters")
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(cc3), cc3)).To(Succeed())
+		clusterConfigs := []*providerv1alpha1.ClusterConfig{cc1, cc2, cc3}
+
+		Expect(c.Annotations).To(HaveKey(providerv1alpha1.ClusterConfigHashAnnotation))
+		oldHash := c.Annotations[providerv1alpha1.ClusterConfigHashAnnotation]
+		for _, cc := range clusterConfigs {
+			Expect(cc.OwnerReferences).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+				"Name":       Equal(c.Name),
+				"Kind":       Equal("Cluster"),
+				"APIVersion": Equal(clustersv1alpha1.GroupVersion.String()),
+			})))
+		}
+
+		// remove one of the cluster configs and verify that the owner reference is removed
+		c.Spec.ClusterConfigs = c.Spec.ClusterConfigs[:2]
+		Expect(env.Client(platformCluster).Update(env.Ctx, c)).To(Succeed())
+		env.ShouldReconcile(cRec, testutils.RequestFromObject(c))
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(Succeed())
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(cc1), cc1)).To(Succeed())
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(cc2), cc2)).To(Succeed())
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(cc3), cc3)).To(Succeed())
+		Expect(c.Annotations).To(HaveKey(providerv1alpha1.ClusterConfigHashAnnotation))
+		Expect(c.Annotations[providerv1alpha1.ClusterConfigHashAnnotation]).ToNot(Equal(oldHash))
+		for _, cc := range clusterConfigs[:2] {
+			Expect(cc.OwnerReferences).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+				"Name":       Equal(c.Name),
+				"Kind":       Equal("Cluster"),
+				"APIVersion": Equal(clustersv1alpha1.GroupVersion.String()),
+			})))
+		}
+		Expect(cc3.OwnerReferences).To(BeEmpty())
+
+		// delete the Cluster and verify that the owner references are removed and the cluster configs are not deleted
+		Expect(env.Client(platformCluster).Delete(env.Ctx, c)).To(Succeed())
+		env.ShouldReconcile(cRec, testutils.RequestFromObject(c)) // should delete the shoot
+		env.ShouldReconcile(cRec, testutils.RequestFromObject(c)) // should remove owner references and the finalizer
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(MatchError(apierrors.IsNotFound, "cluster should be deleted"))
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(cc1), cc1)).To(Succeed())
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(cc2), cc2)).To(Succeed())
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(cc3), cc3)).To(Succeed())
+		Expect(cc1.OwnerReferences).To(BeEmpty())
+		Expect(cc2.OwnerReferences).To(BeEmpty())
+		Expect(cc3.OwnerReferences).To(BeEmpty())
 	})
 
 })

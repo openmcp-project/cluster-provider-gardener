@@ -278,6 +278,29 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 			return rr
 		}
 
+		// remove all of the cluster's owner references from all cluster configs in the namespace to prevent cluster configs from being deleted
+		allCCs := &providerv1alpha1.ClusterConfigList{}
+		if err := r.PlatformCluster.Client().List(ctx, allCCs, client.InNamespace(c.Namespace)); err != nil {
+			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error listing ClusterConfig resources in namespace '%s': %w", c.Namespace, err), clusterconst.ReasonPlatformClusterInteractionProblem)
+			return rr
+		}
+		for _, cc := range allCCs.Items {
+			orIdx, err := ctrlutils.HasOwnerReference(&cc, c, r.PlatformCluster.Client().Scheme()) // TODO: replace with r.PlatformCluster.Scheme() once the imported controller-utils version contains https://github.com/openmcp-project/controller-utils/pull/89
+			if err != nil {
+				rr.ReconcileError = errutils.WithReason(fmt.Errorf("error checking owner references on ClusterConfig '%s/%s': %w", c.Namespace, cc.Name, err), clusterconst.ReasonInternalError)
+				return rr
+			}
+			if orIdx >= 0 {
+				log.Debug("Removing owner reference from ClusterConfig", "clusterConfigName", cc.Name, "clusterConfigNamespace", c.Namespace)
+				oldCC := cc.DeepCopy()
+				cc.OwnerReferences = append(cc.OwnerReferences[:orIdx], cc.OwnerReferences[orIdx+1:]...)
+				if err := r.PlatformCluster.Client().Patch(ctx, &cc, client.MergeFrom(oldCC)); err != nil {
+					rr.ReconcileError = errutils.WithReason(fmt.Errorf("error removing owner reference from ClusterConfig '%s/%s': %w", c.Namespace, cc.Name, err), clusterconst.ReasonPlatformClusterInteractionProblem)
+					return rr
+				}
+			}
+		}
+
 		// remove finalizer
 		if controllerutil.RemoveFinalizer(c, providerv1alpha1.ClusterFinalizer) {
 			log.Info("Removing finalizer")
@@ -446,7 +469,7 @@ func (r *ClusterReconciler) getClusterConfigs(ctx context.Context, c *clustersv1
 			}
 			if !found {
 				// check if the ClusterConfig has an owner reference of the Cluster, which needs to be removed
-				orIdx, err := ctrlutils.HasOwnerReference(&cc, c, r.PlatformCluster.Scheme())
+				orIdx, err := ctrlutils.HasOwnerReference(&cc, c, r.PlatformCluster.Client().Scheme()) // TODO: replace with r.PlatformCluster.Scheme() once the imported controller-utils version contains https://github.com/openmcp-project/controller-utils/pull/89
 				if err != nil {
 					return nil, errutils.WithReason(fmt.Errorf("error checking owner references on ClusterConfig '%s/%s': %w", c.Namespace, cc.Name, err), clusterconst.ReasonInternalError)
 				}
@@ -475,7 +498,7 @@ func (r *ClusterReconciler) getClusterConfigs(ctx context.Context, c *clustersv1
 		}
 		clusterConfigs = append(clusterConfigs, cc)
 		// ensure that the cluster config has an owner reference pointing to the cluster
-		orIdx, err := ctrlutils.HasOwnerReference(cc, c, r.PlatformCluster.Scheme())
+		orIdx, err := ctrlutils.HasOwnerReference(cc, c, r.PlatformCluster.Client().Scheme()) // TODO: replace with r.PlatformCluster.Scheme() once the imported controller-utils version contains https://github.com/openmcp-project/controller-utils/pull/89
 		if err != nil {
 			return nil, errutils.WithReason(fmt.Errorf("error checking owner references on cluster config '%s/%s': %w", c.Namespace, ref.Name, err), clusterconst.ReasonInternalError)
 		}
@@ -483,7 +506,7 @@ func (r *ClusterReconciler) getClusterConfigs(ctx context.Context, c *clustersv1
 			// add owner reference
 			log.Info("Adding owner reference to cluster config", "clusterConfigName", ref.Name, "clusterConfigNamespace", c.Namespace)
 			oldCC := cc.DeepCopy()
-			if err := controllerutil.SetOwnerReference(c, cc, r.PlatformCluster.Scheme()); err != nil {
+			if err := controllerutil.SetOwnerReference(c, cc, r.PlatformCluster.Client().Scheme()); err != nil { // TODO: replace with r.PlatformCluster.Scheme() once the imported controller-utils version contains https://github.com/openmcp-project/controller-utils/pull/89
 				return nil, errutils.WithReason(fmt.Errorf("error setting owner reference on cluster config '%s/%s': %w", c.Namespace, ref.Name, err), clusterconst.ReasonInternalError)
 			}
 			if err := r.PlatformCluster.Client().Patch(ctx, cc, client.MergeFrom(oldCC)); err != nil {

@@ -16,36 +16,36 @@ spec:
   purposes:
   - test
   tenancy: Exclusive
-  clusterConfigRef:
-    name: my-cluster
+  clusterConfigs:
+  - name: my-mod
 ```
 
 ```yaml
 apiVersion: gardener.clusters.openmcp.cloud/v1alpha1
 kind: ClusterConfig
 metadata:
-  name: my-cluster
+  name: my-mod
   namespace: clusters
 spec:
   patchOptions: # optional
     ignoreMissingOnRemove: true
     createMissingOnAdd: true
   patches: # optional
-  - op: add
-    path: .spec.extensions[-1]
-    value:
-      type: "test-extension"
-      providerConfig:
-        foo: bar
-      disabled: true
   - op: remove
     path: /spec/seedName
   - op: add
     path: /spec/seedName
     value: "test-seed"
+  extensions:
+  - type: "test-extension"
+    providerConfig:
+      foo: foobar
+    disabled: false
 ```
 
 ## Spec
+
+### spec.patches
 
 Via the `spec.patches` field of a `ClusterConfig`, it is possible to manipulate the generated `Shoot` manifest before it is sent to Gardener. The specified changes are applied after all default logic for generating the manifest has been executed.
 
@@ -60,7 +60,7 @@ There are a few additions to the standard JSON patch behavior:
 - If `spec.patchOptions.ignoreMissingOnRemove` is `true`, `remove` operations that target non-existing paths will not throw an error and do nothing instead.
   - Defaults to `false` if not set.
 
-### Path in JSON Patch Operations
+#### Path in JSON Patch Operations
 
 The `path` argument for a JSON patch operation usually uses the [JSON pointer](https://datatracker.ietf.org/doc/html/rfc6901) notation. In this notation, a slash (`/`) marks the beginning of the path as well as the beginning of a new segment. Slashes in field names must be escaped by using `~1`, a tilde (`~`) must be written as `~0` instead. The notation does not differentiate between array indices and field names.
 
@@ -83,6 +83,12 @@ Example: Referencing the third finalizer could be done by using any of the follo
 If the path starts with a `/`, it is assumed to be in JSON pointer notation and not converted. Otherwise, the JSON path syntax is assumed and it will be converted into JSON pointer notation.
 
 See the documentation [here](https://github.com/openmcp-project/controller-utils/blob/main/docs/libs/jsonpatch.md#path-notation) for further information regarding the path syntax.
+
+### spec.extensions
+
+A common usecase for `ClusterConfig`s will likely be to ensure that some extension is activated for the shoot. Since ensuring that a specific element is in an array exactly once is not really possible with pure JSON patch logic, the `spec.extensions` field can be used for this. It takes a list of extensions and ensures that all of them are present in the generated shoot's list of extensions. If an extension with the same type already exists in the shoot, its configuration will be overwritten with what is specified in the `ClusterConfig`, otherwise it will be added.
+
+Removing extensions or merging their configuration is currently not possible this way.
 
 ## ⚠️ Warning
 

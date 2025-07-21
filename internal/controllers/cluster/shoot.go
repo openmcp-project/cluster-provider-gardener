@@ -234,6 +234,23 @@ func applyClusterConfigs(ctx context.Context, shoot *gardenv1beta1.Shoot, cluste
 				}
 			}
 		}
+		if len(clusterConfig.Spec.Resources) > 0 {
+			log.Debug("Ensuring resource references from cluster config", "ccName", clusterConfig.Name, "ccNamespace", clusterConfig.Namespace)
+			for _, rr := range clusterConfig.Spec.Resources {
+				found := false
+				for i := range shoot.Spec.Resources {
+					shootRr := &shoot.Spec.Resources[i]
+					if shootRr.Name == rr.Name {
+						found = true
+						shootRr.ResourceRef = rr.ResourceRef
+						break
+					}
+				}
+				if !found {
+					shoot.Spec.Resources = append(shoot.Spec.Resources, rr)
+				}
+			}
+		}
 		if len(clusterConfig.Spec.Patches) > 0 {
 			log.Debug("Applying patches from cluster config", "ccName", clusterConfig.Name, "ccNamespace", clusterConfig.Namespace)
 			patch := jsonpatch.NewTyped[*gardenv1beta1.Shoot](clusterConfig.Spec.Patches...)

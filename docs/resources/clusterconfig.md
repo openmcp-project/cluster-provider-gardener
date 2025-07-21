@@ -41,6 +41,12 @@ spec:
     providerConfig:
       foo: foobar
     disabled: false
+  resources:
+  - name: "test-resource"
+    resourceRef:
+      apiVersion: v1
+      kind: ConfigMap
+      name: test-cm
 ```
 
 ## Spec
@@ -89,6 +95,10 @@ See the documentation [here](https://github.com/openmcp-project/controller-utils
 A common usecase for `ClusterConfig`s will likely be to ensure that some extension is activated for the shoot. Since ensuring that a specific element is in an array exactly once is not really possible with pure JSON patch logic, the `spec.extensions` field can be used for this. It takes a list of extensions and ensures that all of them are present in the generated shoot's list of extensions. If an extension with the same type already exists in the shoot, its configuration will be overwritten with what is specified in the `ClusterConfig`, otherwise it will be added.
 
 Removing extensions or merging their configuration is currently not possible this way.
+
+### spec.resources
+
+For similar reasons as for `spec.extensions`, it is possible to inject named resource references into a shoot's `spec.resources` field via the cluster config's `spec.resources`. Existing resource references with the same name will be overwritten, otherwise the respective reference will be added to the shoot manifest.
 
 ## ⚠️ Warning
 

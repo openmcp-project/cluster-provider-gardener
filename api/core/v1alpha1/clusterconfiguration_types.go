@@ -17,6 +17,9 @@ type ClusterConfigSpec struct {
 
 	// Extensions is a list of Gardener extensions that are to be ensured on the shoot.
 	Extensions []gardenv1beta1.Extension `json:"extensions,omitempty"`
+
+	// Resources is a list of resource references that are to be ensured on the shoot.
+	Resources []gardenv1beta1.NamedResourceReference `json:"resources,omitempty"`
 }
 
 type PatchOptions struct {

@@ -196,6 +196,14 @@ var _ = Describe("Shoot Logic", func() {
 					})),
 				}),
 			))
+			Expect(shoot.Spec.Resources).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+				"Name": Equal("test-resource"),
+				"ResourceRef": MatchFields(IgnoreExtras, Fields{
+					"APIVersion": Equal("v1"),
+					"Kind":       Equal("ConfigMap"),
+					"Name":       Equal("test-cm"),
+				}),
+			})))
 			Expect(shoot.Spec.SeedName).To(PointTo(Equal("test-seed-altered")))
 		})
 

@@ -13,3 +13,9 @@ spec:
     providerConfig:
       bar: baz
     disabled: true
+  resources:
+  - name: "test-resource"
+    resourceRef:
+      apiVersion: v1
+      kind: ConfigMap
+      name: test-cm

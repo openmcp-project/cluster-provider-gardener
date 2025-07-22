@@ -63,12 +63,10 @@ spec:
                       Only one of the fields in this struct may be set.
                     properties:
                       name:
-                        description: Name is the name of the referenced resource.
-                        minLength: 1
+                        description: Name is the name of the object.
                         type: string
                       namespace:
-                        description: Namespace is the namespace of the referenced
-                          resource.
+                        description: Namespace is the namespace of the object.
                         type: string
                     required:
                     - name
@@ -86,53 +84,67 @@ spec:
               conditions:
                 description: Conditions contains the conditions.
                 items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
                   properties:
                     lastTransitionTime:
-                      description: LastTransitionTime specifies the time when this
-                        condition's status last changed.
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
                       format: date-time
                       type: string
                     message:
                       description: |-
-                        Message contains further details regarding the condition.
-                        It is meant for human users, Reason should be used for programmatic evaluation instead.
-                        It is optional, but should be filled at least when Status is not "True".
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
                       type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
                     reason:
                       description: |-
-                        Reason is expected to contain a CamelCased string that provides further information regarding the condition.
-                        It should have a fixed value set (like an enum) to be machine-readable. The value set depends on the condition type.
-                        It is optional, but should be filled at least when Status is not "True".
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
                       type: string
                     status:
-                      description: Status is the status of the condition.
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
                       type: string
                     type:
-                      description: |-
-                        Type is the type of the condition.
-                        Must be unique within the resource.
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
                       type: string
                   required:
+                  - lastTransitionTime
+                  - message
+                  - reason
                   - status
                   - type
                   type: object
                 type: array
-              lastReconcileTime:
-                description: LastReconcileTime is the time when the resource was last
-                  reconciled by the controller.
-                format: date-time
-                type: string
-              message:
-                description: Message contains further details in a human-readable
-                  format.
-                type: string
               observedGeneration:
                 description: ObservedGeneration is the generation of this resource
                   that was last reconciled by the controller.
                 format: int64
                 type: integer
               phase:
-                description: Phase is the current phase of the cluster.
+                description: Phase is the current phase of the resource.
                 type: string
               projects:
                 description: Projects lists the available projects.
@@ -150,13 +162,8 @@ spec:
                   - namespace
                   type: object
                 type: array
-              reason:
-                description: Reason is expected to contain a CamelCased string that
-                  provides further information in a machine-readable format.
-                type: string
             required:
             - apiServer
-            - lastReconcileTime
             - observedGeneration
             - phase
             type: object

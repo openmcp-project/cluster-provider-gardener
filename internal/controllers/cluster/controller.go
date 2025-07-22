@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -33,19 +35,21 @@ import (
 const ControllerName = "Cluster"
 const GardenerDeletionConfirmationAnnotation = "confirmation.gardener.cloud/deletion"
 
-func NewClusterReconciler(rc *shared.RuntimeConfiguration) *ClusterReconciler {
+func NewClusterReconciler(rc *shared.RuntimeConfiguration, eventRecorder record.EventRecorder) *ClusterReconciler {
 	return &ClusterReconciler{
 		RuntimeConfiguration: rc,
+		eventRecorder:        eventRecorder,
 	}
 }
 
 type ClusterReconciler struct {
 	*shared.RuntimeConfiguration
+	eventRecorder record.EventRecorder
 }
 
 var _ reconcile.Reconciler = &ClusterReconciler{}
 
-type ReconcileResult = ctrlutils.ReconcileResult[*clustersv1alpha1.Cluster, clustersv1alpha1.ConditionStatus]
+type ReconcileResult = ctrlutils.ReconcileResult[*clustersv1alpha1.Cluster]
 
 func (r *ClusterReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	log := logging.FromContextOrPanic(ctx).WithName(ControllerName)
@@ -55,10 +59,9 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req reconcile.Request
 	defer r.Lock.RUnlock()
 	rr := r.reconcile(ctx, req)
 	// status update
-	return ctrlutils.NewStatusUpdaterBuilder[*clustersv1alpha1.Cluster, clustersv1alpha1.ClusterPhase, clustersv1alpha1.ConditionStatus]().
-		WithNestedStruct("CommonStatus").
-		WithFieldOverride(ctrlutils.STATUS_FIELD_PHASE, "Phase").
-		WithPhaseUpdateFunc(func(obj *clustersv1alpha1.Cluster, rr ReconcileResult) (clustersv1alpha1.ClusterPhase, error) {
+	return ctrlutils.NewOpenMCPStatusUpdaterBuilder[*clustersv1alpha1.Cluster]().
+		WithNestedStruct("Status").
+		WithPhaseUpdateFunc(func(obj *clustersv1alpha1.Cluster, rr ReconcileResult) (string, error) {
 			if rr.ReconcileError != nil {
 				if !obj.DeletionTimestamp.IsZero() {
 					return clustersv1alpha1.CLUSTER_PHASE_DELETING_ERROR, nil
@@ -73,15 +76,14 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req reconcile.Request
 			}
 			// check if all conditions are true
 			for _, con := range rr.Conditions {
-				if con.GetStatus() != clustersv1alpha1.CONDITION_TRUE {
+				if con.Status != metav1.ConditionTrue {
 					return clustersv1alpha1.CLUSTER_PHASE_NOT_READY, nil
 				}
 			}
 			return clustersv1alpha1.CLUSTER_PHASE_READY, nil
 		}).
-		WithConditionUpdater(func() conditions.Condition[clustersv1alpha1.ConditionStatus] {
-			return &clustersv1alpha1.Condition{}
-		}, true).
+		WithConditionUpdater(false).
+		WithConditionEvents(r.eventRecorder, conditions.EventPerChange).
 		Build().
 		UpdateStatus(ctx, r.PlatformCluster.Client(), rr)
 }
@@ -147,13 +149,22 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 		shoot.SetName(shared.ShootK8sNameFromCluster(c, profile.Project.Name))
 		shoot.SetNamespace(profile.Project.Namespace)
 	}
-	rr.Conditions = make([]conditions.Condition[clustersv1alpha1.ConditionStatus], len(shoot.Status.Conditions))
+	rr.Conditions = make([]metav1.Condition, len(shoot.Status.Conditions))
 	for i, con := range shoot.Status.Conditions {
-		rr.Conditions[i] = &clustersv1alpha1.Condition{
+		rr.Conditions[i] = metav1.Condition{
 			Type:    string(con.Type),
-			Status:  clustersv1alpha1.ConditionStatus(con.Status),
 			Reason:  con.Reason,
 			Message: con.Message,
+		}
+		switch con.Status {
+		case gardenv1beta1.ConditionTrue:
+			rr.Conditions[i].Status = metav1.ConditionTrue
+		case gardenv1beta1.ConditionFalse:
+			rr.Conditions[i].Status = metav1.ConditionFalse
+		case gardenv1beta1.ConditionUnknown:
+			rr.Conditions[i].Status = metav1.ConditionUnknown
+		case gardenv1beta1.ConditionProgressing:
+			rr.Conditions[i].Status = metav1.ConditionFalse
 		}
 	}
 

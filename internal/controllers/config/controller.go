@@ -8,6 +8,7 @@ import (
 	"github.com/Masterminds/semver/v3"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -17,12 +18,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	"github.com/openmcp-project/controller-utils/pkg/conditions"
 	ctrlutils "github.com/openmcp-project/controller-utils/pkg/controller"
 	errutils "github.com/openmcp-project/controller-utils/pkg/errors"
 	"github.com/openmcp-project/controller-utils/pkg/logging"
 
 	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
 	clusterconst "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1/constants"
+	commonapi "github.com/openmcp-project/openmcp-operator/api/common"
 	openmcpconst "github.com/openmcp-project/openmcp-operator/api/constants"
 
 	providerv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
@@ -34,19 +37,21 @@ import (
 const ControllerName = "ProviderConfig"
 const ProfileConditionPrefix = "Profile_"
 
-func NewGardenerProviderConfigReconciler(rc *shared.RuntimeConfiguration) *GardenerProviderConfigReconciler {
+func NewGardenerProviderConfigReconciler(rc *shared.RuntimeConfiguration, eventRecorder record.EventRecorder) *GardenerProviderConfigReconciler {
 	return &GardenerProviderConfigReconciler{
 		RuntimeConfiguration: rc,
+		eventRecorder:        eventRecorder,
 	}
 }
 
 type GardenerProviderConfigReconciler struct {
 	*shared.RuntimeConfiguration
+	eventRecorder record.EventRecorder
 }
 
 var _ reconcile.Reconciler = &GardenerProviderConfigReconciler{}
 
-type ReconcileResult = ctrlutils.ReconcileResult[*providerv1alpha1.ProviderConfig, providerv1alpha1.ConditionStatus]
+type ReconcileResult = ctrlutils.ReconcileResult[*providerv1alpha1.ProviderConfig]
 
 func (r *GardenerProviderConfigReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	log := logging.FromContextOrPanic(ctx).WithName(ControllerName)
@@ -86,18 +91,19 @@ func (r *GardenerProviderConfigReconciler) Reconcile(ctx context.Context, req re
 		}
 	}
 	// status update
-	return ctrlutils.NewStatusUpdaterBuilder[*providerv1alpha1.ProviderConfig, providerv1alpha1.ProviderConfigPhase, providerv1alpha1.ConditionStatus]().
-		WithNestedStruct("CommonStatus").
-		WithFieldOverride(ctrlutils.STATUS_FIELD_PHASE, "Phase").
-		WithPhaseUpdateFunc(func(obj *providerv1alpha1.ProviderConfig, rr ctrlutils.ReconcileResult[*providerv1alpha1.ProviderConfig, providerv1alpha1.ConditionStatus]) (providerv1alpha1.ProviderConfigPhase, error) {
-			if rr.ReconcileError != nil {
-				return providerv1alpha1.PROVIDER_CONFIG_PHASE_UNAVAILABLE, nil
+	return ctrlutils.NewOpenMCPStatusUpdaterBuilder[*providerv1alpha1.ProviderConfig]().
+		WithNestedStruct("Status").
+		WithPhaseUpdateFunc(func(obj *providerv1alpha1.ProviderConfig, rr ctrlutils.ReconcileResult[*providerv1alpha1.ProviderConfig]) (string, error) {
+			if rr.Object != nil && !rr.Object.DeletionTimestamp.IsZero() {
+				return commonapi.StatusPhaseTerminating, nil
 			}
-			return providerv1alpha1.PROVIDER_CONFIG_PHASE_AVAILABLE, nil
+			if rr.ReconcileError != nil {
+				return commonapi.StatusPhaseProgressing, nil
+			}
+			return commonapi.StatusPhaseReady, nil
 		}).
-		// WithConditionUpdater(func() conditions.Condition[providerv1alpha1.ConditionStatus] {
-		// 	return &providerv1alpha1.Condition{}
-		// }, true).
+		WithConditionUpdater(false).
+		WithConditionEvents(r.eventRecorder, conditions.EventPerChange).
 		Build().
 		UpdateStatus(ctx, r.PlatformCluster.Client(), rr)
 }

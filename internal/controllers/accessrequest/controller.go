@@ -10,6 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -51,19 +52,21 @@ func managedResourcesLabels(ac *clustersv1alpha1.AccessRequest) map[string]strin
 
 var DefaultRequestedTokenValidityDuration = 30 * 24 * time.Hour // 30 days
 
-func NewAccessRequestReconciler(rc *shared.RuntimeConfiguration) *AccessRequestReconciler {
+func NewAccessRequestReconciler(rc *shared.RuntimeConfiguration, eventRecorder record.EventRecorder) *AccessRequestReconciler {
 	return &AccessRequestReconciler{
 		RuntimeConfiguration: rc,
+		eventRecorder:        eventRecorder,
 	}
 }
 
 type AccessRequestReconciler struct {
 	*shared.RuntimeConfiguration
+	eventRecorder record.EventRecorder
 }
 
 var _ reconcile.Reconciler = &AccessRequestReconciler{}
 
-type ReconcileResult = ctrlutils.ReconcileResult[*clustersv1alpha1.AccessRequest, clustersv1alpha1.ConditionStatus]
+type ReconcileResult = ctrlutils.ReconcileResult[*clustersv1alpha1.AccessRequest]
 
 func (r *AccessRequestReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	log := logging.FromContextOrPanic(ctx).WithName(ControllerName)
@@ -73,18 +76,16 @@ func (r *AccessRequestReconciler) Reconcile(ctx context.Context, req reconcile.R
 	defer r.Lock.RUnlock()
 	rr := r.reconcile(ctx, req)
 	// status update
-	return ctrlutils.NewStatusUpdaterBuilder[*clustersv1alpha1.AccessRequest, clustersv1alpha1.RequestPhase, clustersv1alpha1.ConditionStatus]().
-		WithNestedStruct("CommonStatus").
-		WithFieldOverride(ctrlutils.STATUS_FIELD_PHASE, "Phase").
-		WithPhaseUpdateFunc(func(obj *clustersv1alpha1.AccessRequest, rr ReconcileResult) (clustersv1alpha1.RequestPhase, error) {
+	return ctrlutils.NewOpenMCPStatusUpdaterBuilder[*clustersv1alpha1.AccessRequest]().
+		WithNestedStruct("Status").
+		WithPhaseUpdateFunc(func(obj *clustersv1alpha1.AccessRequest, rr ReconcileResult) (string, error) {
 			if rr.ReconcileError != nil || rr.Object == nil {
 				return clustersv1alpha1.REQUEST_PENDING, nil
 			}
 			return clustersv1alpha1.REQUEST_GRANTED, nil
 		}).
-		WithConditionUpdater(func() conditions.Condition[clustersv1alpha1.ConditionStatus] {
-			return &clustersv1alpha1.Condition{}
-		}, true).
+		WithConditionUpdater(false).
+		WithConditionEvents(r.eventRecorder, conditions.EventPerChange).
 		Build().
 		UpdateStatus(ctx, r.PlatformCluster.Client(), rr)
 }

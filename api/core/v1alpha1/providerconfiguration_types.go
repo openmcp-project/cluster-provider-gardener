@@ -3,6 +3,8 @@ package v1alpha1
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	commonapi "github.com/openmcp-project/openmcp-operator/api/common"
+
 	gardenv1beta1 "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1"
 	gardenconstants "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1/constants"
 )
@@ -10,10 +12,10 @@ import (
 type ProviderConfigSpec struct {
 	// ProviderRef is a reference to the provider this configuration belongs to.
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="providerRef is immutable"
-	ProviderRef ObjectReference `json:"providerRef"`
+	ProviderRef commonapi.LocalObjectReference `json:"providerRef"`
 
 	// LandscapeRef is a reference to the Landscape resource this configuration belongs to.
-	LandscapeRef ObjectReference `json:"landscapeRef"`
+	LandscapeRef commonapi.LocalObjectReference `json:"landscapeRef"`
 
 	// Project is the Gardener project which should be used to create shoot clusters in it.
 	// The provided kubeconfig must have privileges for this project.
@@ -25,18 +27,8 @@ type ProviderConfigSpec struct {
 }
 
 type ProviderConfigStatus struct {
-	CommonStatus `json:",inline"`
-
-	// Phase is the current phase of the cluster.
-	Phase ProviderConfigPhase `json:"phase"`
+	commonapi.Status `json:",inline"`
 }
-
-type ProviderConfigPhase string
-
-const (
-	PROVIDER_CONFIG_PHASE_AVAILABLE   ProviderConfigPhase = "Available"
-	PROVIDER_CONFIG_PHASE_UNAVAILABLE ProviderConfigPhase = "Unavailable"
-)
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status

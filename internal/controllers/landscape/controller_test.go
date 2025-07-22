@@ -14,6 +14,7 @@ import (
 
 	"github.com/openmcp-project/controller-utils/pkg/clusters"
 	testutils "github.com/openmcp-project/controller-utils/pkg/testing"
+	commonapi "github.com/openmcp-project/openmcp-operator/api/common"
 
 	providerv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
 	"github.com/openmcp-project/cluster-provider-gardener/api/install"
@@ -38,7 +39,7 @@ func defaultTestSetup(testDirPathSegments ...string) (*landscape.LandscapeReconc
 		WithInitObjectPath(gardenCluster, append(testDirPathSegments, "garden")...).
 		WithReconcilerConstructor(lsRec, func(c ...client.Client) reconcile.Reconciler {
 			rc := shared.NewRuntimeConfiguration(clusters.NewTestClusterFromClient(platformCluster, c[0]), nil)
-			return landscape.NewLandscapeReconciler(rc)
+			return landscape.NewLandscapeReconciler(rc, nil)
 		}, platformCluster).
 		Build()
 
@@ -59,10 +60,10 @@ var _ = Describe("Landscape Controller", func() {
 				Name: "my-pc",
 			},
 			Spec: providerv1alpha1.ProviderConfigSpec{
-				ProviderRef: providerv1alpha1.ObjectReference{
+				ProviderRef: commonapi.LocalObjectReference{
 					Name: "gardener",
 				},
-				LandscapeRef: providerv1alpha1.ObjectReference{
+				LandscapeRef: commonapi.LocalObjectReference{
 					Name: "my-landscape",
 				},
 			},
@@ -74,7 +75,7 @@ var _ = Describe("Landscape Controller", func() {
 		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(ls), ls)).To(Succeed())
 		env.ShouldReconcile(lsRec, testutils.RequestFromObject(ls))
 		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(ls), ls)).To(Succeed())
-		Expect(ls.Status.Phase).To(Equal(providerv1alpha1.LANDSCAPE_PHASE_AVAILABLE))
+		Expect(ls.Status.Phase).To(Equal(commonapi.StatusPhaseReady))
 		cls = lsr.GetLandscape(ls.Name)
 		Expect(cls).ToNot(BeNil())
 		Expect(cls.Name).To(Equal(ls.Name))

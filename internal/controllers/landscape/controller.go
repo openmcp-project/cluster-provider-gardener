@@ -11,10 +11,12 @@ import (
 	authzv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -33,6 +35,7 @@ import (
 	"github.com/openmcp-project/controller-utils/pkg/logging"
 
 	clusterconst "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1/constants"
+	commonapi "github.com/openmcp-project/openmcp-operator/api/common"
 	openmcpconst "github.com/openmcp-project/openmcp-operator/api/constants"
 
 	providerv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
@@ -53,10 +56,11 @@ var gardenerScheme = install.InstallGardenerAPIs(runtime.NewScheme())
 // If found, the corresponding client will be used instead of constructing one from the bytes.
 var FakeClientMappingsForTesting = map[string]client.Client{}
 
-func NewLandscapeReconciler(rc *shared.RuntimeConfiguration) *LandscapeReconciler {
+func NewLandscapeReconciler(rc *shared.RuntimeConfiguration, eventRecorder record.EventRecorder) *LandscapeReconciler {
 	return &LandscapeReconciler{
 		RuntimeConfiguration: rc,
 		TmpKubeconfigDir:     filepath.Join(os.TempDir(), "garden-kubeconfigs"),
+		eventRecorder:        eventRecorder,
 	}
 }
 
@@ -65,11 +69,12 @@ type LandscapeReconciler struct {
 	// TmpKubeconfigDir is a path to a directory where temporary kubeconfig files can be stored.
 	// The directory will be created during startup, if it doesn't exist.
 	TmpKubeconfigDir string
+	eventRecorder    record.EventRecorder
 }
 
 var _ reconcile.Reconciler = &LandscapeReconciler{}
 
-type ReconcileResult = ctrlutils.ReconcileResult[*providerv1alpha1.Landscape, providerv1alpha1.ConditionStatus]
+type ReconcileResult = ctrlutils.ReconcileResult[*providerv1alpha1.Landscape]
 
 func (r *LandscapeReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	log := logging.FromContextOrPanic(ctx).WithName(ControllerName)
@@ -106,14 +111,12 @@ func (r *LandscapeReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 		}
 	}
 	// status update
-	res, err := ctrlutils.NewStatusUpdaterBuilder[*providerv1alpha1.Landscape, providerv1alpha1.LandscapePhase, providerv1alpha1.ConditionStatus]().
-		WithNestedStruct("CommonStatus").
-		WithFieldOverride(ctrlutils.STATUS_FIELD_PHASE, "Phase").
+	res, err := ctrlutils.NewOpenMCPStatusUpdaterBuilder[*providerv1alpha1.Landscape]().
+		WithNestedStruct("Status").
 		WithPhaseUpdateFunc(landscapePhaseUpdate).
-		WithConditionUpdater(func() conditions.Condition[providerv1alpha1.ConditionStatus] {
-			return &providerv1alpha1.Condition{}
-		}, true).
-		WithCustomUpdateFunc(func(obj *providerv1alpha1.Landscape, rr ctrlutils.ReconcileResult[*providerv1alpha1.Landscape, providerv1alpha1.ConditionStatus]) error {
+		WithConditionUpdater(false).
+		WithConditionEvents(r.eventRecorder, conditions.EventPerChange).
+		WithCustomUpdateFunc(func(obj *providerv1alpha1.Landscape, rr ctrlutils.ReconcileResult[*providerv1alpha1.Landscape]) error {
 			obj.Status.APIServer = apiServer
 			return nil
 		}).
@@ -128,11 +131,11 @@ func (r *LandscapeReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 	if (lsInt == nil) != (oldLsInt == nil) || (lsInt != nil && oldLsInt != nil && lsInt.Available() != oldLsInt.Available()) {
 		oldPhase := "<nil>"
 		if oldLsInt != nil {
-			oldPhase = string(oldLsInt.Resource.Status.Phase)
+			oldPhase = oldLsInt.Resource.Status.Phase
 		}
 		newPhase := "<nil>"
 		if lsInt != nil {
-			newPhase = string(lsInt.Resource.Status.Phase)
+			newPhase = lsInt.Resource.Status.Phase
 		}
 		log.Info("Internal Landscape phase changed, checking for referencing ProviderConfigs", "oldPhase", oldPhase, "newPhase", newPhase)
 		pcs := r.GetProviderConfigurations()
@@ -286,7 +289,7 @@ func (r *LandscapeReconciler) handleCreateOrUpdate(ctx context.Context, req reco
 		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error creating SelfSubjectRulesReview for Landscape '%s': %w", ls.Name, err), cconst.ReasonGardenClusterInteractionProblem)
 	}
 
-	rr.Conditions = []conditions.Condition[providerv1alpha1.ConditionStatus]{}
+	rr.Conditions = []metav1.Condition{}
 	ls.Status.Projects = []providerv1alpha1.ProjectData{}
 	for _, rule := range ssrr.Status.ResourceRules {
 		// search for projects where the user has admin access
@@ -297,27 +300,27 @@ func (r *LandscapeReconciler) handleCreateOrUpdate(ctx context.Context, req reco
 				// fetch project to extract project namespace
 				log.Debug("Fetching project", "project", prName)
 				pr := &gardenv1beta1.Project{}
-				prCon := &providerv1alpha1.Condition{
+				prCon := metav1.Condition{
 					Type: ProjectConditionPrefix + prName,
 				}
 				if err := lsInt.Cluster.Client().Get(ctx, ctrlutils.ObjectKey(prName, ""), pr); err != nil {
-					prCon.SetStatus(providerv1alpha1.CONDITION_FALSE)
-					prCon.SetReason(cconst.ReasonGardenClusterInteractionProblem)
-					prCon.SetMessage(fmt.Sprintf("Error getting project '%s': %s", prName, err.Error()))
+					prCon.Status = metav1.ConditionFalse
+					prCon.Reason = cconst.ReasonGardenClusterInteractionProblem
+					prCon.Message = fmt.Sprintf("Error getting project '%s': %s", prName, err.Error())
 					log.Debug("Error getting project", "project", prName, "error", err)
 					rr.Conditions = append(rr.Conditions, prCon)
 					continue
 				}
 				prNamespace := pr.Spec.Namespace
 				if prNamespace == nil || *prNamespace == "" {
-					prCon.SetStatus(providerv1alpha1.CONDITION_FALSE)
-					prCon.SetReason(cconst.ReasonGardenClusterInteractionProblem)
-					prCon.SetMessage(fmt.Sprintf("Project '%s' has no namespace", prName))
+					prCon.Status = metav1.ConditionFalse
+					prCon.Reason = cconst.ReasonGardenClusterInteractionProblem
+					prCon.Message = fmt.Sprintf("Project '%s' has no namespace", prName)
 					log.Debug("Project has no namespace", "project", prName)
 					rr.Conditions = append(rr.Conditions, prCon)
 					continue
 				}
-				prCon.SetStatus(providerv1alpha1.CONDITION_TRUE)
+				prCon.Status = metav1.ConditionTrue
 				rr.Conditions = append(rr.Conditions, prCon)
 				log.Debug("Project found", "project", prName, "projectNamespace", prNamespace)
 				ls.Status.Projects = append(ls.Status.Projects, providerv1alpha1.ProjectData{
@@ -388,27 +391,30 @@ func (r *LandscapeReconciler) handleDelete(ctx context.Context, req reconcile.Re
 	return rr, nil
 }
 
-func landscapePhaseUpdate(obj *providerv1alpha1.Landscape, rr ctrlutils.ReconcileResult[*providerv1alpha1.Landscape, providerv1alpha1.ConditionStatus]) (providerv1alpha1.LandscapePhase, error) {
+func landscapePhaseUpdate(obj *providerv1alpha1.Landscape, rr ctrlutils.ReconcileResult[*providerv1alpha1.Landscape]) (string, error) {
+	if rr.Object != nil && !rr.Object.DeletionTimestamp.IsZero() {
+		return commonapi.StatusPhaseTerminating, nil
+	}
 	if rr.ReconcileError != nil {
-		return providerv1alpha1.LANDSCAPE_PHASE_UNAVAILABLE, nil
+		return commonapi.StatusPhaseProgressing, nil
 	}
 	trueCount := 0
 	falseCount := 0
 	for _, con := range rr.Conditions {
-		if con.GetStatus() == providerv1alpha1.CONDITION_TRUE {
+		if con.Status == metav1.ConditionTrue {
 			trueCount++
 		} else {
 			falseCount++
 		}
 	}
 	if trueCount > 0 && falseCount == 0 {
-		return providerv1alpha1.LANDSCAPE_PHASE_AVAILABLE, nil
+		return commonapi.StatusPhaseReady, nil
 	} else if trueCount > 0 && falseCount > 0 {
-		return providerv1alpha1.LANDSCAPE_PHASE_PARTIALLY_AVAILABLE, nil
+		return commonapi.StatusPhaseProgressing, nil
 	} else if trueCount == 0 && falseCount > 0 {
-		return providerv1alpha1.LANDSCAPE_PHASE_UNAVAILABLE, nil
+		return commonapi.StatusPhaseProgressing, nil
 	}
-	return providerv1alpha1.LANDSCAPE_PHASE_AVAILABLE, nil
+	return commonapi.StatusPhaseReady, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

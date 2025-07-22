@@ -2,6 +2,8 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	commonapi "github.com/openmcp-project/openmcp-operator/api/common"
 )
 
 type LandscapeSpec struct {
@@ -18,14 +20,11 @@ type GardenClusterAccess struct {
 	// SecretRef is a reference to a secret containing the kubeconfig.
 	// Only one of the fields in this struct may be set.
 	// +optional
-	SecretRef *NamespacedObjectReference `json:"secretRef,omitempty"`
+	SecretRef *commonapi.ObjectReference `json:"secretRef,omitempty"`
 }
 
 type LandscapeStatus struct {
-	CommonStatus `json:",inline"`
-
-	// Phase is the current phase of the cluster.
-	Phase LandscapePhase `json:"phase"`
+	commonapi.Status `json:",inline"`
 
 	// APIServer is the API server URL of the Gardener Landscape.
 	APIServer string `json:"apiServer"`
@@ -40,14 +39,6 @@ type ProjectData struct {
 	// Namespace is the namespace that the project belongs to.
 	Namespace string `json:"namespace"`
 }
-
-type LandscapePhase string
-
-const (
-	LANDSCAPE_PHASE_AVAILABLE           LandscapePhase = "Available"
-	LANDSCAPE_PHASE_UNAVAILABLE         LandscapePhase = "Unavailable"
-	LANDSCAPE_PHASE_PARTIALLY_AVAILABLE LandscapePhase = "Partially Available"
-)
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status

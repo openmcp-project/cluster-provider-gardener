@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/certwatcher"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -28,6 +29,8 @@ import (
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers"
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/accessrequest"
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/cluster"
+	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/config"
+	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/landscape"
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/shared"
 )
 
@@ -288,13 +291,17 @@ func (o *RunOptions) Run(ctx context.Context) error {
 
 	// setup Cluster controllers
 	if slices.Contains(o.Controllers, strings.ToLower(cluster.ControllerName)) {
-		if _, _, _, err := controllers.SetupClusterControllersWithManager(mgr, rc); err != nil {
+		if _, _, _, err := controllers.SetupClusterControllersWithManager(mgr, rc, map[string]record.EventRecorder{
+			landscape.ControllerName: mgr.GetEventRecorderFor(landscape.ControllerName),
+			config.ControllerName:    mgr.GetEventRecorderFor(config.ControllerName),
+			cluster.ControllerName:   mgr.GetEventRecorderFor(cluster.ControllerName),
+		}); err != nil {
 			return fmt.Errorf("unable to setup Cluster controllers: %w", err)
 		}
 	}
 	// setup AccessRequest controller
 	if slices.Contains(o.Controllers, strings.ToLower(accessrequest.ControllerName)) {
-		arr := accessrequest.NewAccessRequestReconciler(rc)
+		arr := accessrequest.NewAccessRequestReconciler(rc, mgr.GetEventRecorderFor(accessrequest.ControllerName))
 		if err := arr.SetupWithManager(mgr); err != nil {
 			return fmt.Errorf("unable to setup AccessRequest controller: %w", err)
 		}

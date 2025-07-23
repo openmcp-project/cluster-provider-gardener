@@ -197,12 +197,23 @@ func (r *LandscapeReconciler) handleCreateOrUpdate(ctx context.Context, req reco
 	log.Info("Creating/updating resource")
 
 	rr := ReconcileResult{
-		Object:    ls,
-		OldObject: ls.DeepCopy(),
+		Object:     ls,
+		OldObject:  ls.DeepCopy(),
+		Conditions: []metav1.Condition{},
 	}
 	// build internal Landscape object
 	lsInt := &shared.Landscape{
 		Name: req.Name,
+	}
+
+	createCon := func(conType string, status metav1.ConditionStatus, reason, message string) {
+		rr.Conditions = append(rr.Conditions, metav1.Condition{
+			Type:               conType,
+			Status:             status,
+			ObservedGeneration: ls.Generation,
+			Reason:             reason,
+			Message:            message,
+		})
 	}
 
 	// ensure finalizer
@@ -210,9 +221,11 @@ func (r *LandscapeReconciler) handleCreateOrUpdate(ctx context.Context, req reco
 		log.Info("Adding finalizer")
 		if err := r.PlatformCluster.Client().Patch(ctx, ls, client.MergeFrom(rr.OldObject)); err != nil {
 			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
+			createCon(providerv1alpha1.ConditionMeta, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 			return rr, nil
 		}
 	}
+	createCon(providerv1alpha1.ConditionMeta, metav1.ConditionTrue, "", "")
 
 	// load Garden cluster kubeconfig
 	var restCfg *rest.Config
@@ -227,6 +240,7 @@ func (r *LandscapeReconciler) handleCreateOrUpdate(ctx context.Context, req reco
 			restCfg, err = clientcmd.RESTConfigFromKubeConfig([]byte(ls.Spec.Access.Inline))
 			if err != nil {
 				rr.ReconcileError = errutils.WithReason(fmt.Errorf("error loading inline kubeconfig for Landscape '%s': %w", ls.Name, err), cconst.ReasonKubeconfigError)
+				createCon(providerv1alpha1.LandscapeConditionGardenClusterAccess, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 				return rr, lsInt
 			}
 		}
@@ -237,20 +251,24 @@ func (r *LandscapeReconciler) handleCreateOrUpdate(ctx context.Context, req reco
 		if err := r.PlatformCluster.Client().Get(ctx, ctrlutils.ObjectKey(ref.Name, ref.Namespace), secret); err != nil {
 			if apierrors.IsNotFound(err) {
 				rr.ReconcileError = errutils.WithReason(fmt.Errorf("kubeconfig secret '%s/%s' not found for Landscape '%s': %w", ref.Namespace, ref.Name, ls.Name, err), clusterconst.ReasonInvalidReference)
+				createCon(providerv1alpha1.LandscapeConditionGardenClusterAccess, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 				return rr, lsInt
 			} else {
 				rr.ReconcileError = errutils.WithReason(fmt.Errorf("error getting kubeconfig secret '%s/%s' for Landscape '%s': %w", ref.Namespace, ref.Name, ls.Name, err), clusterconst.ReasonPlatformClusterInteractionProblem)
+				createCon(providerv1alpha1.LandscapeConditionGardenClusterAccess, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 				return rr, lsInt
 			}
 		}
 		tmpDir := filepath.Join(r.TmpKubeconfigDir, ref.Namespace, ref.Name)
 		if err := os.MkdirAll(tmpDir, os.ModeDir|os.ModePerm); err != nil {
 			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error creating temporary directory '%s' for kubeconfig secret '%s/%s' for Landscape '%s': %w", tmpDir, ref.Namespace, ref.Name, ls.Name, err), cconst.ReasonOperatingSystemProblem)
+			createCon(providerv1alpha1.LandscapeConditionGardenClusterAccess, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 			return rr, lsInt
 		}
 		for k, v := range secret.Data {
 			if err := os.WriteFile(filepath.Join(tmpDir, k), v, os.ModePerm); err != nil {
 				rr.ReconcileError = errutils.WithReason(fmt.Errorf("error writing kubeconfig file '%s/%s' for Landscape '%s': %w", tmpDir, k, ls.Name, err), cconst.ReasonOperatingSystemProblem)
+				createCon(providerv1alpha1.LandscapeConditionGardenClusterAccess, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 				return rr, lsInt
 			}
 		}
@@ -259,10 +277,12 @@ func (r *LandscapeReconciler) handleCreateOrUpdate(ctx context.Context, req reco
 		restCfg, err = ctrlutils.LoadKubeconfig(tmpDir)
 		if err != nil {
 			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error loading kubeconfig for Landscape '%s': %w", ls.Name, err), cconst.ReasonKubeconfigError)
+			createCon(providerv1alpha1.LandscapeConditionGardenClusterAccess, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 			return rr, lsInt
 		}
 	} else {
 		rr.ReconcileError = errutils.WithReason(fmt.Errorf("no access information found for Landscape '%s'", ls.Name), cconst.ReasonConfigurationProblem)
+		createCon(providerv1alpha1.LandscapeConditionGardenClusterAccess, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 		return rr, lsInt
 	}
 
@@ -272,6 +292,7 @@ func (r *LandscapeReconciler) handleCreateOrUpdate(ctx context.Context, req reco
 
 		if err := lsInt.Cluster.InitializeClient(gardenerScheme); err != nil {
 			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error initializing client for Landscape '%s': %w", ls.Name, err), cconst.ReasonKubeconfigError)
+			createCon(providerv1alpha1.LandscapeConditionGardenClusterAccess, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 			return rr, lsInt
 		}
 	} else {
@@ -287,9 +308,10 @@ func (r *LandscapeReconciler) handleCreateOrUpdate(ctx context.Context, req reco
 	ssrr.SetName(ls.Name)
 	if err := lsInt.Cluster.Client().Create(ctx, ssrr); err != nil {
 		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error creating SelfSubjectRulesReview for Landscape '%s': %w", ls.Name, err), cconst.ReasonGardenClusterInteractionProblem)
+		createCon(providerv1alpha1.LandscapeConditionGardenClusterAccess, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
+		return rr, lsInt
 	}
 
-	rr.Conditions = []metav1.Condition{}
 	ls.Status.Projects = []providerv1alpha1.ProjectData{}
 	for _, rule := range ssrr.Status.ResourceRules {
 		// search for projects where the user has admin access
@@ -343,9 +365,11 @@ func (r *LandscapeReconciler) handleCreateOrUpdate(ctx context.Context, req reco
 		})
 		if err := lsInt.Cluster.InitializeClient(gardenerScheme); err != nil {
 			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error initializing client with cache options for Landscape '%s': %w", ls.Name, err), clusterconst.ReasonInternalError)
+			createCon(providerv1alpha1.LandscapeConditionGardenClusterAccess, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 			return rr, lsInt
 		}
 	}
+	createCon(providerv1alpha1.LandscapeConditionGardenClusterAccess, metav1.ConditionTrue, "", "")
 
 	return rr, lsInt
 }
@@ -355,12 +379,23 @@ func (r *LandscapeReconciler) handleDelete(ctx context.Context, req reconcile.Re
 	log.Info("Deleting resource")
 
 	rr := ReconcileResult{
-		Object:    ls,
-		OldObject: ls.DeepCopy(),
+		Object:     ls,
+		OldObject:  ls.DeepCopy(),
+		Conditions: []metav1.Condition{},
 	}
 	// build internal Landscape object
 	lsInt := &shared.Landscape{
 		Name: req.Name,
+	}
+
+	createCon := func(conType string, status metav1.ConditionStatus, reason, message string) {
+		rr.Conditions = append(rr.Conditions, metav1.Condition{
+			Type:               conType,
+			Status:             status,
+			ObservedGeneration: ls.Generation,
+			Reason:             reason,
+			Message:            message,
+		})
 	}
 
 	// check if the landscape is still in use by any provider configs
@@ -376,16 +411,20 @@ func (r *LandscapeReconciler) handleDelete(ctx context.Context, req reconcile.Re
 		log.Info("Waiting for ProviderConfigs to stop referencing the Landscape", "providerConfigs", refsPrint)
 		rr.Message = fmt.Sprintf("Landscape is still referenced by the following ProviderConfigs: %s.", refsPrint)
 		rr.Reason = cconst.ReasonWaitingForDeletion
+		createCon(providerv1alpha1.ConditionLandscapeManagement, metav1.ConditionFalse, rr.Reason, rr.Message)
 		return rr, lsInt
 	}
+	createCon(providerv1alpha1.ConditionLandscapeManagement, metav1.ConditionTrue, "", "")
 	// remove own finalizer and remove from internal list
 	if controllerutil.RemoveFinalizer(ls, providerv1alpha1.LandscapeFinalizer) {
 		log.Info("Removing finalizer")
 		if err := r.PlatformCluster.Client().Patch(ctx, ls, client.MergeFrom(rr.OldObject)); err != nil {
 			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
+			createCon(providerv1alpha1.ConditionMeta, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 			return rr, nil
 		}
 	}
+	createCon(providerv1alpha1.ConditionMeta, metav1.ConditionTrue, "", "")
 	rr.Object = nil // this prevents the controller from trying to update an already deleted resource
 
 	return rr, nil

@@ -38,4 +38,6 @@ const (
 
 	ProviderConfigConditionCloudProfile             = "CloudProfile"
 	ProviderConfigConditionClusterProfileManagement = "ClusterProfileManagement"
+
+	LandscapeConditionGardenClusterAccess = "GardenClusterAccess"
 )

@@ -451,7 +451,7 @@ func (r *ClusterReconciler) getClusterConfigs(ctx context.Context, c *clustersv1
 	// because we might need to remove some owner references in that case
 	cchash := ""
 	if len(c.Spec.ClusterConfigs) > 0 {
-		cchash = ctrlutils.K8sNameHash(collections.ProjectSlice(c.Spec.ClusterConfigs, func(ref commonapi.ObjectReference) string { return ref.Name })...)
+		cchash = ctrlutils.K8sNameHash(collections.ProjectSlice(c.Spec.ClusterConfigs, func(ref commonapi.LocalObjectReference) string { return ref.Name })...)
 	}
 	oldCChash := c.Annotations[providerv1alpha1.ClusterConfigHashAnnotation]
 	if cchash != oldCChash {

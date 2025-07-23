@@ -8,7 +8,7 @@ require (
 	dario.cat/mergo v1.0.2
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/onsi/ginkgo/v2 v2.23.4
-	github.com/onsi/gomega v1.37.0
+	github.com/onsi/gomega v1.38.0
 	github.com/openmcp-project/cluster-provider-gardener/api v0.2.0
 	github.com/openmcp-project/openmcp-operator/api v0.9.0
 	gopkg.in/yaml.v3 v3.0.1

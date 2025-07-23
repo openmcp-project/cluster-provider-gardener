@@ -24,6 +24,7 @@ import (
 
 	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
 	clusterconst "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1/constants"
+	commonapi "github.com/openmcp-project/openmcp-operator/api/common"
 
 	cconst "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1/constants"
 	authenticationv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/authentication/v1alpha1"
@@ -388,7 +389,7 @@ func (r *AccessRequestReconciler) renewToken(ctx context.Context, ac *clustersv1
 		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error creating/updating secret '%s/%s': %w", s.Namespace, s.Name, err), clusterconst.ReasonPlatformClusterInteractionProblem)
 		return nil, rr
 	}
-	rr.Object.Status.SecretRef = &clustersv1alpha1.NamespacedObjectReference{}
+	rr.Object.Status.SecretRef = &commonapi.ObjectReference{}
 	rr.Object.Status.SecretRef.Name = s.Name
 	rr.Object.Status.SecretRef.Namespace = s.Namespace
 	rr.Object.Status.Phase = clustersv1alpha1.REQUEST_GRANTED

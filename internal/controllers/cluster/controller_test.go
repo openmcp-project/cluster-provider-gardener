@@ -41,7 +41,7 @@ func defaultTestSetup(testDirPathSegments ...string) (*cluster.ClusterReconciler
 		WithInitObjectPath(gardenCluster, append(testDirPathSegments, "garden")...).
 		WithReconcilerConstructor(cRec, func(c ...client.Client) reconcile.Reconciler {
 			rc := shared.NewRuntimeConfiguration(clusters.NewTestClusterFromClient(platformCluster, c[0]), nil)
-			return cluster.NewClusterReconciler(rc)
+			return cluster.NewClusterReconciler(rc, nil)
 		}, platformCluster).
 		Build()
 

@@ -116,7 +116,7 @@ func defaultTestSetup(testDirPathSegments ...string) (*accessrequest.AccessReque
 		}).
 		WithReconcilerConstructor(arRec, func(c ...client.Client) reconcile.Reconciler {
 			rc := shared.NewRuntimeConfiguration(clusters.NewTestClusterFromClient(platformCluster, c[0]), nil)
-			return accessrequest.NewAccessRequestReconciler(rc)
+			return accessrequest.NewAccessRequestReconciler(rc, nil)
 		}, platformCluster).
 		Build()
 

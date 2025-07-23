@@ -10,6 +10,7 @@ import (
 	ctrlutils "github.com/openmcp-project/controller-utils/pkg/controller"
 	"github.com/openmcp-project/controller-utils/pkg/logging"
 	"github.com/openmcp-project/controller-utils/pkg/threads"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -17,6 +18,7 @@ import (
 	toolscache "k8s.io/client-go/tools/cache"
 
 	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
+	commonapi "github.com/openmcp-project/openmcp-operator/api/common"
 
 	providerv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
 	gardenv1beta1 "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1"
@@ -341,7 +343,19 @@ type Landscape struct {
 }
 
 func (l *Landscape) Available() bool {
-	return l != nil && l.Resource != nil && (l.Resource.Status.Phase == providerv1alpha1.LANDSCAPE_PHASE_AVAILABLE || l.Resource.Status.Phase == providerv1alpha1.LANDSCAPE_PHASE_PARTIALLY_AVAILABLE)
+	if l == nil || l.Resource == nil {
+		return false
+	}
+	if l.Resource.Status.Phase == commonapi.StatusPhaseReady {
+		return true
+	}
+	// check conditions if at least one is true
+	for _, con := range l.Resource.Status.Conditions {
+		if con.Status == metav1.ConditionTrue {
+			return true
+		}
+	}
+	return false
 }
 
 func (l *Landscape) Projects() []providerv1alpha1.ProjectData {

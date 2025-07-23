@@ -127,19 +127,33 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 	}
 
 	rr := ReconcileResult{
-		Object:    c,
-		OldObject: c.DeepCopy(),
+		Object:     c,
+		OldObject:  c.DeepCopy(),
+		Conditions: []metav1.Condition{},
+	}
+
+	createCon := func(conType string, status metav1.ConditionStatus, reason, message string) {
+		rr.Conditions = append(rr.Conditions, metav1.Condition{
+			Type:               conType,
+			Status:             status,
+			ObservedGeneration: c.Generation,
+			Reason:             reason,
+			Message:            message,
+		})
 	}
 
 	landscape := r.GetLandscape(profile.ProviderConfig.Spec.LandscapeRef.Name)
 	if landscape == nil {
 		rr.ReconcileError = errutils.WithReason(fmt.Errorf("unknown landscape '%s'", profile.ProviderConfig.Spec.LandscapeRef.Name), cconst.ReasonUnknownLandscape)
+		createCon(providerv1alpha1.ClusterConditionLandscapeExists, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 		return rr
 	}
+	createCon(providerv1alpha1.ClusterConditionLandscapeExists, metav1.ConditionTrue, "", "")
 
 	shoot, rerr := GetShoot(ctx, landscape.Cluster.Client(), profile.Project.Namespace, c)
 	if rerr != nil {
 		rr.ReconcileError = errutils.Errorf("error getting shoot: %w", rerr, rerr)
+		createCon(providerv1alpha1.ClusterConditionShootManagement, metav1.ConditionFalse, rerr.Reason(), rerr.Error())
 		return rr
 	}
 	exists := shoot != nil
@@ -148,24 +162,26 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 		shoot.SetGroupVersionKind(gardenv1beta1.SchemeGroupVersion.WithKind("Shoot"))
 		shoot.SetName(shared.ShootK8sNameFromCluster(c, profile.Project.Name))
 		shoot.SetNamespace(profile.Project.Namespace)
+	} else {
+		createCon(providerv1alpha1.ClusterConditionShootManagement, metav1.ConditionFalse, "ShootNotFound", "Shoot does not exist yet")
 	}
-	rr.Conditions = make([]metav1.Condition, len(shoot.Status.Conditions))
-	for i, con := range shoot.Status.Conditions {
-		rr.Conditions[i] = metav1.Condition{
-			Type:    string(con.Type),
+	for _, con := range shoot.Status.Conditions {
+		sCon := metav1.Condition{
+			Type:    "Gardener_" + string(con.Type),
 			Reason:  con.Reason,
 			Message: con.Message,
 		}
 		switch con.Status {
 		case gardenv1beta1.ConditionTrue:
-			rr.Conditions[i].Status = metav1.ConditionTrue
+			sCon.Status = metav1.ConditionTrue
 		case gardenv1beta1.ConditionFalse:
-			rr.Conditions[i].Status = metav1.ConditionFalse
+			sCon.Status = metav1.ConditionFalse
 		case gardenv1beta1.ConditionUnknown:
-			rr.Conditions[i].Status = metav1.ConditionUnknown
+			sCon.Status = metav1.ConditionUnknown
 		case gardenv1beta1.ConditionProgressing:
-			rr.Conditions[i].Status = metav1.ConditionFalse
+			sCon.Status = metav1.ConditionFalse
 		}
+		rr.Conditions = append(rr.Conditions, sCon)
 	}
 
 	inDeletion := !c.DeletionTimestamp.IsZero()
@@ -179,6 +195,7 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 			log.Info("Adding finalizer")
 			if err := r.PlatformCluster.Client().Patch(ctx, c, client.MergeFrom(rr.OldObject)); err != nil {
 				rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
+				createCon(providerv1alpha1.ConditionMeta, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 				return rr
 			}
 		}
@@ -186,18 +203,24 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 		// take over fields from shoot template and update shoot
 		if err := UpdateShootFields(ctx, shoot, profile, c); err != nil {
 			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error updating shoot fields: %w", err), clusterconst.ReasonInternalError)
+			createCon(providerv1alpha1.ClusterConditionShootManagement, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 			return rr
 		}
+
 		// set labels on the Cluster resource
 		if rerr := r.ensureClusterLabels(ctx, c, shoot.Spec.Kubernetes.Version); rerr != nil {
 			rr.ReconcileError = rerr
+			createCon(providerv1alpha1.ConditionMeta, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 			return rr
 		}
+		createCon(providerv1alpha1.ConditionMeta, metav1.ConditionTrue, "", "")
+
 		// set shoot in ProviderStatus
 		manifest := &gardenv1beta1.ShootTemplate{
 			ObjectMeta: *shoot.ObjectMeta.DeepCopy(),
 			Spec:       *shoot.Spec.DeepCopy(),
 		}
+
 		// set shoot apiserver endpoint in status
 		if len(shoot.Status.AdvertisedAddresses) > 0 {
 			for _, addr := range shoot.Status.AdvertisedAddresses {
@@ -216,6 +239,7 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error setting provider status: %w", err), clusterconst.ReasonInternalError)
 			return rr
 		}
+
 		var err error
 		if exists {
 			log.Info("Updating shoot", "shootName", shoot.Name, "shootNamespace", shoot.Namespace)
@@ -226,8 +250,10 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 		}
 		if err != nil {
 			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error creating or updating shoot '%s' in namespace '%s': %w", shoot.Name, shoot.Namespace, err), cconst.ReasonGardenClusterInteractionProblem)
+			createCon(providerv1alpha1.ClusterConditionShootManagement, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 			return rr
 		}
+		createCon(providerv1alpha1.ClusterConditionShootManagement, metav1.ConditionTrue, "", "")
 
 	} else {
 
@@ -240,11 +266,13 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 				log.Info("Deleting shoot", "shootName", shoot.Name, "shootNamespace", shoot.Namespace)
 				if err := ctrlutils.EnsureAnnotation(ctx, landscape.Cluster.Client(), shoot, GardenerDeletionConfirmationAnnotation, "true", true, ctrlutils.OVERWRITE); err != nil {
 					rr.ReconcileError = errutils.WithReason(fmt.Errorf("error adding deletion confirmation annotation to shoot '%s' in namespace '%s': %w", shoot.Name, shoot.Namespace, err), cconst.ReasonGardenClusterInteractionProblem)
+					createCon(providerv1alpha1.ClusterConditionShootManagement, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 					return rr
 				}
 				if err := landscape.Cluster.Client().Delete(ctx, shoot); err != nil {
 					if !apierrors.IsNotFound(err) {
 						rr.ReconcileError = errutils.WithReason(fmt.Errorf("error deleting shoot '%s' in namespace '%s': %w", shoot.Name, shoot.Namespace, err), cconst.ReasonGardenClusterInteractionProblem)
+						createCon(providerv1alpha1.ClusterConditionShootManagement, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 						return rr
 					}
 				}
@@ -252,8 +280,7 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 			} else {
 				log.Debug("Shoot is being deleted", "shootName", shoot.Name, "shootNamespace", shoot.Namespace)
 			}
-			rr.Reason = cconst.ReasonWaitingForDeletion
-			rr.Message = "Waiting for shoot to be deleted"
+			createCon(providerv1alpha1.ClusterConditionShootManagement, metav1.ConditionFalse, cconst.ReasonWaitingForDeletion, "Waiting for shoot to be deleted")
 			return rr
 		}
 
@@ -262,9 +289,11 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 			log.Info("Removing finalizer")
 			if err := r.PlatformCluster.Client().Patch(ctx, c, client.MergeFrom(rr.OldObject)); err != nil {
 				rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
+				createCon(providerv1alpha1.ConditionMeta, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 				return rr
 			}
 		}
+		createCon(providerv1alpha1.ConditionMeta, metav1.ConditionTrue, "", "")
 		rr.Object = nil // this prevents the controller from trying to update an already deleted resource
 
 	}

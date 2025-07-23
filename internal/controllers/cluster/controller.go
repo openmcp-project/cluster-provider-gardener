@@ -40,18 +40,14 @@ const GardenerDeletionConfirmationAnnotation = "confirmation.gardener.cloud/dele
 
 func NewClusterReconciler(rc *shared.RuntimeConfiguration, eventRecorder record.EventRecorder) *ClusterReconciler {
 	return &ClusterReconciler{
-		RuntimeConfiguration:    rc,
-		eventRecorder:           eventRecorder,
-		ClusterConfigReferences: newClusterConfigReferences(),
+		RuntimeConfiguration: rc,
+		eventRecorder:        eventRecorder,
 	}
 }
 
 type ClusterReconciler struct {
 	*shared.RuntimeConfiguration
 	eventRecorder record.EventRecorder
-	// ClusterConfigReferences maps ClusterConfig references to the set of clusters that reference them.
-	// This is used to trigger reconciliations on Clusters when a ClusterConfig is updated.
-	ClusterConfigReferences clusterConfigReferences
 }
 
 var _ reconcile.Reconciler = &ClusterReconciler{}
@@ -191,8 +187,10 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 		clusterConfigs, rerr := r.getClusterConfigs(ctx, c)
 		if rerr != nil {
 			rr.ReconcileError = rerr
+			createCon(providerv1alpha1.ClusterConditionClusterConfigurations, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 			return rr
 		}
+		createCon(providerv1alpha1.ClusterConditionClusterConfigurations, metav1.ConditionTrue, "", "")
 
 		// take over fields from shoot template and update shoot
 		if err := UpdateShootFields(ctx, shoot, profile, c, clusterConfigs); err != nil {
@@ -282,12 +280,14 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 		allCCs := &providerv1alpha1.ClusterConfigList{}
 		if err := r.PlatformCluster.Client().List(ctx, allCCs, client.InNamespace(c.Namespace)); err != nil {
 			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error listing ClusterConfig resources in namespace '%s': %w", c.Namespace, err), clusterconst.ReasonPlatformClusterInteractionProblem)
+			createCon(providerv1alpha1.ClusterConditionClusterConfigurations, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 			return rr
 		}
 		for _, cc := range allCCs.Items {
 			orIdx, err := ctrlutils.HasOwnerReference(&cc, c, r.PlatformCluster.Client().Scheme()) // TODO: replace with r.PlatformCluster.Scheme() once the imported controller-utils version contains https://github.com/openmcp-project/controller-utils/pull/89
 			if err != nil {
 				rr.ReconcileError = errutils.WithReason(fmt.Errorf("error checking owner references on ClusterConfig '%s/%s': %w", c.Namespace, cc.Name, err), clusterconst.ReasonInternalError)
+				createCon(providerv1alpha1.ClusterConditionClusterConfigurations, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 				return rr
 			}
 			if orIdx >= 0 {
@@ -296,10 +296,12 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 				cc.OwnerReferences = append(cc.OwnerReferences[:orIdx], cc.OwnerReferences[orIdx+1:]...)
 				if err := r.PlatformCluster.Client().Patch(ctx, &cc, client.MergeFrom(oldCC)); err != nil {
 					rr.ReconcileError = errutils.WithReason(fmt.Errorf("error removing owner reference from ClusterConfig '%s/%s': %w", c.Namespace, cc.Name, err), clusterconst.ReasonPlatformClusterInteractionProblem)
+					createCon(providerv1alpha1.ClusterConditionClusterConfigurations, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 					return rr
 				}
 			}
 		}
+		createCon(providerv1alpha1.ClusterConditionClusterConfigurations, metav1.ConditionTrue, "", "")
 
 		// remove finalizer
 		if controllerutil.RemoveFinalizer(c, providerv1alpha1.ClusterFinalizer) {
@@ -449,7 +451,7 @@ func (r *ClusterReconciler) getClusterConfigs(ctx context.Context, c *clustersv1
 	// because we might need to remove some owner references in that case
 	cchash := ""
 	if len(c.Spec.ClusterConfigs) > 0 {
-		cchash = ctrlutils.K8sNameHash(collections.ProjectSlice(c.Spec.ClusterConfigs, func(ref clustersv1alpha1.ObjectReference) string { return ref.Name })...)
+		cchash = ctrlutils.K8sNameHash(collections.ProjectSlice(c.Spec.ClusterConfigs, func(ref commonapi.ObjectReference) string { return ref.Name })...)
 	}
 	oldCChash := c.Annotations[providerv1alpha1.ClusterConfigHashAnnotation]
 	if cchash != oldCChash {

@@ -38,7 +38,8 @@ const (
 	AccessRequestConditionShootAccess            = "ShootAccess"
 	AccessRequestConditionCleanup                = "Cleanup"
 
-	ClusterConditionShootManagement = "ShootManagement"
+	ClusterConditionShootManagement       = "ShootManagement"
+	ClusterConditionClusterConfigurations = "ClusterConfigurations"
 
 	ProviderConfigConditionCloudProfile             = "CloudProfile"
 	ProviderConfigConditionClusterProfileManagement = "ClusterProfileManagement"

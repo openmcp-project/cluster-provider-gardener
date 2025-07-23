@@ -206,7 +206,7 @@ func (r *LandscapeReconciler) handleCreateOrUpdate(ctx context.Context, req reco
 		Name: req.Name,
 	}
 
-	createCon := shared.GenerateCreateConditionFunc(&rr)
+	createCon := ctrlutils.GenerateCreateConditionFunc(&rr)
 
 	// ensure finalizer
 	if controllerutil.AddFinalizer(ls, providerv1alpha1.LandscapeFinalizer) {
@@ -335,6 +335,7 @@ func (r *LandscapeReconciler) handleCreateOrUpdate(ctx context.Context, req reco
 					continue
 				}
 				prCon.Status = metav1.ConditionTrue
+				prCon.Reason = cconst.ReasonProjectAvailable
 				rr.Conditions = append(rr.Conditions, prCon)
 				log.Debug("Project found", "project", prName, "projectNamespace", prNamespace)
 				ls.Status.Projects = append(ls.Status.Projects, providerv1alpha1.ProjectData{
@@ -380,7 +381,7 @@ func (r *LandscapeReconciler) handleDelete(ctx context.Context, req reconcile.Re
 		Name: req.Name,
 	}
 
-	createCon := shared.GenerateCreateConditionFunc(&rr)
+	createCon := ctrlutils.GenerateCreateConditionFunc(&rr)
 
 	// check if the landscape is still in use by any provider configs
 	referencingProviderConfigs := sets.New[string]()

@@ -1,0 +1,21 @@
+apiVersion: gardener.clusters.openmcp.cloud/v1alpha1
+kind: ClusterConfig
+metadata:
+  name: ext-1
+  namespace: clusters
+spec:
+  extensions:
+  - type: "test-extension"
+    providerConfig:
+      foo: foobar
+    disabled: false
+  - type: "new-extension"
+    providerConfig:
+      bar: baz
+    disabled: true
+  resources:
+  - name: "test-resource"
+    resourceRef:
+      apiVersion: v1
+      kind: ConfigMap
+      name: test-cm

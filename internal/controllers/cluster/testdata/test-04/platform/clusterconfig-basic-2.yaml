@@ -1,0 +1,12 @@
+apiVersion: gardener.clusters.openmcp.cloud/v1alpha1
+kind: ClusterConfig
+metadata:
+  name: basic-2
+  namespace: clusters
+spec:
+  patchOptions:
+    ignoreMissingOnRemove: true
+  patches:
+  - op: replace
+    path: /spec/seedName
+    value: "test-seed-altered"

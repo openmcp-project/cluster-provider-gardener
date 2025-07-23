@@ -8,6 +8,10 @@ spec:
   purposes:
   - test
   tenancy: Exclusive
+  clusterConfigs:
+  - name: basic-1
+  - name: basic-2
+  - name: ext-1
 status:
   observedGeneration: 1
   phase: Ready

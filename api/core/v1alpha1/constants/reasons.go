@@ -26,3 +26,7 @@ const (
 	// ReasonInternalError indicates that something went wrong internally.
 	ReasonInternalError = "InternalError"
 )
+
+const (
+	ReasonProjectAvailable = "ProjectAvailable"
+)

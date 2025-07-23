@@ -170,7 +170,7 @@ func (r *GardenerProviderConfigReconciler) handleCreateOrUpdate(ctx context.Cont
 		ProviderConfig: pc,
 	}
 
-	createCon := shared.GenerateCreateConditionFunc(&rr)
+	createCon := ctrlutils.GenerateCreateConditionFunc(&rr)
 
 	// ensure finalizer
 	if controllerutil.AddFinalizer(pc, providerv1alpha1.ProviderConfigFinalizer) {
@@ -279,7 +279,7 @@ func (r *GardenerProviderConfigReconciler) handleDelete(ctx context.Context, req
 		Conditions: []metav1.Condition{},
 	}
 
-	createCon := shared.GenerateCreateConditionFunc(&rr)
+	createCon := ctrlutils.GenerateCreateConditionFunc(&rr)
 
 	// delete profile
 	cp := &clustersv1alpha1.ClusterProfile{}

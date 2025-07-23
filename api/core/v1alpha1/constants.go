@@ -24,3 +24,11 @@ const (
 	// ClusterReferenceLabelEnvironment is the label on the shoot that holds the name of the environment that the responsible provider is in.
 	ClusterReferenceLabelEnvironment = GroupName + "/environment"
 )
+
+const (
+	ConditionMeta                                = "Meta"
+	AccessRequestConditionFoundClusterAndProfile = "FoundClusterAndProfile"
+	AccessRequestConditionSecretExistsAndIsValid = "SecretExistsAndIsValid"
+	AccessRequestConditionShootAccess            = "ShootAccess"
+	AccessRequestConditionCleanup                = "Cleanup"
+)

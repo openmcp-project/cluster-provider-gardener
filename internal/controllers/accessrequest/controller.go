@@ -9,6 +9,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -123,15 +124,28 @@ func (r *AccessRequestReconciler) reconcile(ctx context.Context, req reconcile.R
 	}
 
 	rr := ReconcileResult{
-		Object:    ar,
-		OldObject: ar.DeepCopy(),
+		Object:     ar,
+		OldObject:  ar.DeepCopy(),
+		Conditions: []metav1.Condition{},
 	}
 
 	c, p, rerr := r.getClusterAndProfile(ctx, ar)
 	if rerr != nil {
+		rr.Conditions = append(rr.Conditions, metav1.Condition{
+			Type:               providerv1alpha1.AccessRequestConditionFoundClusterAndProfile,
+			Status:             metav1.ConditionFalse,
+			ObservedGeneration: ar.Generation,
+			Reason:             rerr.Reason(),
+			Message:            rerr.Error(),
+		})
 		rr.ReconcileError = rerr
 		return rr
 	}
+	rr.Conditions = append(rr.Conditions, metav1.Condition{
+		Type:               providerv1alpha1.AccessRequestConditionFoundClusterAndProfile,
+		Status:             metav1.ConditionTrue,
+		ObservedGeneration: ar.Generation,
+	})
 
 	getShootAccess := func() (*shootAccess, errutils.ReasonableError) {
 		// get landscape
@@ -169,7 +183,7 @@ func (r *AccessRequestReconciler) reconcile(ctx context.Context, req reconcile.R
 	return rr
 }
 
-func (r *AccessRequestReconciler) handleCreateOrUpdate(ctx context.Context, req reconcile.Request, ac *clustersv1alpha1.AccessRequest, getShootAccess shootAccessGetter, enforceReconcile bool, rr ReconcileResult) ReconcileResult {
+func (r *AccessRequestReconciler) handleCreateOrUpdate(ctx context.Context, req reconcile.Request, ar *clustersv1alpha1.AccessRequest, getShootAccess shootAccessGetter, enforceReconcile bool, rr ReconcileResult) ReconcileResult {
 	log := logging.FromContextOrPanic(ctx)
 	log.Info("Creating/updating resource")
 
@@ -177,22 +191,35 @@ func (r *AccessRequestReconciler) handleCreateOrUpdate(ctx context.Context, req 
 		rr.Object.Status.Phase = clustersv1alpha1.REQUEST_PENDING
 	}
 
+	createCon := func(conType string, status metav1.ConditionStatus, reason, message string) {
+		rr.Conditions = append(rr.Conditions, metav1.Condition{
+			Type:               conType,
+			Status:             status,
+			ObservedGeneration: ar.Generation,
+			Reason:             reason,
+			Message:            message,
+		})
+	}
+
 	// ensure finalizer
-	if controllerutil.AddFinalizer(ac, providerv1alpha1.AccessRequestFinalizer) {
+	if controllerutil.AddFinalizer(ar, providerv1alpha1.AccessRequestFinalizer) {
 		log.Info("Adding finalizer")
-		if err := r.PlatformCluster.Client().Patch(ctx, ac, client.MergeFrom(rr.OldObject)); err != nil {
+		if err := r.PlatformCluster.Client().Patch(ctx, ar, client.MergeFrom(rr.OldObject)); err != nil {
 			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
+			createCon(providerv1alpha1.ConditionMeta, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 			return rr
 		}
 	}
+	createCon(providerv1alpha1.ConditionMeta, metav1.ConditionTrue, "", "")
 
 	// check if the request is already granted and nothing has changed
-	if ac.Status.Phase == clustersv1alpha1.REQUEST_GRANTED && ac.Status.ObservedGeneration == ac.Generation && !enforceReconcile {
+	if ar.Status.Phase == clustersv1alpha1.REQUEST_GRANTED && ar.Status.ObservedGeneration == ar.Generation && !enforceReconcile {
 		// check if the secret exists and is valid
 		s := &corev1.Secret{}
-		if err := r.PlatformCluster.Client().Get(ctx, ctrlutils.ObjectKey(ac.Status.SecretRef.Name, ac.Status.SecretRef.Namespace), s); err != nil {
+		if err := r.PlatformCluster.Client().Get(ctx, ctrlutils.ObjectKey(ar.Status.SecretRef.Name, ar.Status.SecretRef.Namespace), s); err != nil {
 			if !apierrors.IsNotFound(err) {
-				rr.ReconcileError = errutils.WithReason(fmt.Errorf("error getting secret '%s/%s': %w", ac.Status.SecretRef.Namespace, ac.Status.SecretRef.Name, err), clusterconst.ReasonPlatformClusterInteractionProblem)
+				rr.ReconcileError = errutils.WithReason(fmt.Errorf("error getting secret '%s/%s': %w", ar.Status.SecretRef.Namespace, ar.Status.SecretRef.Name, err), clusterconst.ReasonPlatformClusterInteractionProblem)
+				createCon(providerv1alpha1.AccessRequestConditionSecretExistsAndIsValid, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 				return rr
 			}
 			s = nil
@@ -205,12 +232,14 @@ func (r *AccessRequestReconciler) handleCreateOrUpdate(ctx context.Context, req 
 				tmp, err := strconv.ParseInt(creationTimestamp, 10, 64)
 				if err != nil {
 					rr.ReconcileError = errutils.WithReason(fmt.Errorf("error parsing creation timestamp from secret '%s/%s': %w", s.Namespace, s.Name, err), clusterconst.ReasonInternalError)
+					createCon(providerv1alpha1.AccessRequestConditionSecretExistsAndIsValid, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 					return rr
 				}
 				createdAt := time.Unix(tmp, 0)
 				tmp, err = strconv.ParseInt(expirationTimestamp, 10, 64)
 				if err != nil {
 					rr.ReconcileError = errutils.WithReason(fmt.Errorf("error parsing expiration timestamp from secret '%s/%s': %w", s.Namespace, s.Name, err), clusterconst.ReasonInternalError)
+					createCon(providerv1alpha1.AccessRequestConditionSecretExistsAndIsValid, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 					return rr
 				}
 				expiredAt := time.Unix(tmp, 0)
@@ -219,6 +248,7 @@ func (r *AccessRequestReconciler) handleCreateOrUpdate(ctx context.Context, req 
 					// the request is granted, the secret still exists and the token is still valid - nothing to do
 					log.Info("Request is already granted, secret still exists, token is still valid - nothing to do")
 					rr.Result.RequeueAfter = time.Until(tokenRenewalTime)
+					createCon(providerv1alpha1.AccessRequestConditionSecretExistsAndIsValid, metav1.ConditionTrue, "", "")
 					return rr
 				}
 			}
@@ -228,20 +258,26 @@ func (r *AccessRequestReconciler) handleCreateOrUpdate(ctx context.Context, req 
 	sac, rerr := getShootAccess()
 	if rerr != nil {
 		rr.ReconcileError = rerr
+		createCon(providerv1alpha1.AccessRequestConditionShootAccess, metav1.ConditionFalse, rerr.Reason(), rerr.Error())
 		return rr
 	}
 	getShootAccess = staticShootAccessGetter(sac)
+	createCon(providerv1alpha1.AccessRequestConditionShootAccess, metav1.ConditionTrue, "", "")
 
-	keep, rr := r.renewToken(ctx, ac, getShootAccess, rr)
+	keep, rr := r.renewToken(ctx, ar, getShootAccess, rr)
 	if rr.ReconcileError != nil {
+		createCon(providerv1alpha1.AccessRequestConditionSecretExistsAndIsValid, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 		return rr
 	}
+	createCon(providerv1alpha1.AccessRequestConditionSecretExistsAndIsValid, metav1.ConditionTrue, "", "")
 
 	// cleanup resources which might have been created by a previous version of this request
-	if rerr := r.cleanupResources(ctx, getShootAccess, keep, managedResourcesLabels(ac)); rerr != nil {
+	if rerr := r.cleanupResources(ctx, getShootAccess, keep, managedResourcesLabels(ar)); rerr != nil {
 		rr.ReconcileError = errutils.Errorf("error cleaning up resources on shoot cluster '%s/%s': %s", rerr, sac.Shoot.Namespace, sac.Shoot.Name, rerr.Error())
+		createCon(providerv1alpha1.AccessRequestConditionCleanup, metav1.ConditionFalse, rerr.Reason(), rerr.Error())
 		return rr
 	}
+	createCon(providerv1alpha1.AccessRequestConditionCleanup, metav1.ConditionTrue, "", "")
 
 	return rr
 }
@@ -253,26 +289,42 @@ func (r *AccessRequestReconciler) handleDelete(ctx context.Context, req reconcil
 	// no need to delete secret, since it has an owner reference
 	// delete resources on the shoot cluster
 
+	createCon := func(conType string, status metav1.ConditionStatus, reason, message string) {
+		rr.Conditions = append(rr.Conditions, metav1.Condition{
+			Type:               conType,
+			Status:             status,
+			ObservedGeneration: ar.Generation,
+			Reason:             reason,
+			Message:            message,
+		})
+	}
+
 	sac, rerr := getShootAccess()
 	if rerr != nil {
 		rr.ReconcileError = rerr
+		createCon(providerv1alpha1.AccessRequestConditionShootAccess, metav1.ConditionFalse, rerr.Reason(), rerr.Error())
 		return rr
 	}
 	getShootAccess = staticShootAccessGetter(sac)
+	createCon(providerv1alpha1.AccessRequestConditionShootAccess, metav1.ConditionTrue, "", "")
 
 	if rerr := r.cleanupResources(ctx, getShootAccess, nil, managedResourcesLabels(ar)); rerr != nil {
 		rr.ReconcileError = errutils.Errorf("error cleaning up resources on shoot cluster '%s/%s': %s", rerr, sac.Shoot.Namespace, sac.Shoot.Name, rerr.Error())
+		createCon(providerv1alpha1.AccessRequestConditionCleanup, metav1.ConditionFalse, rerr.Reason(), rerr.Error())
 		return rr
 	}
+	createCon(providerv1alpha1.AccessRequestConditionCleanup, metav1.ConditionTrue, "", "")
 
 	// remove finalizer
 	if controllerutil.RemoveFinalizer(ar, providerv1alpha1.AccessRequestFinalizer) {
 		log.Info("Removing finalizer")
 		if err := r.PlatformCluster.Client().Patch(ctx, ar, client.MergeFrom(rr.OldObject)); err != nil {
 			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
+			createCon(providerv1alpha1.ConditionMeta, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 			return rr
 		}
 	}
+	createCon(providerv1alpha1.ConditionMeta, metav1.ConditionTrue, "", "")
 	rr.Object = nil // this prevents the controller from trying to update an already deleted resource
 
 	return rr

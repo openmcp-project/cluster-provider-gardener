@@ -335,6 +335,7 @@ func (r *LandscapeReconciler) handleCreateOrUpdate(ctx context.Context, req reco
 					continue
 				}
 				prCon.Status = metav1.ConditionTrue
+				prCon.Reason = cconst.ReasonProjectAvailable
 				rr.Conditions = append(rr.Conditions, prCon)
 				log.Debug("Project found", "project", prName, "projectNamespace", prNamespace)
 				ls.Status.Projects = append(ls.Status.Projects, providerv1alpha1.ProjectData{

@@ -194,7 +194,7 @@ func (r *AccessRequestReconciler) handleCreateOrUpdate(ctx context.Context, req 
 		rr.Object.Status.Phase = clustersv1alpha1.REQUEST_PENDING
 	}
 
-	createCon := shared.GenerateCreateConditionFunc(&rr)
+	createCon := ctrlutils.GenerateCreateConditionFunc(&rr)
 
 	// ensure finalizer
 	if controllerutil.AddFinalizer(ar, providerv1alpha1.AccessRequestFinalizer) {
@@ -284,7 +284,7 @@ func (r *AccessRequestReconciler) handleDelete(ctx context.Context, req reconcil
 	// no need to delete secret, since it has an owner reference
 	// delete resources on the shoot cluster
 
-	createCon := shared.GenerateCreateConditionFunc(&rr)
+	createCon := ctrlutils.GenerateCreateConditionFunc(&rr)
 
 	sac, rerr := getShootAccess()
 	if rerr != nil {

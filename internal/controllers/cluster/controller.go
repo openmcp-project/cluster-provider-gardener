@@ -23,6 +23,7 @@ import (
 
 	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
 	clusterconst "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1/constants"
+	commonapi "github.com/openmcp-project/openmcp-operator/api/common"
 	openmcpconst "github.com/openmcp-project/openmcp-operator/api/constants"
 
 	providerv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
@@ -62,25 +63,13 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req reconcile.Request
 	return ctrlutils.NewOpenMCPStatusUpdaterBuilder[*clustersv1alpha1.Cluster]().
 		WithNestedStruct("Status").
 		WithPhaseUpdateFunc(func(obj *clustersv1alpha1.Cluster, rr ReconcileResult) (string, error) {
-			if rr.ReconcileError != nil {
-				if !obj.DeletionTimestamp.IsZero() {
-					return clustersv1alpha1.CLUSTER_PHASE_DELETING_ERROR, nil
-				}
-				return clustersv1alpha1.CLUSTER_PHASE_ERROR, nil
+			if rr.Object != nil && !rr.Object.DeletionTimestamp.IsZero() {
+				return commonapi.StatusPhaseTerminating, nil
 			}
-			if len(rr.Conditions) == 0 {
-				return clustersv1alpha1.CLUSTER_PHASE_UNKNOWN, nil
+			if conditions.AllConditionsHaveStatus(metav1.ConditionTrue, obj.Status.Conditions...) {
+				return commonapi.StatusPhaseReady, nil
 			}
-			if !obj.DeletionTimestamp.IsZero() {
-				return clustersv1alpha1.CLUSTER_PHASE_DELETING, nil
-			}
-			// check if all conditions are true
-			for _, con := range rr.Conditions {
-				if con.Status != metav1.ConditionTrue {
-					return clustersv1alpha1.CLUSTER_PHASE_NOT_READY, nil
-				}
-			}
-			return clustersv1alpha1.CLUSTER_PHASE_READY, nil
+			return commonapi.StatusPhaseProgressing, nil
 		}).
 		WithConditionUpdater(false).
 		WithConditionEvents(r.eventRecorder, conditions.EventPerChange).
@@ -145,10 +134,10 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 	landscape := r.GetLandscape(profile.ProviderConfig.Spec.LandscapeRef.Name)
 	if landscape == nil {
 		rr.ReconcileError = errutils.WithReason(fmt.Errorf("unknown landscape '%s'", profile.ProviderConfig.Spec.LandscapeRef.Name), cconst.ReasonUnknownLandscape)
-		createCon(providerv1alpha1.ClusterConditionLandscapeExists, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
+		createCon(providerv1alpha1.ConditionLandscapeManagement, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 		return rr
 	}
-	createCon(providerv1alpha1.ClusterConditionLandscapeExists, metav1.ConditionTrue, "", "")
+	createCon(providerv1alpha1.ConditionLandscapeManagement, metav1.ConditionTrue, "", "")
 
 	shoot, rerr := GetShoot(ctx, landscape.Cluster.Client(), profile.Project.Namespace, c)
 	if rerr != nil {

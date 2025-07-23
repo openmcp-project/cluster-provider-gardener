@@ -8,6 +8,7 @@ import (
 	"github.com/Masterminds/semver/v3"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -97,10 +98,10 @@ func (r *GardenerProviderConfigReconciler) Reconcile(ctx context.Context, req re
 			if rr.Object != nil && !rr.Object.DeletionTimestamp.IsZero() {
 				return commonapi.StatusPhaseTerminating, nil
 			}
-			if rr.ReconcileError != nil {
-				return commonapi.StatusPhaseProgressing, nil
+			if conditions.AllConditionsHaveStatus(metav1.ConditionTrue, obj.Status.Conditions...) {
+				return commonapi.StatusPhaseReady, nil
 			}
-			return commonapi.StatusPhaseReady, nil
+			return commonapi.StatusPhaseProgressing, nil
 		}).
 		WithConditionUpdater(false).
 		WithConditionEvents(r.eventRecorder, conditions.EventPerChange).
@@ -161,11 +162,22 @@ func (r *GardenerProviderConfigReconciler) handleCreateOrUpdate(ctx context.Cont
 	log.Info("Creating/updating resource")
 
 	rr := ReconcileResult{
-		Object:    pc,
-		OldObject: pc.DeepCopy(),
+		Object:     pc,
+		OldObject:  pc.DeepCopy(),
+		Conditions: []metav1.Condition{},
 	}
 	p := &shared.Profile{
 		ProviderConfig: pc,
+	}
+
+	createCon := func(conType string, status metav1.ConditionStatus, reason, message string) {
+		rr.Conditions = append(rr.Conditions, metav1.Condition{
+			Type:               conType,
+			Status:             status,
+			ObservedGeneration: pc.Generation,
+			Reason:             reason,
+			Message:            message,
+		})
 	}
 
 	// ensure finalizer
@@ -173,14 +185,17 @@ func (r *GardenerProviderConfigReconciler) handleCreateOrUpdate(ctx context.Cont
 		log.Info("Adding finalizer")
 		if err := r.PlatformCluster.Client().Patch(ctx, pc, client.MergeFrom(rr.OldObject)); err != nil {
 			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
+			createCon(providerv1alpha1.ConditionMeta, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 			return rr, nil
 		}
 	}
+	createCon(providerv1alpha1.ConditionMeta, metav1.ConditionTrue, "", "")
 
 	// check if Landscape is known
 	ls := r.GetLandscape(pc.Spec.LandscapeRef.Name)
 	if ls == nil {
 		rr.ReconcileError = errutils.WithReason(fmt.Errorf("Landscape '%s' not found", pc.Spec.LandscapeRef.Name), cconst.ReasonUnknownLandscape) // nolint:staticcheck
+		createCon(providerv1alpha1.ConditionLandscapeManagement, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 		return rr, nil
 	}
 
@@ -194,15 +209,18 @@ func (r *GardenerProviderConfigReconciler) handleCreateOrUpdate(ctx context.Cont
 	}
 	if pData == nil {
 		rr.ReconcileError = errutils.WithReason(fmt.Errorf("Landscape '%s' can not manage the project '%s'", pc.Spec.LandscapeRef.Name, pc.Spec.Project), cconst.ReasonConfigurationProblem) // nolint:staticcheck
+		createCon(providerv1alpha1.ConditionLandscapeManagement, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 		return rr, nil
 	}
 	p.Project = *pData.DeepCopy()
+	createCon(providerv1alpha1.ConditionLandscapeManagement, metav1.ConditionTrue, "", "")
 
 	// fetch CloudProfile
 	p.SupportedK8sVersions = []shared.K8sVersion{}
 	cpName := pc.CloudProfile()
 	if cpName == "" {
 		rr.ReconcileError = errutils.WithReason(fmt.Errorf("unable to extract CloudProfile name from ShootTemplate"), cconst.ReasonConfigurationProblem)
+		createCon(providerv1alpha1.ProviderConfigConditionCloudProfile, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 		return rr, nil
 	}
 	cp := &gardenv1beta1.CloudProfile{}
@@ -212,6 +230,7 @@ func (r *GardenerProviderConfigReconciler) handleCreateOrUpdate(ctx context.Cont
 		} else {
 			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error while fetching CloudProfile '%s' from landscape '%s': %v", cpName, pc.Spec.LandscapeRef.Name, err), cconst.ReasonGardenClusterInteractionProblem)
 		}
+		createCon(providerv1alpha1.ProviderConfigConditionCloudProfile, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 		return rr, nil
 	}
 
@@ -250,8 +269,10 @@ func (r *GardenerProviderConfigReconciler) handleCreateOrUpdate(ctx context.Cont
 		return nil
 	}); err != nil {
 		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error creating/updating ClusterProfile '%s' on onboarding cluster: %w", actual.Name, err), clusterconst.ReasonPlatformClusterInteractionProblem)
+		createCon(providerv1alpha1.ProviderConfigConditionClusterProfileManagement, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 		return rr, nil
 	}
+	createCon(providerv1alpha1.ProviderConfigConditionClusterProfileManagement, metav1.ConditionTrue, "", "")
 
 	return rr, p
 }
@@ -261,18 +282,31 @@ func (r *GardenerProviderConfigReconciler) handleDelete(ctx context.Context, req
 	log.Info("Deleting resource")
 
 	rr := ReconcileResult{
-		Object:    pc,
-		OldObject: pc.DeepCopy(),
+		Object:     pc,
+		OldObject:  pc.DeepCopy(),
+		Conditions: []metav1.Condition{},
 	}
 
-	// delete profiles
+	createCon := func(conType string, status metav1.ConditionStatus, reason, message string) {
+		rr.Conditions = append(rr.Conditions, metav1.Condition{
+			Type:               conType,
+			Status:             status,
+			ObservedGeneration: pc.Generation,
+			Reason:             reason,
+			Message:            message,
+		})
+	}
+
+	// delete profile
 	cp := &clustersv1alpha1.ClusterProfile{}
 	cp.SetName(shared.ProfileK8sName(pc.Name))
 	log.Info("Deleting ClusterProfile", "profileName", cp.Name)
 	if err := r.PlatformCluster.Client().Delete(ctx, cp); err != nil {
-		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error deleting profiles: %w", err), clusterconst.ReasonPlatformClusterInteractionProblem)
+		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error deleting profile '%s': %w", cp.Name, err), clusterconst.ReasonPlatformClusterInteractionProblem)
+		createCon(providerv1alpha1.ProviderConfigConditionClusterProfileManagement, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 		return rr
 	}
+	createCon(providerv1alpha1.ProviderConfigConditionClusterProfileManagement, metav1.ConditionTrue, "", "")
 	log.Debug("Profile deleted", "profileName", cp.Name)
 
 	// remove finalizer
@@ -280,9 +314,11 @@ func (r *GardenerProviderConfigReconciler) handleDelete(ctx context.Context, req
 		log.Info("Removing finalizer")
 		if err := r.PlatformCluster.Client().Patch(ctx, pc, client.MergeFrom(rr.OldObject)); err != nil {
 			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error patching finalizer on resource '%s': %w", req.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)
+			createCon(providerv1alpha1.ConditionMeta, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 			return rr
 		}
 	}
+	createCon(providerv1alpha1.ConditionMeta, metav1.ConditionTrue, "", "")
 	rr.Object = nil // this prevents the controller from trying to update an already deleted resource
 
 	return rr

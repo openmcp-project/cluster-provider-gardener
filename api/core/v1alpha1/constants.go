@@ -26,13 +26,16 @@ const (
 )
 
 const (
-	ConditionMeta = "Meta"
+	ConditionMeta                = "Meta"
+	ConditionLandscapeManagement = "LandscapeManagement"
 
 	AccessRequestConditionFoundClusterAndProfile = "FoundClusterAndProfile"
 	AccessRequestConditionSecretExistsAndIsValid = "SecretExistsAndIsValid"
 	AccessRequestConditionShootAccess            = "ShootAccess"
 	AccessRequestConditionCleanup                = "Cleanup"
 
-	ClusterConditionLandscapeExists = "LandscapeExists"
 	ClusterConditionShootManagement = "ShootManagement"
+
+	ProviderConfigConditionCloudProfile             = "CloudProfile"
+	ProviderConfigConditionClusterProfileManagement = "ClusterProfileManagement"
 )

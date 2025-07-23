@@ -191,15 +191,7 @@ func (r *AccessRequestReconciler) handleCreateOrUpdate(ctx context.Context, req 
 		rr.Object.Status.Phase = clustersv1alpha1.REQUEST_PENDING
 	}
 
-	createCon := func(conType string, status metav1.ConditionStatus, reason, message string) {
-		rr.Conditions = append(rr.Conditions, metav1.Condition{
-			Type:               conType,
-			Status:             status,
-			ObservedGeneration: ar.Generation,
-			Reason:             reason,
-			Message:            message,
-		})
-	}
+	createCon := shared.GenerateCreateConditionFunc(&rr)
 
 	// ensure finalizer
 	if controllerutil.AddFinalizer(ar, providerv1alpha1.AccessRequestFinalizer) {
@@ -289,15 +281,7 @@ func (r *AccessRequestReconciler) handleDelete(ctx context.Context, req reconcil
 	// no need to delete secret, since it has an owner reference
 	// delete resources on the shoot cluster
 
-	createCon := func(conType string, status metav1.ConditionStatus, reason, message string) {
-		rr.Conditions = append(rr.Conditions, metav1.Condition{
-			Type:               conType,
-			Status:             status,
-			ObservedGeneration: ar.Generation,
-			Reason:             reason,
-			Message:            message,
-		})
-	}
+	createCon := shared.GenerateCreateConditionFunc(&rr)
 
 	sac, rerr := getShootAccess()
 	if rerr != nil {
@@ -324,7 +308,6 @@ func (r *AccessRequestReconciler) handleDelete(ctx context.Context, req reconcil
 			return rr
 		}
 	}
-	createCon(providerv1alpha1.ConditionMeta, metav1.ConditionTrue, "", "")
 	rr.Object = nil // this prevents the controller from trying to update an already deleted resource
 
 	return rr

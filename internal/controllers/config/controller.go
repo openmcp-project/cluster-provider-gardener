@@ -170,15 +170,7 @@ func (r *GardenerProviderConfigReconciler) handleCreateOrUpdate(ctx context.Cont
 		ProviderConfig: pc,
 	}
 
-	createCon := func(conType string, status metav1.ConditionStatus, reason, message string) {
-		rr.Conditions = append(rr.Conditions, metav1.Condition{
-			Type:               conType,
-			Status:             status,
-			ObservedGeneration: pc.Generation,
-			Reason:             reason,
-			Message:            message,
-		})
-	}
+	createCon := shared.GenerateCreateConditionFunc(&rr)
 
 	// ensure finalizer
 	if controllerutil.AddFinalizer(pc, providerv1alpha1.ProviderConfigFinalizer) {
@@ -287,15 +279,7 @@ func (r *GardenerProviderConfigReconciler) handleDelete(ctx context.Context, req
 		Conditions: []metav1.Condition{},
 	}
 
-	createCon := func(conType string, status metav1.ConditionStatus, reason, message string) {
-		rr.Conditions = append(rr.Conditions, metav1.Condition{
-			Type:               conType,
-			Status:             status,
-			ObservedGeneration: pc.Generation,
-			Reason:             reason,
-			Message:            message,
-		})
-	}
+	createCon := shared.GenerateCreateConditionFunc(&rr)
 
 	// delete profile
 	cp := &clustersv1alpha1.ClusterProfile{}
@@ -318,7 +302,6 @@ func (r *GardenerProviderConfigReconciler) handleDelete(ctx context.Context, req
 			return rr
 		}
 	}
-	createCon(providerv1alpha1.ConditionMeta, metav1.ConditionTrue, "", "")
 	rr.Object = nil // this prevents the controller from trying to update an already deleted resource
 
 	return rr

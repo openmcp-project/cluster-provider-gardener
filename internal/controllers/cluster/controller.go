@@ -121,15 +121,7 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 		Conditions: []metav1.Condition{},
 	}
 
-	createCon := func(conType string, status metav1.ConditionStatus, reason, message string) {
-		rr.Conditions = append(rr.Conditions, metav1.Condition{
-			Type:               conType,
-			Status:             status,
-			ObservedGeneration: c.Generation,
-			Reason:             reason,
-			Message:            message,
-		})
-	}
+	createCon := shared.GenerateCreateConditionFunc(&rr)
 
 	landscape := r.GetLandscape(profile.ProviderConfig.Spec.LandscapeRef.Name)
 	if landscape == nil {
@@ -282,7 +274,6 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 				return rr
 			}
 		}
-		createCon(providerv1alpha1.ConditionMeta, metav1.ConditionTrue, "", "")
 		rr.Object = nil // this prevents the controller from trying to update an already deleted resource
 
 	}

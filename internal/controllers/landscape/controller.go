@@ -206,15 +206,7 @@ func (r *LandscapeReconciler) handleCreateOrUpdate(ctx context.Context, req reco
 		Name: req.Name,
 	}
 
-	createCon := func(conType string, status metav1.ConditionStatus, reason, message string) {
-		rr.Conditions = append(rr.Conditions, metav1.Condition{
-			Type:               conType,
-			Status:             status,
-			ObservedGeneration: ls.Generation,
-			Reason:             reason,
-			Message:            message,
-		})
-	}
+	createCon := shared.GenerateCreateConditionFunc(&rr)
 
 	// ensure finalizer
 	if controllerutil.AddFinalizer(ls, providerv1alpha1.LandscapeFinalizer) {
@@ -388,15 +380,7 @@ func (r *LandscapeReconciler) handleDelete(ctx context.Context, req reconcile.Re
 		Name: req.Name,
 	}
 
-	createCon := func(conType string, status metav1.ConditionStatus, reason, message string) {
-		rr.Conditions = append(rr.Conditions, metav1.Condition{
-			Type:               conType,
-			Status:             status,
-			ObservedGeneration: ls.Generation,
-			Reason:             reason,
-			Message:            message,
-		})
-	}
+	createCon := shared.GenerateCreateConditionFunc(&rr)
 
 	// check if the landscape is still in use by any provider configs
 	referencingProviderConfigs := sets.New[string]()
@@ -424,7 +408,6 @@ func (r *LandscapeReconciler) handleDelete(ctx context.Context, req reconcile.Re
 			return rr, nil
 		}
 	}
-	createCon(providerv1alpha1.ConditionMeta, metav1.ConditionTrue, "", "")
 	rr.Object = nil // this prevents the controller from trying to update an already deleted resource
 
 	return rr, nil

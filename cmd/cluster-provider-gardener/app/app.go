@@ -105,8 +105,3 @@ func (o *SharedOptions) Complete() error {
 
 	return nil
 }
-
-type Clusters struct {
-	Onboarding *clusters.Cluster
-	Platform   *clusters.Cluster
-}

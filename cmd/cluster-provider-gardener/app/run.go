@@ -24,7 +24,6 @@ import (
 	"github.com/openmcp-project/controller-utils/pkg/logging"
 	"github.com/openmcp-project/controller-utils/pkg/threads"
 
-	// clusterscheme "github.com/openmcp-project/cluster-provider-gardener/api/clusters/install"
 	providerscheme "github.com/openmcp-project/cluster-provider-gardener/api/install"
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers"
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/accessrequest"

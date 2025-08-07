@@ -3,8 +3,8 @@ module github.com/openmcp-project/cluster-provider-gardener/api
 go 1.24.6
 
 require (
-	github.com/openmcp-project/controller-utils v0.13.1
-	github.com/openmcp-project/controller-utils/api v0.13.1
+	github.com/openmcp-project/controller-utils v0.16.0
+	github.com/openmcp-project/controller-utils/api v0.16.0
 	github.com/openmcp-project/openmcp-operator/api v0.9.1
 	k8s.io/api v0.33.3
 	k8s.io/apiextensions-apiserver v0.33.3
@@ -35,7 +35,7 @@ require (
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.62.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
-	github.com/spf13/pflag v1.0.6 // indirect
+	github.com/spf13/pflag v1.0.7 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
@@ -69,5 +69,5 @@ require (
 	sigs.k8s.io/controller-runtime v0.21.0
 	sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.7.0 // indirect
-	sigs.k8s.io/yaml v1.5.0 // indirect
+	sigs.k8s.io/yaml v1.6.0 // indirect
 )

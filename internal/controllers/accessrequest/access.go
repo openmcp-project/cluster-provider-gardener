@@ -483,6 +483,9 @@ func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clus
 		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error creating/updating OpenIDConnect resource '%s' in shoot '%s/%s': %w", oidc.Name, sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonShootClusterInteractionProblem)
 		return nil, rr
 	}
+	if oidc.GroupVersionKind().Kind == "" {
+		oidc.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("OpenIDConnect"))
+	}
 	keep = append(keep, oidc)
 
 	errs := errutils.NewReasonableErrorList()

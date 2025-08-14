@@ -100,6 +100,9 @@ func (r *AccessRequestReconciler) cleanupResources(ctx context.Context, getShoot
 		return rerr
 	}
 
+	if err := r.cleanupOpenIDConnectResources(ctx, sac, selector, keep); err != nil {
+		return err
+	}
 	if err := r.cleanupRoleBindings(ctx, sac, selector, keep); err != nil {
 		return err
 	}
@@ -283,6 +286,40 @@ func (r *AccessRequestReconciler) cleanupServiceAccounts(ctx context.Context, sa
 				log.Debug("ServiceAccount not found", "resourceName", sa.Name, "resourceNamespace", sa.Namespace)
 			} else {
 				errs.Append(errutils.WithReason(fmt.Errorf("error deleting ServiceAccount '%s/%s': %w", sa.Namespace, sa.Name, err), cconst.ReasonShootClusterInteractionProblem))
+			}
+		}
+	}
+	return errs.Aggregate()
+}
+
+func (r *AccessRequestReconciler) cleanupOpenIDConnectResources(ctx context.Context, sac *shootAccess, selector client.MatchingLabels, keep []client.Object) errutils.ReasonableError {
+	log := logging.FromContextOrPanic(ctx)
+	log.Debug("Cleaning up OpenIDConnect resources")
+
+	errs := errutils.NewReasonableErrorList()
+	oidcs := &oidcv1alpha1.OpenIDConnectList{}
+	if err := sac.Client.List(ctx, oidcs, selector); err != nil {
+		errs.Append(errutils.WithReason(fmt.Errorf("error listing OpenIDConnect resources: %w", err), cconst.ReasonShootClusterInteractionProblem))
+		return errs.Aggregate()
+	}
+	for _, oidc := range oidcs.Items {
+		keepThis := false
+		for _, k := range keep {
+			if k.GetName() == oidc.Name && k.GetObjectKind().GroupVersionKind().Kind == "OpenIDConnect" {
+				log.Debug("Keeping OpenIDConnect resource", "resourceName", oidc.Name)
+				keepThis = true
+				break
+			}
+		}
+		if keepThis {
+			continue
+		}
+		log.Debug("Deleting OpenIDConnect resource", "resourceName", oidc.Name)
+		if err := sac.Client.Delete(ctx, &oidc); err != nil {
+			if apierrors.IsNotFound(err) {
+				log.Debug("OpenIDConnect resource not found", "resourceName", oidc.Name)
+			} else {
+				errs.Append(errutils.WithReason(fmt.Errorf("error deleting OpenIDConnect resource '%s': %w", oidc.Name, err), cconst.ReasonShootClusterInteractionProblem))
 			}
 		}
 	}

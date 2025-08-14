@@ -42,12 +42,13 @@ const (
 
 var providerScheme = install.InstallProviderAPIs(runtime.NewScheme())
 var gardenScheme = install.InstallGardenerAPIs(runtime.NewScheme())
+var shootScheme = install.InstallShootAPIs(runtime.NewScheme())
 
 func defaultTestSetup(testDirPathSegments ...string) (*accessrequest.AccessRequestReconciler, *testutils.ComplexEnvironment) {
 	env := testutils.NewComplexEnvironmentBuilder().
 		WithFakeClient(platformCluster, providerScheme).
 		WithFakeClient(gardenCluster, gardenScheme).
-		WithFakeClient(shootCluster, nil).
+		WithFakeClient(shootCluster, shootScheme).
 		WithInitObjectPath(platformCluster, append(testDirPathSegments, "platform")...).
 		WithInitObjectPath(gardenCluster, append(testDirPathSegments, "garden")...).
 		WithFakeClientBuilderCall(gardenCluster, "WithInterceptorFuncs", interceptor.Funcs{

@@ -1,0 +1,50 @@
+apiVersion: clusters.openmcp.cloud/v1alpha1
+kind: AccessRequest
+metadata:
+  name: my-access-oidc
+  namespace: foo
+spec:
+  clusterRef:
+    name: advanced
+    namespace: clusters
+  permissions:
+  - name: foo
+    rules:
+    - apiGroups:
+      - "*"
+      resources:
+      - "*"
+      verbs:
+      - "*"
+  - name: bar
+    namespace: foo
+    rules:
+    - apiGroups:
+      - "*"
+      resources:
+      - "*"
+      verbs:
+      - "*"
+    
+  oidcProvider:
+    name: my-oidc-provider
+    issuer: https://oidc.example.com
+    clientID: my-client-id
+    usernamePrefix: "my-user:"
+    groupsPrefix: "my-group"
+    usernameClaim: "user_claim"
+    groupsClaim: "group_claim"
+    extraScopes:
+    - foobar
+    roleBindings:
+    - subjects:
+      - kind: User
+        name: foo
+      - kind: Group
+        name: bar
+      roleRefs:
+      - kind: ClusterRole
+        name: foo
+      - kind: Role
+        name: bar
+        namespace: foo

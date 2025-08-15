@@ -15,7 +15,8 @@ spec:
       - "*"
       verbs:
       - "*"
-  - namespace: foo
+  - name: bar
+    namespace: foo
     rules:
     - apiGroups:
       - "*"

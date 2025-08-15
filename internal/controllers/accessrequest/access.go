@@ -347,7 +347,7 @@ func (r *AccessRequestReconciler) renewToken(ctx context.Context, ar *clustersv1
 	keep := []client.Object{}
 
 	// ensure service account
-	name := ctrlutils.K8sNameHash(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name)
+	name := ctrlutils.K8sNameUUIDUnsafe(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name)
 	sa, err := clusteraccess.EnsureServiceAccount(ctx, sac.Client, name, shared.AccessRequestServiceAccountNamespace(), expectedLabels...)
 	if err != nil {
 		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error ensuring service account '%s/%s' in shoot '%s/%s': %w", shared.AccessRequestServiceAccountNamespace(), name, sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonShootClusterInteractionProblem)
@@ -364,7 +364,7 @@ func (r *AccessRequestReconciler) renewToken(ctx context.Context, ar *clustersv1
 	for i, permission := range ar.Spec.Permissions {
 		roleName := permission.Name
 		if roleName == "" {
-			roleName = fmt.Sprintf("openmcp:%s:%d", ctrlutils.K8sNameHash(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name), i)
+			roleName = fmt.Sprintf("openmcp:%s:%d", ctrlutils.K8sNameUUIDUnsafe(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name), i)
 		}
 		if permission.Namespace != "" {
 			// ensure role + binding
@@ -469,7 +469,7 @@ func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clus
 	// create or update OpenIDConnect resource
 	oidc := &oidcv1alpha1.OpenIDConnect{}
 	oidcConfig := ar.Spec.OIDCProvider.Default()
-	oidc.Name = ctrlutils.K8sNameHash(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name)
+	oidc.Name = ctrlutils.K8sNameUUIDUnsafe(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name)
 	if _, err := controllerutil.CreateOrUpdate(ctx, sac.Client, oidc, func() error {
 		if oidc.Labels == nil {
 			oidc.Labels = make(map[string]string, len(expectedLabels))
@@ -499,7 +499,7 @@ func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clus
 		for i, permission := range ar.Spec.Permissions {
 			roleName := permission.Name
 			if roleName == "" {
-				roleName = fmt.Sprintf("openmcp:%s:%d", ctrlutils.K8sNameHash(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name), i)
+				roleName = fmt.Sprintf("openmcp:%s:%d", ctrlutils.K8sNameUUIDUnsafe(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name), i)
 			}
 			if permission.Namespace != "" {
 				log.Debug("Ensuring Role", "roleName", roleName, "namespace", permission.Namespace)
@@ -544,7 +544,7 @@ func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clus
 			})
 			// ensure (Cluster)RoleBindings
 			for j, roleRef := range roleBinding.RoleRefs {
-				roleBindingName := fmt.Sprintf("openmcp:%s:%d:%d", ctrlutils.K8sNameHash(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name), i, j)
+				roleBindingName := fmt.Sprintf("openmcp:%s:%d:%d", ctrlutils.K8sNameUUIDUnsafe(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name), i, j)
 				if roleRef.Kind == "Role" {
 					log.Debug("Ensuring RoleBinding", "roleBindingName", roleBindingName, "namespace", roleRef.Namespace)
 					rb, err := clusteraccess.EnsureRoleBinding(ctx, sac.Client, roleBindingName, roleRef.Namespace, roleRef.Name, subjects, expectedLabels...)

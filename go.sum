@@ -27,8 +27,8 @@ github.com/evanphx/json-patch/v5 v5.9.11 h1:/8HVnzMq13/3x9TPvjG08wUGqBTmZBsCWzjT
 github.com/evanphx/json-patch/v5 v5.9.11/go.mod h1:3j+LviiESTElxA4p3EMKAB9HXj3/XEtnUf6OZxqIQTM=
 github.com/felixge/httpsnoop v1.0.4 h1:NFTV2Zj1bL4mc9sqWACXbQFVBBg2W3GPvqp8/ESS2Wg=
 github.com/felixge/httpsnoop v1.0.4/go.mod h1:m8KPJKqk1gH5J9DgRY2ASl2lWCfGKXixSwevea8zH2U=
-github.com/fluxcd/pkg/apis/kustomize v1.10.0 h1:47EeSzkQvlQZdH92vHMe2lK2iR8aOSEJq95avw5idts=
-github.com/fluxcd/pkg/apis/kustomize v1.10.0/go.mod h1:UsqMV4sqNa1Yg0pmTsdkHRJr7bafBOENIJoAN+3ezaQ=
+github.com/fluxcd/pkg/apis/kustomize v1.11.0 h1:0IzDgxZkc4v+5SDNCvgZhfwfkdkQLPXCner7TNaJFWE=
+github.com/fluxcd/pkg/apis/kustomize v1.11.0/go.mod h1:j302mJGDww8cn9qvMsRQ0LJ1HPAPs/IlX7CSsoJV7BI=
 github.com/fsnotify/fsnotify v1.8.0 h1:dAwr6QBTBZIkG8roQaJjGof0pp0EeF+tNV7YBP3F/8M=
 github.com/fsnotify/fsnotify v1.8.0/go.mod h1:8jBTzvmWwFyi3Pb8djgCCO5IBqzKJ/Jwo8TRcHyHii0=
 github.com/fxamacker/cbor/v2 v2.7.0 h1:iM5WgngdRBanHcxugY4JySA0nk1wZorNOpTgCMedv5E=
@@ -99,8 +99,8 @@ github.com/onsi/ginkgo/v2 v2.23.4 h1:ktYTpKJAVZnDT4VjxSbiBenUjmlL/5QkBEocaWXiQus
 github.com/onsi/ginkgo/v2 v2.23.4/go.mod h1:Bt66ApGPBFzHyR+JO10Zbt0Gsp4uWxu5mIOTusL46e8=
 github.com/onsi/gomega v1.38.0 h1:c/WX+w8SLAinvuKKQFh77WEucCnPk4j2OTUr7lt7BeY=
 github.com/onsi/gomega v1.38.0/go.mod h1:OcXcwId0b9QsE7Y49u+BTrL4IdKOBOKnD6VQNTJEB6o=
-github.com/openmcp-project/controller-utils v0.17.0 h1:dZsMX2ur/b1759+aKJmcJRdkOVJ131czE6AtIGKX1dE=
-github.com/openmcp-project/controller-utils v0.17.0/go.mod h1:RgatwIEftAvHbhd3FIyXb2Sm0N6/AK8A2aF8zBxK930=
+github.com/openmcp-project/controller-utils v0.17.1-0.20250815092130-15c510e7eb87 h1:PB/IG0h2fQNRdD5RfQprRkG2195XZA8fNVlLwDaj078=
+github.com/openmcp-project/controller-utils v0.17.1-0.20250815092130-15c510e7eb87/go.mod h1:PCxwUUek1PJA1/NHxFW9xFe5h+9erCyAgt+SkDrL4xk=
 github.com/openmcp-project/controller-utils/api v0.17.0 h1:8+eUyiob+z7B+FDo682J6iEM0vVziDLXz2xLmtmbZ24=
 github.com/openmcp-project/controller-utils/api v0.17.0/go.mod h1:vJLFwuqyElkiP0DjkWYRSH0DjCxWrM0+uiS7ck1ncUs=
 github.com/openmcp-project/openmcp-operator/api v0.10.1-0.20250812144603-11901e990a06 h1:GG1o7RWI53PQLx3n+Ch4pQ3MZspGvyTGqqZ6mdJ4gB0=

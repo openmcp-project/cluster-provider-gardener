@@ -67,8 +67,7 @@ type ShootSpec struct {
 	Addons *Addons `json:"addons,omitempty" protobuf:"bytes,1,opt,name=addons"`
 	// CloudProfileName is a name of a CloudProfile object.
 	// Deprecated: This field will be removed in a future version of Gardener. Use `CloudProfile` instead.
-	// Until Kubernetes v1.33, this field is synced with the `CloudProfile` field.
-	// Starting with Kubernetes v1.34, this field is set to empty string and must not be provided anymore.
+	// Until removed, this field is synced with the `CloudProfile` field.
 	// +optional
 	CloudProfileName *string `json:"cloudProfileName,omitempty" protobuf:"bytes,2,opt,name=cloudProfileName"`
 	// DNS contains information about the DNS settings of the Shoot.
@@ -811,16 +810,6 @@ type VerticalPodAutoscaler struct {
 	// (default: 8)
 	// +optional
 	MemoryAggregationIntervalCount *int64 `json:"memoryAggregationIntervalCount,omitempty" protobuf:"varint,18,opt,name=memoryAggregationIntervalCount"`
-	// FeatureGates contains information about enabled feature gates.
-	// +optional
-	FeatureGates map[string]bool `json:"featureGates,omitempty" protobuf:"bytes,19,rep,name=featureGates"`
-	// MaxAllowed specifies the global maximum allowed (maximum amount of resources) that vpa-recommender can recommend for a container.
-	// The VerticalPodAutoscaler-level maximum allowed takes precedence over the global maximum allowed.
-	// For more information, see https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/docs/examples.md#specifying-global-maximum-allowed-resources-to-prevent-pods-from-being-unschedulable.
-	//
-	// Defaults to nil (no maximum).
-	// +optional
-	MaxAllowed corev1.ResourceList `json:"maxAllowed,omitempty" protobuf:"bytes,20,rep,name=maxAllowed,casttype=k8s.io/api/core/v1.ResourceList,castkey=k8s.io/api/core/v1.ResourceName"`
 }
 
 const (
@@ -864,9 +853,6 @@ var (
 )
 
 // KubernetesConfig contains common configuration fields for the control plane components.
-//
-// This is a legacy type that should not be used in new API fields or resources.
-// Instead of embedding this type, consider using inline map for feature gates definitions.
 type KubernetesConfig struct {
 	// FeatureGates contains information about enabled feature gates.
 	// +optional
@@ -1540,7 +1526,7 @@ type Networking struct {
 	// Services is the CIDR of the service network. This field is immutable.
 	// +optional
 	Services *string `json:"services,omitempty" protobuf:"bytes,5,opt,name=services"`
-	// IPFamilies specifies the IP protocol versions to use for shoot networking.
+	// IPFamilies specifies the IP protocol versions to use for shoot networking. This field is immutable.
 	// See https://github.com/gardener/gardener/blob/master/docs/development/ipv6.md.
 	// Defaults to ["IPv4"].
 	// +optional
@@ -1908,12 +1894,12 @@ type SSHAccess struct {
 var (
 	// DefaultWorkerMaxSurge is the default value for Worker MaxSurge.
 	DefaultWorkerMaxSurge = intstr.FromInt32(1)
-	// DefaultAutoInPlaceWorkerMaxSurge is the default value for AutoInPlaceUpdate Worker MaxSurge.
-	DefaultAutoInPlaceWorkerMaxSurge = intstr.FromInt32(0)
+	// DefaultInPlaceWorkerMaxSurge is the default value for In-Place Worker MaxSurge.
+	DefaultInPlaceWorkerMaxSurge = intstr.FromInt32(0)
 	// DefaultWorkerMaxUnavailable is the default value for Worker MaxUnavailable.
 	DefaultWorkerMaxUnavailable = intstr.FromInt32(0)
-	// DefaultAutoInPlaceWorkerMaxUnavailable is the default value for AutoInPlaceUpdate Worker MaxUnavailable.
-	DefaultAutoInPlaceWorkerMaxUnavailable = intstr.FromInt32(1)
+	// DefaultInPlaceWorkerMaxUnavailable is the default value for In-Place Worker MaxUnavailable.
+	DefaultInPlaceWorkerMaxUnavailable = intstr.FromInt32(1)
 	// DefaultWorkerSystemComponentsAllow is the default value for Worker AllowSystemComponents
 	DefaultWorkerSystemComponentsAllow = true
 )
@@ -2019,6 +2005,9 @@ const (
 	// ShootCRDsWithProblematicConversionWebhooks is a constant for a condition type indicating that the Shoot cluster has
 	// CRDs with conversion webhooks and multiple stored versions which can break the reconciliation flow of the cluster.
 	ShootCRDsWithProblematicConversionWebhooks ConditionType = "CRDsWithProblematicConversionWebhooks"
+	// ShootAPIServerProxyUsesHTTPProxy is a constant for a constraint type indicating that the Shoot cluster uses
+	// the new HTTP proxy connection method for in-cluster API server traffic (See https://github.com/gardener/gardener/blob/master/docs/proposals/30-apiserver-proxy.md)
+	ShootAPIServerProxyUsesHTTPProxy ConditionType = "APIServerProxyUsesHTTPProxy"
 	// ShootManualInPlaceWorkersUpdated is a constant for a condition type indicating that the Shoot cluster does not have
 	// any worker pools with update strategy "ManualInPlaceUpdate" and pending update.
 	ShootManualInPlaceWorkersUpdated ConditionType = "ManualInPlaceWorkersUpdated"

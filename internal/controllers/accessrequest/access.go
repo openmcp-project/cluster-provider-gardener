@@ -362,7 +362,10 @@ func (r *AccessRequestReconciler) renewToken(ctx context.Context, ar *clustersv1
 	subjects := []rbacv1.Subject{{Kind: rbacv1.ServiceAccountKind, Name: sa.Name, Namespace: sa.Namespace}}
 	errs := errutils.NewReasonableErrorList()
 	for i, permission := range ar.Spec.Permissions {
-		roleName := fmt.Sprintf("openmcp:%s:%d", ctrlutils.K8sNameHash(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name), i)
+		roleName := permission.Name
+		if roleName == "" {
+			roleName = fmt.Sprintf("openmcp:%s:%d", ctrlutils.K8sNameHash(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name), i)
+		}
 		if permission.Namespace != "" {
 			// ensure role + binding
 			log.Debug("Ensuring Role and RoleBinding", "roleName", roleName, "namespace", permission.Namespace)
@@ -494,7 +497,10 @@ func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clus
 		log.Debug("No permissions specified, skipping (Cluster)Role creation")
 	} else {
 		for i, permission := range ar.Spec.Permissions {
-			roleName := fmt.Sprintf("openmcp:%s:%d", ctrlutils.K8sNameHash(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name), i)
+			roleName := permission.Name
+			if roleName == "" {
+				roleName = fmt.Sprintf("openmcp:%s:%d", ctrlutils.K8sNameHash(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name), i)
+			}
 			if permission.Namespace != "" {
 				log.Debug("Ensuring Role", "roleName", roleName, "namespace", permission.Namespace)
 				r, err := clusteraccess.EnsureRole(ctx, sac.Client, roleName, permission.Namespace, permission.Rules, expectedLabels...)

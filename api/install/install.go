@@ -8,6 +8,7 @@ import (
 	"github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
 	gardenauthenticationv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/authentication/v1alpha1"
 	gardenv1beta1 "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1"
+	gardenoidcv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/external/oidc-webhook-authenticator/apis/authentication/v1alpha1"
 	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 )
@@ -25,6 +26,13 @@ func InstallGardenerAPIs(scheme *runtime.Scheme) *runtime.Scheme {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(gardenv1beta1.AddToScheme(scheme))
 	utilruntime.Must(gardenauthenticationv1alpha1.AddToScheme(scheme))
+	return scheme
+}
+
+// InstallShootAPIs installs the OpenIDConnect API in the scheme.
+func InstallShootAPIs(scheme *runtime.Scheme) *runtime.Scheme {
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(gardenoidcv1alpha1.AddToScheme(scheme))
 	return scheme
 }
 

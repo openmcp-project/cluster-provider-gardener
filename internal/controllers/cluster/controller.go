@@ -451,7 +451,11 @@ func (r *ClusterReconciler) getClusterConfigs(ctx context.Context, c *clustersv1
 	// because we might need to remove some owner references in that case
 	cchash := ""
 	if len(c.Spec.ClusterConfigs) > 0 {
-		cchash = ctrlutils.K8sNameHash(collections.ProjectSliceToSlice(c.Spec.ClusterConfigs, func(ref commonapi.LocalObjectReference) string { return ref.Name })...)
+		var err error
+		cchash, err = ctrlutils.K8sNameUUID(collections.ProjectSliceToSlice(c.Spec.ClusterConfigs, func(ref commonapi.LocalObjectReference) string { return ref.Name })...)
+		if err != nil && err != ctrlutils.ErrInvalidNames {
+			return nil, errutils.WithReason(fmt.Errorf("error creating hash over cluster config names: %w", err), cconst.ReasonInternalError)
+		}
 	}
 	oldCChash := c.Annotations[providerv1alpha1.ClusterConfigHashAnnotation]
 	if cchash != oldCChash {

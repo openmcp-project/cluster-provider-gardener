@@ -3,6 +3,7 @@ package accessrequest
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strconv"
 	"time"
 
@@ -10,12 +11,15 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/openmcp-project/controller-utils/pkg/clusteraccess"
+	"github.com/openmcp-project/controller-utils/pkg/collections"
 	ctrlutils "github.com/openmcp-project/controller-utils/pkg/controller"
 	errutils "github.com/openmcp-project/controller-utils/pkg/errors"
 	"github.com/openmcp-project/controller-utils/pkg/logging"
@@ -29,6 +33,8 @@ import (
 	cconst "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1/constants"
 	authenticationv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/authentication/v1alpha1"
 	gardenv1beta1 "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1"
+	oidcv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/external/oidc-webhook-authenticator/apis/authentication/v1alpha1"
+	"github.com/openmcp-project/cluster-provider-gardener/api/install"
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/shared"
 )
 
@@ -73,7 +79,7 @@ func getTemporaryClientForShoot(ctx context.Context, c client.Client, shoot *gar
 	if err != nil {
 		return nil, nil, err
 	}
-	shootClient, err := client.New(cfg, client.Options{})
+	shootClient, err := client.New(cfg, client.Options{Scheme: install.InstallShootAPIs(runtime.NewScheme())})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -94,6 +100,9 @@ func (r *AccessRequestReconciler) cleanupResources(ctx context.Context, getShoot
 		return rerr
 	}
 
+	if err := r.cleanupOpenIDConnectResources(ctx, sac, selector, keep); err != nil {
+		return err
+	}
 	if err := r.cleanupRoleBindings(ctx, sac, selector, keep); err != nil {
 		return err
 	}
@@ -283,7 +292,41 @@ func (r *AccessRequestReconciler) cleanupServiceAccounts(ctx context.Context, sa
 	return errs.Aggregate()
 }
 
-func (r *AccessRequestReconciler) renewToken(ctx context.Context, ac *clustersv1alpha1.AccessRequest, getShootAccess shootAccessGetter, rr ReconcileResult) ([]client.Object, ReconcileResult) {
+func (r *AccessRequestReconciler) cleanupOpenIDConnectResources(ctx context.Context, sac *shootAccess, selector client.MatchingLabels, keep []client.Object) errutils.ReasonableError {
+	log := logging.FromContextOrPanic(ctx)
+	log.Debug("Cleaning up OpenIDConnect resources")
+
+	errs := errutils.NewReasonableErrorList()
+	oidcs := &oidcv1alpha1.OpenIDConnectList{}
+	if err := sac.Client.List(ctx, oidcs, selector); err != nil {
+		errs.Append(errutils.WithReason(fmt.Errorf("error listing OpenIDConnect resources: %w", err), cconst.ReasonShootClusterInteractionProblem))
+		return errs.Aggregate()
+	}
+	for _, oidc := range oidcs.Items {
+		keepThis := false
+		for _, k := range keep {
+			if k.GetName() == oidc.Name && k.GetObjectKind().GroupVersionKind().Kind == "OpenIDConnect" {
+				log.Debug("Keeping OpenIDConnect resource", "resourceName", oidc.Name)
+				keepThis = true
+				break
+			}
+		}
+		if keepThis {
+			continue
+		}
+		log.Debug("Deleting OpenIDConnect resource", "resourceName", oidc.Name)
+		if err := sac.Client.Delete(ctx, &oidc); err != nil {
+			if apierrors.IsNotFound(err) {
+				log.Debug("OpenIDConnect resource not found", "resourceName", oidc.Name)
+			} else {
+				errs.Append(errutils.WithReason(fmt.Errorf("error deleting OpenIDConnect resource '%s': %w", oidc.Name, err), cconst.ReasonShootClusterInteractionProblem))
+			}
+		}
+	}
+	return errs.Aggregate()
+}
+
+func (r *AccessRequestReconciler) renewToken(ctx context.Context, ar *clustersv1alpha1.AccessRequest, getShootAccess shootAccessGetter, rr ReconcileResult) ([]client.Object, ReconcileResult) {
 	log := logging.FromContextOrPanic(ctx)
 	log.Info("Creating new token")
 
@@ -300,11 +343,11 @@ func (r *AccessRequestReconciler) renewToken(ctx context.Context, ac *clustersv1
 		return nil, rr
 	}
 
-	expectedLabels := pairs.MapToPairs(managedResourcesLabels(ac))
+	expectedLabels := pairs.MapToPairs(managedResourcesLabels(ar))
 	keep := []client.Object{}
 
 	// ensure service account
-	name := ctrlutils.K8sNameHash(shared.Environment(), shared.ProviderName(), ac.Namespace, ac.Name)
+	name := ctrlutils.K8sNameUUIDUnsafe(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name)
 	sa, err := clusteraccess.EnsureServiceAccount(ctx, sac.Client, name, shared.AccessRequestServiceAccountNamespace(), expectedLabels...)
 	if err != nil {
 		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error ensuring service account '%s/%s' in shoot '%s/%s': %w", shared.AccessRequestServiceAccountNamespace(), name, sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonShootClusterInteractionProblem)
@@ -318,10 +361,14 @@ func (r *AccessRequestReconciler) renewToken(ctx context.Context, ac *clustersv1
 	// ensure roles + bindings
 	subjects := []rbacv1.Subject{{Kind: rbacv1.ServiceAccountKind, Name: sa.Name, Namespace: sa.Namespace}}
 	errs := errutils.NewReasonableErrorList()
-	for i, permission := range ac.Spec.Permissions {
-		roleName := "openmcp:" + ctrlutils.K8sNameHash(shared.Environment(), shared.ProviderName(), ac.Namespace, ac.Name, strconv.Itoa(i))
+	for i, permission := range ar.Spec.Permissions {
+		roleName := permission.Name
+		if roleName == "" {
+			roleName = fmt.Sprintf("openmcp:%s:%d", ctrlutils.K8sNameUUIDUnsafe(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name), i)
+		}
 		if permission.Namespace != "" {
 			// ensure role + binding
+			log.Debug("Ensuring Role and RoleBinding", "roleName", roleName, "namespace", permission.Namespace)
 			rb, r, err := clusteraccess.EnsureRoleAndBinding(ctx, sac.Client, roleName, permission.Namespace, subjects, permission.Rules, expectedLabels...)
 			if err != nil {
 				errs.Append(errutils.WithReason(fmt.Errorf("error ensuring role '%s/%s' in shoot '%s/%s': %w", permission.Namespace, roleName, sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonShootClusterInteractionProblem))
@@ -337,6 +384,7 @@ func (r *AccessRequestReconciler) renewToken(ctx context.Context, ac *clustersv1
 			keep = append(keep, r)
 		} else {
 			// ensure cluster role + binding
+			log.Debug("Ensuring ClusterRole and ClusterRoleBinding", "roleName", roleName)
 			crb, cr, err := clusteraccess.EnsureClusterRoleAndBinding(ctx, sac.Client, roleName, subjects, permission.Rules, expectedLabels...)
 			if err != nil {
 				errs.Append(errutils.WithReason(fmt.Errorf("error ensuring cluster role '%s' in shoot '%s/%s': %w", roleName, sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonShootClusterInteractionProblem))
@@ -368,22 +416,198 @@ func (r *AccessRequestReconciler) renewToken(ctx context.Context, ac *clustersv1
 	// create kubeconfig
 	kcfg, err := clusteraccess.CreateTokenKubeconfig(shared.ProviderName(), sac.RESTCfg.Host, sac.RESTCfg.CAData, token.Token)
 	if err != nil {
-		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error creating kubeconfig for service account '%s/%s' in shoot '%s/%s': %w", sa.Namespace, sa.Name, sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonShootClusterInteractionProblem)
+		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error creating kubeconfig for service account '%s/%s' in shoot '%s/%s': %w", sa.Namespace, sa.Name, sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonInternalError)
 		return nil, rr
 	}
 
 	// create/update secret
-	sm := resources.NewSecretMutatorWithStringData(defaultSecretName(ac), ac.Namespace, map[string]string{
-		SecretKeyKubeconfig:          string(kcfg),
-		SecretKeyExpirationTimestamp: strconv.FormatInt(token.ExpirationTimestamp.Unix(), 10),
-		SecretKeyCreationTimestamp:   strconv.FormatInt(token.CreationTimestamp.Unix(), 10),
+	sm := resources.NewSecretMutatorWithStringData(defaultSecretName(ar), ar.Namespace, map[string]string{
+		clustersv1alpha1.SecretKeyKubeconfig:          string(kcfg),
+		clustersv1alpha1.SecretKeyExpirationTimestamp: strconv.FormatInt(token.ExpirationTimestamp.Unix(), 10),
+		clustersv1alpha1.SecretKeyCreationTimestamp:   strconv.FormatInt(token.CreationTimestamp.Unix(), 10),
 	}, corev1.SecretTypeOpaque)
 	sm.MetadataMutator().WithOwnerReferences([]metav1.OwnerReference{
 		{
 			APIVersion: clustersv1alpha1.GroupVersion.String(),
 			Kind:       "AccessRequest",
-			Name:       ac.Name,
-			UID:        ac.UID,
+			Name:       ar.Name,
+			UID:        ar.UID,
+			Controller: ptr.To(true),
+		},
+	})
+	s := sm.Empty()
+	if err := resources.CreateOrUpdateResource(ctx, r.PlatformCluster.Client(), sm); err != nil {
+		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error creating/updating secret '%s/%s': %w", s.Namespace, s.Name, err), clusterconst.ReasonPlatformClusterInteractionProblem)
+		return nil, rr
+	}
+	rr.Object.Status.SecretRef = &commonapi.ObjectReference{}
+	rr.Object.Status.SecretRef.Name = s.Name
+	rr.Object.Status.SecretRef.Namespace = s.Namespace
+	rr.Object.Status.Phase = clustersv1alpha1.REQUEST_GRANTED
+
+	return keep, rr
+}
+
+func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clustersv1alpha1.AccessRequest, getShootAccess shootAccessGetter, rr ReconcileResult) ([]client.Object, ReconcileResult) {
+	log := logging.FromContextOrPanic(ctx)
+	log.Info("Ensuring OIDC access")
+
+	if ar.Spec.OIDCProvider == nil {
+		rr.ReconcileError = errutils.WithReason(fmt.Errorf("OIDCProvider is not specified in AccessRequest '%s/%s'", ar.Namespace, ar.Name), cconst.ReasonInternalError)
+		return nil, rr
+	}
+
+	expectedLabels := pairs.MapToPairs(managedResourcesLabels(ar))
+	keep := []client.Object{}
+
+	sac, rerr := getShootAccess()
+	if rerr != nil {
+		rr.ReconcileError = rerr
+		return nil, rr
+	}
+
+	// create or update OpenIDConnect resource
+	oidc := &oidcv1alpha1.OpenIDConnect{}
+	oidcConfig := ar.Spec.OIDCProvider.Default()
+	oidc.Name = ctrlutils.K8sNameUUIDUnsafe(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name)
+	if _, err := controllerutil.CreateOrUpdate(ctx, sac.Client, oidc, func() error {
+		if oidc.Labels == nil {
+			oidc.Labels = make(map[string]string, len(expectedLabels))
+		}
+		maps.Copy(oidc.Labels, pairs.PairsToMap(expectedLabels))
+		oidc.Spec.IssuerURL = oidcConfig.Issuer
+		oidc.Spec.GroupsClaim = &oidcConfig.GroupsClaim
+		oidc.Spec.GroupsPrefix = &oidcConfig.GroupsPrefix
+		oidc.Spec.UsernameClaim = &oidcConfig.UsernameClaim
+		oidc.Spec.UsernamePrefix = &oidcConfig.UsernamePrefix
+		oidc.Spec.ClientID = oidcConfig.ClientID
+		return nil
+	}); err != nil {
+		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error creating/updating OpenIDConnect resource '%s' in shoot '%s/%s': %w", oidc.Name, sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonShootClusterInteractionProblem)
+		return nil, rr
+	}
+	if oidc.GroupVersionKind().Kind == "" {
+		oidc.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("OpenIDConnect"))
+	}
+	keep = append(keep, oidc)
+
+	errs := errutils.NewReasonableErrorList()
+	// create (cluster) roles
+	if len(ar.Spec.Permissions) == 0 {
+		log.Debug("No permissions specified, skipping (Cluster)Role creation")
+	} else {
+		for i, permission := range ar.Spec.Permissions {
+			roleName := permission.Name
+			if roleName == "" {
+				roleName = fmt.Sprintf("openmcp:%s:%d", ctrlutils.K8sNameUUIDUnsafe(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name), i)
+			}
+			if permission.Namespace != "" {
+				log.Debug("Ensuring Role", "roleName", roleName, "namespace", permission.Namespace)
+				r, err := clusteraccess.EnsureRole(ctx, sac.Client, roleName, permission.Namespace, permission.Rules, expectedLabels...)
+				if err != nil {
+					errs.Append(errutils.WithReason(fmt.Errorf("error ensuring Role '%s/%s' in shoot '%s/%s': %w", permission.Namespace, roleName, sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonShootClusterInteractionProblem))
+					continue
+				}
+				if r.GroupVersionKind().Kind == "" {
+					r.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("Role"))
+				}
+				keep = append(keep, r)
+			} else {
+				log.Debug("Ensuring ClusterRole", "roleName", roleName)
+				cr, err := clusteraccess.EnsureClusterRole(ctx, sac.Client, roleName, permission.Rules, expectedLabels...)
+				if err != nil {
+					errs.Append(errutils.WithReason(fmt.Errorf("error ensuring ClusterRole '%s' in shoot '%s/%s': %w", roleName, sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonShootClusterInteractionProblem))
+					continue
+				}
+				if cr.GroupVersionKind().Kind == "" {
+					cr.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("ClusterRole"))
+				}
+				keep = append(keep, cr)
+			}
+		}
+	}
+
+	// create specified (Cluster)RoleBindings
+	if len(ar.Spec.OIDCProvider.RoleBindings) == 0 {
+		log.Debug("No RoleBindings specified, skipping (Cluster)RoleBinding creation")
+	} else {
+		for i, roleBinding := range ar.Spec.OIDCProvider.RoleBindings {
+			// append username prefix and groups prefix to subjects
+			subjects := collections.ProjectSliceToSlice(roleBinding.Subjects, func(sub rbacv1.Subject) rbacv1.Subject {
+				switch sub.Kind {
+				case rbacv1.UserKind:
+					sub.Name = ar.Spec.OIDCProvider.UsernamePrefix + sub.Name
+				case rbacv1.GroupKind:
+					sub.Name = ar.Spec.OIDCProvider.GroupsPrefix + sub.Name
+				}
+				return sub
+			})
+			// ensure (Cluster)RoleBindings
+			for j, roleRef := range roleBinding.RoleRefs {
+				roleBindingName := fmt.Sprintf("openmcp:%s:%d:%d", ctrlutils.K8sNameUUIDUnsafe(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name), i, j)
+				if roleRef.Kind == "Role" {
+					log.Debug("Ensuring RoleBinding", "roleBindingName", roleBindingName, "namespace", roleRef.Namespace)
+					rb, err := clusteraccess.EnsureRoleBinding(ctx, sac.Client, roleBindingName, roleRef.Namespace, roleRef.Name, subjects, expectedLabels...)
+					if err != nil {
+						errs.Append(errutils.WithReason(fmt.Errorf("error ensuring RoleBinding '%s/%s' in shoot '%s/%s': %w", roleRef.Namespace, roleBindingName, sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonShootClusterInteractionProblem))
+						continue
+					}
+					if rb.GroupVersionKind().Kind == "" {
+						rb.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("RoleBinding"))
+					}
+					keep = append(keep, rb)
+				} else if roleRef.Kind == "ClusterRole" {
+					log.Debug("Ensuring ClusterRoleBinding", "roleBindingName", roleBindingName)
+					crb, err := clusteraccess.EnsureClusterRoleBinding(ctx, sac.Client, roleBindingName, roleRef.Name, subjects, expectedLabels...)
+					if err != nil {
+						errs.Append(errutils.WithReason(fmt.Errorf("error ensuring ClusterRoleBinding '%s' in shoot '%s/%s': %w", roleBindingName, sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonShootClusterInteractionProblem))
+						continue
+					}
+					if crb.GroupVersionKind().Kind == "" {
+						crb.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("ClusterRoleBinding"))
+					}
+					keep = append(keep, crb)
+				} else {
+					errs.Append(errutils.WithReason(fmt.Errorf("unknown RoleRef kind '%s' in RoleBinding '%s'", roleRef.Kind, roleBindingName), cconst.ReasonInternalError))
+				}
+			}
+		}
+	}
+	if err := errs.Aggregate(); err != nil {
+		rr.ReconcileError = err
+		return nil, rr
+	}
+
+	// create kubeconfig
+	kcfgOptions := []clusteraccess.CreateOIDCKubeconfigOption{
+		clusteraccess.UsePKCE(),
+		clusteraccess.WithClusterName(fmt.Sprintf("%s--%s", ar.Spec.ClusterRef.Namespace, ar.Spec.ClusterRef.Name)),
+		clusteraccess.WithContextName(fmt.Sprintf("%s--%s--%s", ar.Spec.ClusterRef.Namespace, ar.Spec.ClusterRef.Name, ar.Spec.OIDCProvider.Name)),
+	}
+	for _, extraScope := range ar.Spec.OIDCProvider.ExtraScopes {
+		kcfgOptions = append(kcfgOptions, clusteraccess.WithExtraScope(extraScope))
+	}
+	kcfg, err := clusteraccess.CreateOIDCKubeconfig(ar.Spec.OIDCProvider.Name,
+		sac.RESTCfg.Host,
+		sac.RESTCfg.CAData,
+		ar.Spec.OIDCProvider.Issuer,
+		ar.Spec.OIDCProvider.ClientID,
+		kcfgOptions...)
+	if err != nil {
+		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error creating kubeconfig for oidc provider '%s' in shoot '%s/%s': %w", ar.Spec.OIDCProvider.Name, sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonInternalError)
+		return nil, rr
+	}
+
+	// create/update secret
+	sm := resources.NewSecretMutatorWithStringData(defaultSecretName(ar), ar.Namespace, map[string]string{
+		clustersv1alpha1.SecretKeyKubeconfig: string(kcfg),
+	}, corev1.SecretTypeOpaque)
+	sm.MetadataMutator().WithOwnerReferences([]metav1.OwnerReference{
+		{
+			APIVersion: clustersv1alpha1.GroupVersion.String(),
+			Kind:       "AccessRequest",
+			Name:       ar.Name,
+			UID:        ar.UID,
 			Controller: ptr.To(true),
 		},
 	})

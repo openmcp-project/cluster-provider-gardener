@@ -431,7 +431,7 @@ func ProfileK8sName(providerConfigName string) string {
 }
 
 func ShootK8sName(clusterName, clusterNamespace, projectName string) string {
-	return ctrlutils.K8sNameHash(clusterNamespace, clusterName)[:(21 - len(projectName))]
+	return ctrlutils.K8sNameUUIDUnsafe(clusterNamespace, clusterName)[:(21 - len(projectName))]
 }
 func ShootK8sNameFromCluster(c *clustersv1alpha1.Cluster, projectName string) string {
 	return ShootK8sName(c.Name, c.Namespace, projectName)

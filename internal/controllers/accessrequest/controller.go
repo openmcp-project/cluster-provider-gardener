@@ -38,11 +38,6 @@ import (
 
 const ControllerName = "AccessRequest"
 const RenewTokenAfterValidityPercentagePassed = 0.8
-const (
-	SecretKeyKubeconfig          = "kubeconfig"
-	SecretKeyExpirationTimestamp = "expirationTimestamp"
-	SecretKeyCreationTimestamp   = "creationTimestamp"
-)
 
 func managedResourcesLabels(ac *clustersv1alpha1.AccessRequest) map[string]string {
 	return map[string]string{
@@ -221,30 +216,37 @@ func (r *AccessRequestReconciler) handleCreateOrUpdate(ctx context.Context, req 
 		}
 
 		if s != nil {
-			creationTimestamp := base64.StdEncoding.EncodeToString(s.Data[SecretKeyCreationTimestamp])
-			expirationTimestamp := base64.StdEncoding.EncodeToString(s.Data[SecretKeyExpirationTimestamp])
-			if creationTimestamp != "" && expirationTimestamp != "" {
-				tmp, err := strconv.ParseInt(creationTimestamp, 10, 64)
-				if err != nil {
-					rr.ReconcileError = errutils.WithReason(fmt.Errorf("error parsing creation timestamp from secret '%s/%s': %w", s.Namespace, s.Name, err), clusterconst.ReasonInternalError)
-					createCon(providerv1alpha1.AccessRequestConditionSecretExistsAndIsValid, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
-					return rr
-				}
-				createdAt := time.Unix(tmp, 0)
-				tmp, err = strconv.ParseInt(expirationTimestamp, 10, 64)
-				if err != nil {
-					rr.ReconcileError = errutils.WithReason(fmt.Errorf("error parsing expiration timestamp from secret '%s/%s': %w", s.Namespace, s.Name, err), clusterconst.ReasonInternalError)
-					createCon(providerv1alpha1.AccessRequestConditionSecretExistsAndIsValid, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
-					return rr
-				}
-				expiredAt := time.Unix(tmp, 0)
-				tokenRenewalTime := createdAt.Add(time.Duration(float64(expiredAt.Sub(createdAt)) * RenewTokenAfterValidityPercentagePassed))
-				if time.Now().Before(tokenRenewalTime) {
-					// the request is granted, the secret still exists and the token is still valid - nothing to do
-					log.Info("Request is already granted, secret still exists, token is still valid - nothing to do")
-					rr.Result.RequeueAfter = time.Until(tokenRenewalTime)
-					createCon(providerv1alpha1.AccessRequestConditionSecretExistsAndIsValid, metav1.ConditionTrue, "", "")
-					return rr
+			if ar.Spec.OIDCProvider != nil {
+				// the request is granted, the secret still exists and oidc permissions don't expire
+				log.Info("Request is already granted, secret still exists, oidc access does not expire - nothing to do")
+				createCon(providerv1alpha1.AccessRequestConditionSecretExistsAndIsValid, metav1.ConditionTrue, "", "")
+				return rr
+			} else {
+				creationTimestamp := base64.StdEncoding.EncodeToString(s.Data[clustersv1alpha1.SecretKeyCreationTimestamp])
+				expirationTimestamp := base64.StdEncoding.EncodeToString(s.Data[clustersv1alpha1.SecretKeyExpirationTimestamp])
+				if creationTimestamp != "" && expirationTimestamp != "" {
+					tmp, err := strconv.ParseInt(creationTimestamp, 10, 64)
+					if err != nil {
+						rr.ReconcileError = errutils.WithReason(fmt.Errorf("error parsing creation timestamp from secret '%s/%s': %w", s.Namespace, s.Name, err), clusterconst.ReasonInternalError)
+						createCon(providerv1alpha1.AccessRequestConditionSecretExistsAndIsValid, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
+						return rr
+					}
+					createdAt := time.Unix(tmp, 0)
+					tmp, err = strconv.ParseInt(expirationTimestamp, 10, 64)
+					if err != nil {
+						rr.ReconcileError = errutils.WithReason(fmt.Errorf("error parsing expiration timestamp from secret '%s/%s': %w", s.Namespace, s.Name, err), clusterconst.ReasonInternalError)
+						createCon(providerv1alpha1.AccessRequestConditionSecretExistsAndIsValid, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
+						return rr
+					}
+					expiredAt := time.Unix(tmp, 0)
+					tokenRenewalTime := createdAt.Add(time.Duration(float64(expiredAt.Sub(createdAt)) * RenewTokenAfterValidityPercentagePassed))
+					if time.Now().Before(tokenRenewalTime) {
+						// the request is granted, the secret still exists and the token is still valid - nothing to do
+						log.Info("Request is already granted, secret still exists, token is still valid - nothing to do")
+						rr.Result.RequeueAfter = time.Until(tokenRenewalTime)
+						createCon(providerv1alpha1.AccessRequestConditionSecretExistsAndIsValid, metav1.ConditionTrue, "", "")
+						return rr
+					}
 				}
 			}
 		}
@@ -259,10 +261,19 @@ func (r *AccessRequestReconciler) handleCreateOrUpdate(ctx context.Context, req 
 	getShootAccess = staticShootAccessGetter(sac)
 	createCon(providerv1alpha1.AccessRequestConditionShootAccess, metav1.ConditionTrue, "", "")
 
-	keep, rr := r.renewToken(ctx, ar, getShootAccess, rr)
-	if rr.ReconcileError != nil {
-		createCon(providerv1alpha1.AccessRequestConditionSecretExistsAndIsValid, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
-		return rr
+	var keep []client.Object
+	if ar.Spec.OIDCProvider != nil {
+		keep, rr = r.ensureOIDCAccess(ctx, ar, getShootAccess, rr)
+		if rr.ReconcileError != nil {
+			createCon(providerv1alpha1.AccessRequestConditionSecretExistsAndIsValid, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
+			return rr
+		}
+	} else {
+		keep, rr = r.renewToken(ctx, ar, getShootAccess, rr)
+		if rr.ReconcileError != nil {
+			createCon(providerv1alpha1.AccessRequestConditionSecretExistsAndIsValid, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
+			return rr
+		}
 	}
 	createCon(providerv1alpha1.AccessRequestConditionSecretExistsAndIsValid, metav1.ConditionTrue, "", "")
 
@@ -378,8 +389,8 @@ func (r *AccessRequestReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func defaultSecretName(ac *clustersv1alpha1.AccessRequest) string {
-	return ac.Name
+func defaultSecretName(ar *clustersv1alpha1.AccessRequest) string {
+	return ar.Name
 }
 
 type shootAccessGetter func() (*shootAccess, errutils.ReasonableError)

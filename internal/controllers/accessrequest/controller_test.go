@@ -54,6 +54,7 @@ func defaultTestSetup(testDirPathSegments ...string) (*accessrequest.AccessReque
 		WithFakeClient(shootCluster, shootScheme).
 		WithInitObjectPath(platformCluster, append(testDirPathSegments, "platform")...).
 		WithInitObjectPath(gardenCluster, append(testDirPathSegments, "garden")...).
+		WithInitObjectPath(shootCluster, append(testDirPathSegments, "shoot")...).
 		WithFakeClientBuilderCall(gardenCluster, "WithInterceptorFuncs", interceptor.Funcs{
 			SubResourceCreate: func(ctx context.Context, c client.Client, subResourceName string, obj, subResource client.Object, opts ...client.SubResourceCreateOption) error {
 				switch subResourceName {
@@ -242,30 +243,62 @@ var _ = Describe("AccessRequest Controller", func() {
 			Expect(cr.Rules).To(BeEquivalentTo(ar.Spec.Permissions[0].Rules))
 			crbl := &rbacv1.ClusterRoleBindingList{}
 			Expect(env.Client(shootCluster).List(env.Ctx, crbl, labelSelector)).To(Succeed())
-			Expect(crbl.Items).To(HaveLen(1))
-			crb := &crbl.Items[0]
-			Expect(crb.RoleRef.Name).To(Equal(cr.Name))
-			Expect(crb.Subjects).To(HaveLen(1))
-			Expect(crb.Subjects[0].Kind).To(Equal(rbacv1.ServiceAccountKind))
-			Expect(crb.Subjects[0].Name).To(Equal(sa.Name))
-			Expect(crb.Subjects[0].Namespace).To(Equal(sa.Namespace))
+			Expect(crbl.Items).To(HaveLen(2))
+			// check bindings from permissions field
+			{
+				crb := &crbl.Items[0]
+				Expect(crb.RoleRef.Name).To(Equal(cr.Name))
+				Expect(crb.Subjects).To(HaveLen(1))
+				Expect(crb.Subjects[0].Kind).To(Equal(rbacv1.ServiceAccountKind))
+				Expect(crb.Subjects[0].Name).To(Equal(sa.Name))
+				Expect(crb.Subjects[0].Namespace).To(Equal(sa.Namespace))
+			}
+			// check bindings from roleRefs field
+			{
+				crb := &crbl.Items[1]
+				Expect(crb.RoleRef.Name).To(Equal("cluster-admin"))
+				Expect(crb.Subjects).To(HaveLen(1))
+				Expect(crb.Subjects[0].Kind).To(Equal(rbacv1.ServiceAccountKind))
+				Expect(crb.Subjects[0].Name).To(Equal(sa.Name))
+				Expect(crb.Subjects[0].Namespace).To(Equal(sa.Namespace))
+			}
+			//--------------------------------------------------------------------------------
 
-			// role + binding
-			rl := &rbacv1.RoleList{}
-			Expect(env.Client(shootCluster).List(env.Ctx, rl, labelSelector, client.InNamespace(ar.Spec.Permissions[1].Namespace))).To(Succeed())
-			Expect(rl.Items).To(HaveLen(1))
-			r := &rl.Items[0]
-			Expect(r.Rules).To(BeEquivalentTo(ar.Spec.Permissions[1].Rules))
-			rbl := &rbacv1.RoleBindingList{}
-			Expect(env.Client(shootCluster).List(env.Ctx, rbl, labelSelector, client.InNamespace(ar.Spec.Permissions[1].Namespace))).To(Succeed())
-			Expect(r.Name).To(Equal(ar.Spec.Permissions[1].Name))
-			Expect(rbl.Items).To(HaveLen(1))
-			rb := &rbl.Items[0]
-			Expect(rb.RoleRef.Name).To(Equal(r.Name))
-			Expect(rb.Subjects).To(HaveLen(1))
-			Expect(rb.Subjects[0].Kind).To(Equal(rbacv1.ServiceAccountKind))
-			Expect(rb.Subjects[0].Name).To(Equal(sa.Name))
-			Expect(rb.Subjects[0].Namespace).To(Equal(sa.Namespace))
+			// role + binding from permissions field
+			{
+				rl := &rbacv1.RoleList{}
+				Expect(env.Client(shootCluster).List(env.Ctx, rl, labelSelector, client.InNamespace(ar.Spec.Permissions[1].Namespace))).To(Succeed())
+				Expect(rl.Items).To(HaveLen(1))
+				r := &rl.Items[0]
+				Expect(r.Rules).To(BeEquivalentTo(ar.Spec.Permissions[1].Rules))
+				rbl := &rbacv1.RoleBindingList{}
+				Expect(env.Client(shootCluster).List(env.Ctx, rbl, labelSelector, client.InNamespace(ar.Spec.Permissions[1].Namespace))).To(Succeed())
+				Expect(r.Name).To(Equal(ar.Spec.Permissions[1].Name))
+				Expect(rbl.Items).To(HaveLen(1))
+				rb := &rbl.Items[0]
+				Expect(rb.RoleRef.Name).To(Equal(r.Name))
+				Expect(rb.Subjects).To(HaveLen(1))
+				Expect(rb.Subjects[0].Kind).To(Equal(rbacv1.ServiceAccountKind))
+				Expect(rb.Subjects[0].Name).To(Equal(sa.Name))
+				Expect(rb.Subjects[0].Namespace).To(Equal(sa.Namespace))
+			}
+			// role + binding from roleRefs field
+			{
+				rl := &rbacv1.RoleList{}
+				Expect(env.Client(shootCluster).List(env.Ctx, rl, client.InNamespace("default"))).To(Succeed())
+				Expect(rl.Items).To(HaveLen(1))
+				r := &rl.Items[0]
+				Expect(r.Rules).ToNot(BeEmpty())
+				rbl := &rbacv1.RoleBindingList{}
+				Expect(env.Client(shootCluster).List(env.Ctx, rbl, labelSelector, client.InNamespace("default"))).To(Succeed())
+				Expect(rbl.Items).To(HaveLen(1))
+				rb := &rbl.Items[0]
+				Expect(rb.RoleRef.Name).To(Equal("secret-viewer"))
+				Expect(rb.Subjects).To(HaveLen(1))
+				Expect(rb.Subjects[0].Kind).To(Equal(rbacv1.ServiceAccountKind))
+				Expect(rb.Subjects[0].Name).To(Equal(sa.Name))
+				Expect(rb.Subjects[0].Namespace).To(Equal(sa.Namespace))
+			}
 		})
 
 		It("should remove all resources again when the accessrequest is deleted", func() {

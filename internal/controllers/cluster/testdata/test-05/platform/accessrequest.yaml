@@ -24,4 +24,9 @@ spec:
       - "*"
       verbs:
       - "*"
-    
+  roleRefs:
+  - kind: Role
+    name: secret-viewer
+    namespace: default
+  - kind: ClusterRole
+    name: cluster-admin

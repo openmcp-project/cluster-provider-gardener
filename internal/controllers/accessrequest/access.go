@@ -607,8 +607,6 @@ func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clus
 		return nil, rr
 	}
 
-	//
-
 	// create kubeconfig
 	kcfgOptions := []clusteraccess.CreateOIDCKubeconfigOption{
 		clusteraccess.UsePKCE(),

@@ -602,56 +602,12 @@ func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clus
 			}
 		}
 	}
-
-	// ensure service account
-	name := ctrlutils.K8sNameUUIDUnsafe(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name)
-	sa, err := clusteraccess.EnsureServiceAccount(ctx, sac.Client, name, shared.AccessRequestServiceAccountNamespace(), expectedLabels...)
-	if err != nil {
-		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error ensuring service account '%s/%s' in shoot '%s/%s': %w", shared.AccessRequestServiceAccountNamespace(), name, sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonShootClusterInteractionProblem)
-		return nil, rr
-	}
-	if sa.GroupVersionKind().Kind == "" {
-		sa.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("ServiceAccount"))
-	}
-	keep = append(keep, sa)
-
-	// ensure ServiceAccount is bound to (Cluster)Roles
-	subjects := []rbacv1.Subject{{Kind: rbacv1.ServiceAccountKind, Name: sa.Name, Namespace: sa.Namespace}}
-	if len(ar.Spec.RoleRefs) == 0 {
-		log.Debug("No RoleRefs specified, skipping (Cluster)RoleBinding creation")
-	} else {
-		for i, roleRef := range ar.Spec.RoleRefs {
-			roleBindingName := fmt.Sprintf("openmcp:roleref:%s:%d", ctrlutils.K8sNameUUIDUnsafe(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name), i)
-			if roleRef.Kind == "Role" {
-				// Role
-				rb, err := clusteraccess.EnsureRoleBinding(ctx, sac.Client, roleBindingName, roleRef.Namespace, roleRef.Name, subjects, expectedLabels...)
-				if err != nil {
-					errs.Append(errutils.WithReason(fmt.Errorf("error ensuring rolebinding '%s/%s' in shoot '%s/%s': %w", roleRef.Namespace, roleBindingName, sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonShootClusterInteractionProblem))
-					continue
-				}
-				if rb.GroupVersionKind().Kind == "" {
-					rb.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("RoleBinding"))
-				}
-				keep = append(keep, rb)
-			} else {
-				// ClusterRole
-				crb, err := clusteraccess.EnsureClusterRoleBinding(ctx, sac.Client, roleBindingName, roleRef.Name, subjects, expectedLabels...)
-				if err != nil {
-					errs.Append(errutils.WithReason(fmt.Errorf("error ensuring clusterrolebinding '%s' in shoot '%s/%s': %w", roleBindingName, sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonShootClusterInteractionProblem))
-					continue
-				}
-				if crb.GroupVersionKind().Kind == "" {
-					crb.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("ClusterRoleBinding"))
-				}
-				keep = append(keep, crb)
-			}
-		}
-	}
-
 	if err := errs.Aggregate(); err != nil {
 		rr.ReconcileError = err
 		return nil, rr
 	}
+
+	//
 
 	// create kubeconfig
 	kcfgOptions := []clusteraccess.CreateOIDCKubeconfigOption{

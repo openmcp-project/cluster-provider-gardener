@@ -262,7 +262,7 @@ var _ = Describe("AccessRequest Controller", func() {
 				Expect(crb.Subjects[0].Name).To(Equal(sa.Name))
 				Expect(crb.Subjects[0].Namespace).To(Equal(sa.Namespace))
 			}
-			//--------------------------------------------------------------------------------
+			// --------------------------------------------------------------------------------
 
 			// role + binding from permissions field
 			{

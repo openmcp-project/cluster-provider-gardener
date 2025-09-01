@@ -357,6 +357,40 @@ func (r *AccessRequestReconciler) renewToken(ctx context.Context, ac *clustersv1
 		return nil, rr
 	}
 
+	// ensure ServiceAccount is bound to (Cluster)Roles
+	for i, roleRef := range ac.Spec.RoleRefs {
+		roleName := "openmcp:" + ctrlutils.K8sNameHash(shared.Environment(), shared.ProviderName(), ac.Namespace, ac.Name, strconv.Itoa(i))
+
+		if roleRef.Kind == "Role" {
+			// Role
+			rb, err := clusteraccess.EnsureRoleBinding(ctx, sac.Client, roleRef.Name, roleRef.Namespace, roleRef.Name, subjects, expectedLabels...)
+			if err != nil {
+				errs.Append(errutils.WithReason(fmt.Errorf("error ensuring rolebinding '%s/%s' in shoot '%s/%s': %w", roleRef.Namespace, roleName, sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonShootClusterInteractionProblem))
+				continue
+			}
+			if rb.GroupVersionKind().Kind == "" {
+				rb.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("RoleBinding"))
+			}
+			keep = append(keep, rb)
+		} else {
+			// ClusterRole
+			crb, err := clusteraccess.EnsureClusterRoleBinding(ctx, sac.Client, roleName, roleName, subjects, expectedLabels...)
+			if err != nil {
+				errs.Append(errutils.WithReason(fmt.Errorf("error ensuring clusterrolebinding '%s' in shoot '%s/%s': %w", roleName, sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonShootClusterInteractionProblem))
+				continue
+			}
+			if crb.GroupVersionKind().Kind == "" {
+				crb.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("ClusterRoleBinding"))
+			}
+			keep = append(keep, crb)
+		}
+	}
+
+	if err := errs.Aggregate(); err != nil {
+		rr.ReconcileError = err
+		return nil, rr
+	}
+
 	// generate token
 	token, err := clusteraccess.CreateTokenForServiceAccount(ctx, sac.Client, sa, &DefaultRequestedTokenValidityDuration)
 	if err != nil {

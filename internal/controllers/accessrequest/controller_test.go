@@ -353,12 +353,27 @@ var _ = Describe("AccessRequest Controller", func() {
 			Expect(crbl.Items).To(BeEmpty(), "ClusterRoleBinding should be deleted")
 
 			// role + binding
-			rl := &rbacv1.RoleList{}
-			Expect(env.Client(shootCluster).List(env.Ctx, rl, labelSelector, client.InNamespace(ar.Spec.Permissions[1].Namespace))).To(Succeed())
-			Expect(rl.Items).To(BeEmpty(), "Role should be deleted")
-			rbl := &rbacv1.RoleBindingList{}
-			Expect(env.Client(shootCluster).List(env.Ctx, rbl, labelSelector, client.InNamespace(ar.Spec.Permissions[1].Namespace))).To(Succeed())
-			Expect(rbl.Items).To(BeEmpty(), "RoleBinding should be deleted")
+			{
+				rl := &rbacv1.RoleList{}
+				Expect(env.Client(shootCluster).List(env.Ctx, rl, labelSelector, client.InNamespace(ar.Spec.Permissions[1].Namespace))).To(Succeed())
+				Expect(rl.Items).To(BeEmpty(), "Role should be deleted")
+			}
+			{
+				rl := &rbacv1.RoleList{}
+				Expect(env.Client(shootCluster).List(env.Ctx, rl, client.InNamespace("default"))).To(Succeed())
+				Expect(rl.Items).NotTo(BeEmpty(), "Role should NOT be deleted")
+				Expect(rl.Items[0].Name).To(Equal("secret-viewer")) // Role got created with cluster setup
+			}
+			{
+				rbl := &rbacv1.RoleBindingList{}
+				Expect(env.Client(shootCluster).List(env.Ctx, rbl, labelSelector, client.InNamespace(ar.Spec.Permissions[1].Namespace))).To(Succeed())
+				Expect(rbl.Items).To(BeEmpty(), "RoleBinding should be deleted")
+			}
+			{
+				rbl := &rbacv1.RoleBindingList{}
+				Expect(env.Client(shootCluster).List(env.Ctx, rbl, labelSelector, client.InNamespace("default"))).To(Succeed())
+				Expect(rbl.Items).To(BeEmpty(), "RoleBinding should be deleted")
+			}
 		})
 
 		It("should recreate the secret if it got deleted", func() {

@@ -286,7 +286,7 @@ var _ = Describe("AccessRequest Controller", func() {
 			// role + binding from roleRefs field
 			{
 				rl := &rbacv1.RoleList{}
-				Expect(env.Client(shootCluster).List(env.Ctx, rl, client.InNamespace("default"))).To(Succeed())
+				Expect(env.Client(shootCluster).List(env.Ctx, rl, client.InNamespace("default"))).To(Succeed()) // Role got created with cluster setup
 				Expect(rl.Items).To(HaveLen(1))
 				r := &rl.Items[0]
 				Expect(r.Rules).ToNot(BeEmpty())

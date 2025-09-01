@@ -342,7 +342,7 @@ func (r *AccessRequestReconciler) getClusterAndProfile(ctx context.Context, ar *
 	log.Debug("Fetching Cluster resource", "clusterName", c.Name, "clusterNamespace", c.Namespace)
 	if err := r.PlatformCluster.Client().Get(ctx, client.ObjectKeyFromObject(c), c); err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil, nil, errutils.WithReason(fmt.Errorf("Cluster '%s/%s' not found", c.Namespace, c.Name), clusterconst.ReasonInvalidReference) // nolint:staticcheck
+			return nil, nil, errutils.WithReason(fmt.Errorf("cluster '%s/%s' not found", c.Namespace, c.Name), clusterconst.ReasonInvalidReference) // nolint:staticcheck
 		}
 		return nil, nil, errutils.WithReason(fmt.Errorf("unable to get Cluster '%s/%s': %w", c.Namespace, c.Name, err), clusterconst.ReasonPlatformClusterInteractionProblem)
 	}

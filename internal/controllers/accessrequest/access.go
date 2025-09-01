@@ -41,6 +41,9 @@ import (
 const (
 	KindRole        = "Role"
 	KindClusterRole = "ClusterRole"
+
+	KindRoleBinding        = "RoleBinding"
+	KindClusterRoleBinding = "ClusterRoleBinding"
 )
 
 // This map is meant for testing purposes only.
@@ -140,7 +143,7 @@ func (r *AccessRequestReconciler) cleanupRoleBindings(ctx context.Context, sac *
 	for _, rb := range rbs.Items {
 		keepThis := false
 		for _, k := range keep {
-			if k.GetName() == rb.Name && k.GetNamespace() == rb.Namespace && k.GetObjectKind().GroupVersionKind().Kind == "RoleBinding" {
+			if k.GetName() == rb.Name && k.GetNamespace() == rb.Namespace && k.GetObjectKind().GroupVersionKind().Kind == KindRoleBinding {
 				log.Debug("Keeping RoleBinding", "resourceName", rb.Name, "resourceNamespace", rb.Namespace)
 				keepThis = true
 				break
@@ -174,7 +177,7 @@ func (r *AccessRequestReconciler) cleanupClusterRoleBindings(ctx context.Context
 	for _, crb := range crbs.Items {
 		keepThis := false
 		for _, k := range keep {
-			if k.GetName() == crb.Name && k.GetObjectKind().GroupVersionKind().Kind == "ClusterRoleBinding" {
+			if k.GetName() == crb.Name && k.GetObjectKind().GroupVersionKind().Kind == KindClusterRoleBinding {
 				log.Debug("Keeping ClusterRoleBinding", "resourceName", crb.Name)
 				keepThis = true
 				break
@@ -380,7 +383,7 @@ func (r *AccessRequestReconciler) renewToken(ctx context.Context, ar *clustersv1
 				continue
 			}
 			if rb.GroupVersionKind().Kind == "" {
-				rb.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("RoleBinding"))
+				rb.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind(KindRoleBinding))
 			}
 			keep = append(keep, rb)
 			if r.GroupVersionKind().Kind == "" {
@@ -396,7 +399,7 @@ func (r *AccessRequestReconciler) renewToken(ctx context.Context, ar *clustersv1
 				continue
 			}
 			if crb.GroupVersionKind().Kind == "" {
-				crb.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("ClusterRoleBinding"))
+				crb.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind(KindClusterRoleBinding))
 			}
 			keep = append(keep, crb)
 			if cr.GroupVersionKind().Kind == "" {
@@ -417,7 +420,7 @@ func (r *AccessRequestReconciler) renewToken(ctx context.Context, ar *clustersv1
 				continue
 			}
 			if rb.GroupVersionKind().Kind == "" {
-				rb.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("RoleBinding"))
+				rb.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind(KindRoleBinding))
 			}
 			keep = append(keep, rb)
 		} else {
@@ -428,7 +431,7 @@ func (r *AccessRequestReconciler) renewToken(ctx context.Context, ar *clustersv1
 				continue
 			}
 			if crb.GroupVersionKind().Kind == "" {
-				crb.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("ClusterRoleBinding"))
+				crb.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind(KindClusterRoleBinding))
 			}
 			keep = append(keep, crb)
 		}
@@ -587,7 +590,7 @@ func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clus
 						continue
 					}
 					if rb.GroupVersionKind().Kind == "" {
-						rb.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("RoleBinding"))
+						rb.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind(KindRoleBinding))
 					}
 					keep = append(keep, rb)
 				} else if roleRef.Kind == KindClusterRole {
@@ -598,7 +601,7 @@ func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clus
 						continue
 					}
 					if crb.GroupVersionKind().Kind == "" {
-						crb.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("ClusterRoleBinding"))
+						crb.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind(KindClusterRoleBinding))
 					}
 					keep = append(keep, crb)
 				} else {

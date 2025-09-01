@@ -38,6 +38,11 @@ import (
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/shared"
 )
 
+const (
+	KindRole        = "Role"
+	KindClusterRole = "ClusterRole"
+)
+
 // This map is meant for testing purposes only.
 // When the AdminKubeconfigRequest sent to the garden cluster returns a kubeconfig,
 // it tries to find the raw bytes as a key in this map.
@@ -203,7 +208,7 @@ func (r *AccessRequestReconciler) cleanupRoles(ctx context.Context, sac *shootAc
 	for _, role := range roles.Items {
 		keepThis := false
 		for _, k := range keep {
-			if k.GetName() == role.Name && k.GetNamespace() == role.Namespace && k.GetObjectKind().GroupVersionKind().Kind == "Role" {
+			if k.GetName() == role.Name && k.GetNamespace() == role.Namespace && k.GetObjectKind().GroupVersionKind().Kind == KindRole {
 				log.Debug("Keeping Role", "resourceName", role.Name, "resourceNamespace", role.Namespace)
 				keepThis = true
 				break
@@ -237,7 +242,7 @@ func (r *AccessRequestReconciler) cleanupClusterRoles(ctx context.Context, sac *
 	for _, cr := range crs.Items {
 		keepThis := false
 		for _, k := range keep {
-			if k.GetName() == cr.Name && k.GetObjectKind().GroupVersionKind().Kind == "ClusterRole" {
+			if k.GetName() == cr.Name && k.GetObjectKind().GroupVersionKind().Kind == KindClusterRole {
 				log.Debug("Keeping ClusterRole", "resourceName", cr.Name)
 				keepThis = true
 				break
@@ -379,7 +384,7 @@ func (r *AccessRequestReconciler) renewToken(ctx context.Context, ar *clustersv1
 			}
 			keep = append(keep, rb)
 			if r.GroupVersionKind().Kind == "" {
-				r.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("Role"))
+				r.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind(KindRole))
 			}
 			keep = append(keep, r)
 		} else {
@@ -395,7 +400,7 @@ func (r *AccessRequestReconciler) renewToken(ctx context.Context, ar *clustersv1
 			}
 			keep = append(keep, crb)
 			if cr.GroupVersionKind().Kind == "" {
-				cr.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("ClusterRole"))
+				cr.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind(KindClusterRole))
 			}
 			keep = append(keep, cr)
 		}
@@ -404,7 +409,7 @@ func (r *AccessRequestReconciler) renewToken(ctx context.Context, ar *clustersv1
 	// ensure ServiceAccount is bound to (Cluster)Roles
 	for i, roleRef := range ar.Spec.RoleRefs {
 		roleBindingName := fmt.Sprintf("openmcp:roleref:%s:%d", ctrlutils.K8sNameUUIDUnsafe(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name), i)
-		if roleRef.Kind == "Role" {
+		if roleRef.Kind == KindRole {
 			// Role
 			rb, err := clusteraccess.EnsureRoleBinding(ctx, sac.Client, roleBindingName, roleRef.Namespace, roleRef.Name, subjects, expectedLabels...)
 			if err != nil {
@@ -538,7 +543,7 @@ func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clus
 					continue
 				}
 				if r.GroupVersionKind().Kind == "" {
-					r.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("Role"))
+					r.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind(KindRole))
 				}
 				keep = append(keep, r)
 			} else {
@@ -549,7 +554,7 @@ func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clus
 					continue
 				}
 				if cr.GroupVersionKind().Kind == "" {
-					cr.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("ClusterRole"))
+					cr.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind(KindClusterRole))
 				}
 				keep = append(keep, cr)
 			}
@@ -574,7 +579,7 @@ func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clus
 			// ensure (Cluster)RoleBindings
 			for j, roleRef := range roleBinding.RoleRefs {
 				roleBindingName := fmt.Sprintf("openmcp:%s:%d:%d", ctrlutils.K8sNameUUIDUnsafe(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name), i, j)
-				if roleRef.Kind == "Role" {
+				if roleRef.Kind == KindRole {
 					log.Debug("Ensuring RoleBinding", "roleBindingName", roleBindingName, "namespace", roleRef.Namespace)
 					rb, err := clusteraccess.EnsureRoleBinding(ctx, sac.Client, roleBindingName, roleRef.Namespace, roleRef.Name, subjects, expectedLabels...)
 					if err != nil {
@@ -585,7 +590,7 @@ func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clus
 						rb.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("RoleBinding"))
 					}
 					keep = append(keep, rb)
-				} else if roleRef.Kind == "ClusterRole" {
+				} else if roleRef.Kind == KindClusterRole {
 					log.Debug("Ensuring ClusterRoleBinding", "roleBindingName", roleBindingName)
 					crb, err := clusteraccess.EnsureClusterRoleBinding(ctx, sac.Client, roleBindingName, roleRef.Name, subjects, expectedLabels...)
 					if err != nil {

@@ -38,6 +38,14 @@ import (
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/shared"
 )
 
+const (
+	KindRole        = "Role"
+	KindClusterRole = "ClusterRole"
+
+	KindRoleBinding        = "RoleBinding"
+	KindClusterRoleBinding = "ClusterRoleBinding"
+)
+
 // This map is meant for testing purposes only.
 // When the AdminKubeconfigRequest sent to the garden cluster returns a kubeconfig,
 // it tries to find the raw bytes as a key in this map.
@@ -135,7 +143,7 @@ func (r *AccessRequestReconciler) cleanupRoleBindings(ctx context.Context, sac *
 	for _, rb := range rbs.Items {
 		keepThis := false
 		for _, k := range keep {
-			if k.GetName() == rb.Name && k.GetNamespace() == rb.Namespace && k.GetObjectKind().GroupVersionKind().Kind == "RoleBinding" {
+			if k.GetName() == rb.Name && k.GetNamespace() == rb.Namespace && k.GetObjectKind().GroupVersionKind().Kind == KindRoleBinding {
 				log.Debug("Keeping RoleBinding", "resourceName", rb.Name, "resourceNamespace", rb.Namespace)
 				keepThis = true
 				break
@@ -169,7 +177,7 @@ func (r *AccessRequestReconciler) cleanupClusterRoleBindings(ctx context.Context
 	for _, crb := range crbs.Items {
 		keepThis := false
 		for _, k := range keep {
-			if k.GetName() == crb.Name && k.GetObjectKind().GroupVersionKind().Kind == "ClusterRoleBinding" {
+			if k.GetName() == crb.Name && k.GetObjectKind().GroupVersionKind().Kind == KindClusterRoleBinding {
 				log.Debug("Keeping ClusterRoleBinding", "resourceName", crb.Name)
 				keepThis = true
 				break
@@ -203,7 +211,7 @@ func (r *AccessRequestReconciler) cleanupRoles(ctx context.Context, sac *shootAc
 	for _, role := range roles.Items {
 		keepThis := false
 		for _, k := range keep {
-			if k.GetName() == role.Name && k.GetNamespace() == role.Namespace && k.GetObjectKind().GroupVersionKind().Kind == "Role" {
+			if k.GetName() == role.Name && k.GetNamespace() == role.Namespace && k.GetObjectKind().GroupVersionKind().Kind == KindRole {
 				log.Debug("Keeping Role", "resourceName", role.Name, "resourceNamespace", role.Namespace)
 				keepThis = true
 				break
@@ -237,7 +245,7 @@ func (r *AccessRequestReconciler) cleanupClusterRoles(ctx context.Context, sac *
 	for _, cr := range crs.Items {
 		keepThis := false
 		for _, k := range keep {
-			if k.GetName() == cr.Name && k.GetObjectKind().GroupVersionKind().Kind == "ClusterRole" {
+			if k.GetName() == cr.Name && k.GetObjectKind().GroupVersionKind().Kind == KindClusterRole {
 				log.Debug("Keeping ClusterRole", "resourceName", cr.Name)
 				keepThis = true
 				break
@@ -330,6 +338,11 @@ func (r *AccessRequestReconciler) renewToken(ctx context.Context, ar *clustersv1
 	log := logging.FromContextOrPanic(ctx)
 	log.Info("Creating new token")
 
+	if ar.Spec.Token == nil {
+		rr.ReconcileError = errutils.WithReason(fmt.Errorf("token configuration is not specified in AccessRequest '%s/%s'", ar.Namespace, ar.Name), cconst.ReasonInternalError)
+		return nil, rr
+	}
+
 	sac, rerr := getShootAccess()
 	if rerr != nil {
 		rr.ReconcileError = rerr
@@ -361,10 +374,10 @@ func (r *AccessRequestReconciler) renewToken(ctx context.Context, ar *clustersv1
 	// ensure roles + bindings
 	subjects := []rbacv1.Subject{{Kind: rbacv1.ServiceAccountKind, Name: sa.Name, Namespace: sa.Namespace}}
 	errs := errutils.NewReasonableErrorList()
-	for i, permission := range ar.Spec.Permissions {
+	for i, permission := range ar.Spec.Token.Permissions {
 		roleName := permission.Name
 		if roleName == "" {
-			roleName = fmt.Sprintf("openmcp:%s:%d", ctrlutils.K8sNameUUIDUnsafe(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name), i)
+			roleName = fmt.Sprintf("openmcp:permission:%s:%d", ctrlutils.K8sNameUUIDUnsafe(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name), i)
 		}
 		if permission.Namespace != "" {
 			// ensure role + binding
@@ -375,11 +388,11 @@ func (r *AccessRequestReconciler) renewToken(ctx context.Context, ar *clustersv1
 				continue
 			}
 			if rb.GroupVersionKind().Kind == "" {
-				rb.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("RoleBinding"))
+				rb.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind(KindRoleBinding))
 			}
 			keep = append(keep, rb)
 			if r.GroupVersionKind().Kind == "" {
-				r.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("Role"))
+				r.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind(KindRole))
 			}
 			keep = append(keep, r)
 		} else {
@@ -391,15 +404,44 @@ func (r *AccessRequestReconciler) renewToken(ctx context.Context, ar *clustersv1
 				continue
 			}
 			if crb.GroupVersionKind().Kind == "" {
-				crb.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("ClusterRoleBinding"))
+				crb.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind(KindClusterRoleBinding))
 			}
 			keep = append(keep, crb)
 			if cr.GroupVersionKind().Kind == "" {
-				cr.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("ClusterRole"))
+				cr.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind(KindClusterRole))
 			}
 			keep = append(keep, cr)
 		}
 	}
+
+	// ensure ServiceAccount is bound to (Cluster)Roles
+	for i, roleRef := range ar.Spec.Token.RoleRefs {
+		roleBindingName := fmt.Sprintf("openmcp:roleref:%s:%d", ctrlutils.K8sNameUUIDUnsafe(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name), i)
+		if roleRef.Kind == KindRole {
+			// Role
+			rb, err := clusteraccess.EnsureRoleBinding(ctx, sac.Client, roleBindingName, roleRef.Namespace, roleRef.Name, subjects, expectedLabels...)
+			if err != nil {
+				errs.Append(errutils.WithReason(fmt.Errorf("error ensuring rolebinding '%s/%s' in shoot '%s/%s': %w", roleRef.Namespace, roleBindingName, sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonShootClusterInteractionProblem))
+				continue
+			}
+			if rb.GroupVersionKind().Kind == "" {
+				rb.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind(KindRoleBinding))
+			}
+			keep = append(keep, rb)
+		} else {
+			// ClusterRole
+			crb, err := clusteraccess.EnsureClusterRoleBinding(ctx, sac.Client, roleBindingName, roleRef.Name, subjects, expectedLabels...)
+			if err != nil {
+				errs.Append(errutils.WithReason(fmt.Errorf("error ensuring clusterrolebinding '%s' in shoot '%s/%s': %w", roleBindingName, sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonShootClusterInteractionProblem))
+				continue
+			}
+			if crb.GroupVersionKind().Kind == "" {
+				crb.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind(KindClusterRoleBinding))
+			}
+			keep = append(keep, crb)
+		}
+	}
+
 	if err := errs.Aggregate(); err != nil {
 		rr.ReconcileError = err
 		return nil, rr
@@ -452,8 +494,8 @@ func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clus
 	log := logging.FromContextOrPanic(ctx)
 	log.Info("Ensuring OIDC access")
 
-	if ar.Spec.OIDCProvider == nil {
-		rr.ReconcileError = errutils.WithReason(fmt.Errorf("OIDCProvider is not specified in AccessRequest '%s/%s'", ar.Namespace, ar.Name), cconst.ReasonInternalError)
+	if ar.Spec.OIDC == nil {
+		rr.ReconcileError = errutils.WithReason(fmt.Errorf("OIDC configuration is not specified in AccessRequest '%s/%s'", ar.Namespace, ar.Name), cconst.ReasonInternalError)
 		return nil, rr
 	}
 
@@ -468,7 +510,7 @@ func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clus
 
 	// create or update OpenIDConnect resource
 	oidc := &oidcv1alpha1.OpenIDConnect{}
-	oidcConfig := ar.Spec.OIDCProvider.Default()
+	oidcConfig := ar.Spec.OIDC.Default()
 	oidc.Name = ctrlutils.K8sNameUUIDUnsafe(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name)
 	if _, err := controllerutil.CreateOrUpdate(ctx, sac.Client, oidc, func() error {
 		if oidc.Labels == nil {
@@ -493,34 +535,34 @@ func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clus
 
 	errs := errutils.NewReasonableErrorList()
 	// create (cluster) roles
-	if len(ar.Spec.Permissions) == 0 {
-		log.Debug("No permissions specified, skipping (Cluster)Role creation")
+	if len(ar.Spec.OIDC.Roles) == 0 {
+		log.Debug("No additional roles specified, skipping (Cluster)Role creation")
 	} else {
-		for i, permission := range ar.Spec.Permissions {
-			roleName := permission.Name
+		for i, roleDef := range ar.Spec.OIDC.Roles {
+			roleName := roleDef.Name
 			if roleName == "" {
 				roleName = fmt.Sprintf("openmcp:%s:%d", ctrlutils.K8sNameUUIDUnsafe(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name), i)
 			}
-			if permission.Namespace != "" {
-				log.Debug("Ensuring Role", "roleName", roleName, "namespace", permission.Namespace)
-				r, err := clusteraccess.EnsureRole(ctx, sac.Client, roleName, permission.Namespace, permission.Rules, expectedLabels...)
+			if roleDef.Namespace != "" {
+				log.Debug("Ensuring Role", "roleName", roleName, "namespace", roleDef.Namespace)
+				r, err := clusteraccess.EnsureRole(ctx, sac.Client, roleName, roleDef.Namespace, roleDef.Rules, expectedLabels...)
 				if err != nil {
-					errs.Append(errutils.WithReason(fmt.Errorf("error ensuring Role '%s/%s' in shoot '%s/%s': %w", permission.Namespace, roleName, sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonShootClusterInteractionProblem))
+					errs.Append(errutils.WithReason(fmt.Errorf("error ensuring Role '%s/%s' in shoot '%s/%s': %w", roleDef.Namespace, roleName, sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonShootClusterInteractionProblem))
 					continue
 				}
 				if r.GroupVersionKind().Kind == "" {
-					r.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("Role"))
+					r.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind(KindRole))
 				}
 				keep = append(keep, r)
 			} else {
 				log.Debug("Ensuring ClusterRole", "roleName", roleName)
-				cr, err := clusteraccess.EnsureClusterRole(ctx, sac.Client, roleName, permission.Rules, expectedLabels...)
+				cr, err := clusteraccess.EnsureClusterRole(ctx, sac.Client, roleName, roleDef.Rules, expectedLabels...)
 				if err != nil {
 					errs.Append(errutils.WithReason(fmt.Errorf("error ensuring ClusterRole '%s' in shoot '%s/%s': %w", roleName, sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonShootClusterInteractionProblem))
 					continue
 				}
 				if cr.GroupVersionKind().Kind == "" {
-					cr.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("ClusterRole"))
+					cr.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind(KindClusterRole))
 				}
 				keep = append(keep, cr)
 			}
@@ -528,24 +570,24 @@ func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clus
 	}
 
 	// create specified (Cluster)RoleBindings
-	if len(ar.Spec.OIDCProvider.RoleBindings) == 0 {
+	if len(ar.Spec.OIDC.RoleBindings) == 0 {
 		log.Debug("No RoleBindings specified, skipping (Cluster)RoleBinding creation")
 	} else {
-		for i, roleBinding := range ar.Spec.OIDCProvider.RoleBindings {
+		for i, roleBinding := range ar.Spec.OIDC.RoleBindings {
 			// append username prefix and groups prefix to subjects
 			subjects := collections.ProjectSliceToSlice(roleBinding.Subjects, func(sub rbacv1.Subject) rbacv1.Subject {
 				switch sub.Kind {
 				case rbacv1.UserKind:
-					sub.Name = ar.Spec.OIDCProvider.UsernamePrefix + sub.Name
+					sub.Name = oidcConfig.UsernamePrefix + sub.Name
 				case rbacv1.GroupKind:
-					sub.Name = ar.Spec.OIDCProvider.GroupsPrefix + sub.Name
+					sub.Name = oidcConfig.GroupsPrefix + sub.Name
 				}
 				return sub
 			})
 			// ensure (Cluster)RoleBindings
 			for j, roleRef := range roleBinding.RoleRefs {
 				roleBindingName := fmt.Sprintf("openmcp:%s:%d:%d", ctrlutils.K8sNameUUIDUnsafe(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name), i, j)
-				if roleRef.Kind == "Role" {
+				if roleRef.Kind == KindRole {
 					log.Debug("Ensuring RoleBinding", "roleBindingName", roleBindingName, "namespace", roleRef.Namespace)
 					rb, err := clusteraccess.EnsureRoleBinding(ctx, sac.Client, roleBindingName, roleRef.Namespace, roleRef.Name, subjects, expectedLabels...)
 					if err != nil {
@@ -553,10 +595,10 @@ func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clus
 						continue
 					}
 					if rb.GroupVersionKind().Kind == "" {
-						rb.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("RoleBinding"))
+						rb.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind(KindRoleBinding))
 					}
 					keep = append(keep, rb)
-				} else if roleRef.Kind == "ClusterRole" {
+				} else if roleRef.Kind == KindClusterRole {
 					log.Debug("Ensuring ClusterRoleBinding", "roleBindingName", roleBindingName)
 					crb, err := clusteraccess.EnsureClusterRoleBinding(ctx, sac.Client, roleBindingName, roleRef.Name, subjects, expectedLabels...)
 					if err != nil {
@@ -564,7 +606,7 @@ func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clus
 						continue
 					}
 					if crb.GroupVersionKind().Kind == "" {
-						crb.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind("ClusterRoleBinding"))
+						crb.SetGroupVersionKind(rbacv1.SchemeGroupVersion.WithKind(KindClusterRoleBinding))
 					}
 					keep = append(keep, crb)
 				} else {
@@ -582,19 +624,19 @@ func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clus
 	kcfgOptions := []clusteraccess.CreateOIDCKubeconfigOption{
 		clusteraccess.UsePKCE(),
 		clusteraccess.WithClusterName(fmt.Sprintf("%s--%s", ar.Spec.ClusterRef.Namespace, ar.Spec.ClusterRef.Name)),
-		clusteraccess.WithContextName(fmt.Sprintf("%s--%s--%s", ar.Spec.ClusterRef.Namespace, ar.Spec.ClusterRef.Name, ar.Spec.OIDCProvider.Name)),
+		clusteraccess.WithContextName(fmt.Sprintf("%s--%s--%s", ar.Spec.ClusterRef.Namespace, ar.Spec.ClusterRef.Name, oidcConfig.Name)),
 	}
-	for _, extraScope := range ar.Spec.OIDCProvider.ExtraScopes {
+	for _, extraScope := range oidcConfig.ExtraScopes {
 		kcfgOptions = append(kcfgOptions, clusteraccess.WithExtraScope(extraScope))
 	}
-	kcfg, err := clusteraccess.CreateOIDCKubeconfig(ar.Spec.OIDCProvider.Name,
+	kcfg, err := clusteraccess.CreateOIDCKubeconfig(oidcConfig.Name,
 		sac.RESTCfg.Host,
 		sac.RESTCfg.CAData,
-		ar.Spec.OIDCProvider.Issuer,
-		ar.Spec.OIDCProvider.ClientID,
+		oidcConfig.Issuer,
+		oidcConfig.ClientID,
 		kcfgOptions...)
 	if err != nil {
-		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error creating kubeconfig for oidc provider '%s' in shoot '%s/%s': %w", ar.Spec.OIDCProvider.Name, sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonInternalError)
+		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error creating kubeconfig for oidc provider '%s' in shoot '%s/%s': %w", oidcConfig.Name, sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonInternalError)
 		return nil, rr
 	}
 

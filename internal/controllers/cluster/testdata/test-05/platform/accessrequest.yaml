@@ -7,21 +7,28 @@ spec:
   clusterRef:
     name: advanced
     namespace: clusters
-  permissions:
-  - rules:
-    - apiGroups:
-      - "*"
-      resources:
-      - "*"
-      verbs:
-      - "*"
-  - name: bar
-    namespace: foo
-    rules:
-    - apiGroups:
-      - "*"
-      resources:
-      - "*"
-      verbs:
-      - "*"
-    
+
+  token:
+    permissions:
+    - rules:
+      - apiGroups:
+        - "*"
+        resources:
+        - "*"
+        verbs:
+        - "*"
+    - name: bar
+      namespace: foo
+      rules:
+      - apiGroups:
+        - "*"
+        resources:
+        - "*"
+        verbs:
+        - "*"
+    roleRefs:
+    - kind: Role
+      name: secret-viewer
+      namespace: default
+    - kind: ClusterRole
+      name: cluster-admin

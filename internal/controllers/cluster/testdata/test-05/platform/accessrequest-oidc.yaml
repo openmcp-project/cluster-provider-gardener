@@ -7,26 +7,8 @@ spec:
   clusterRef:
     name: advanced
     namespace: clusters
-  permissions:
-  - name: foo
-    rules:
-    - apiGroups:
-      - "*"
-      resources:
-      - "*"
-      verbs:
-      - "*"
-  - name: bar
-    namespace: foo
-    rules:
-    - apiGroups:
-      - "*"
-      resources:
-      - "*"
-      verbs:
-      - "*"
-    
-  oidcProvider:
+
+  oidc:
     name: my-oidc-provider
     issuer: https://oidc.example.com
     clientID: my-client-id
@@ -48,3 +30,21 @@ spec:
       - kind: Role
         name: bar
         namespace: foo
+    roles:
+    - name: foo
+      rules:
+      - apiGroups:
+        - "*"
+        resources:
+        - "*"
+        verbs:
+        - "*"
+    - name: bar
+      namespace: foo
+      rules:
+      - apiGroups:
+        - "*"
+        resources:
+        - "*"
+        verbs:
+        - "*"

@@ -240,7 +240,7 @@ var _ = Describe("AccessRequest Controller", func() {
 			Expect(env.Client(shootCluster).List(env.Ctx, crl, labelSelector)).To(Succeed())
 			Expect(crl.Items).To(HaveLen(1))
 			cr := &crl.Items[0]
-			Expect(cr.Rules).To(BeEquivalentTo(ar.Spec.Permissions[0].Rules))
+			Expect(cr.Rules).To(BeEquivalentTo(ar.Spec.Token.Permissions[0].Rules))
 			crbl := &rbacv1.ClusterRoleBindingList{}
 			Expect(env.Client(shootCluster).List(env.Ctx, crbl, labelSelector)).To(Succeed())
 			Expect(crbl.Items).To(HaveLen(2))
@@ -268,13 +268,13 @@ var _ = Describe("AccessRequest Controller", func() {
 			// role + binding from permissions field
 			{
 				rl := &rbacv1.RoleList{}
-				Expect(env.Client(shootCluster).List(env.Ctx, rl, labelSelector, client.InNamespace(ar.Spec.Permissions[1].Namespace))).To(Succeed())
+				Expect(env.Client(shootCluster).List(env.Ctx, rl, labelSelector, client.InNamespace(ar.Spec.Token.Permissions[1].Namespace))).To(Succeed())
 				Expect(rl.Items).To(HaveLen(1))
 				r := &rl.Items[0]
-				Expect(r.Rules).To(BeEquivalentTo(ar.Spec.Permissions[1].Rules))
+				Expect(r.Rules).To(BeEquivalentTo(ar.Spec.Token.Permissions[1].Rules))
 				rbl := &rbacv1.RoleBindingList{}
-				Expect(env.Client(shootCluster).List(env.Ctx, rbl, labelSelector, client.InNamespace(ar.Spec.Permissions[1].Namespace))).To(Succeed())
-				Expect(r.Name).To(Equal(ar.Spec.Permissions[1].Name))
+				Expect(env.Client(shootCluster).List(env.Ctx, rbl, labelSelector, client.InNamespace(ar.Spec.Token.Permissions[1].Namespace))).To(Succeed())
+				Expect(r.Name).To(Equal(ar.Spec.Token.Permissions[1].Name))
 				Expect(rbl.Items).To(HaveLen(1))
 				rb := &rbl.Items[0]
 				Expect(rb.RoleRef.Name).To(Equal(r.Name))
@@ -355,7 +355,7 @@ var _ = Describe("AccessRequest Controller", func() {
 			// role + binding
 			{
 				rl := &rbacv1.RoleList{}
-				Expect(env.Client(shootCluster).List(env.Ctx, rl, labelSelector, client.InNamespace(ar.Spec.Permissions[1].Namespace))).To(Succeed())
+				Expect(env.Client(shootCluster).List(env.Ctx, rl, labelSelector, client.InNamespace(ar.Spec.Token.Permissions[1].Namespace))).To(Succeed())
 				Expect(rl.Items).To(BeEmpty(), "Role should be deleted")
 			}
 			{
@@ -366,7 +366,7 @@ var _ = Describe("AccessRequest Controller", func() {
 			}
 			{
 				rbl := &rbacv1.RoleBindingList{}
-				Expect(env.Client(shootCluster).List(env.Ctx, rbl, labelSelector, client.InNamespace(ar.Spec.Permissions[1].Namespace))).To(Succeed())
+				Expect(env.Client(shootCluster).List(env.Ctx, rbl, labelSelector, client.InNamespace(ar.Spec.Token.Permissions[1].Namespace))).To(Succeed())
 				Expect(rbl.Items).To(BeEmpty(), "RoleBinding should be deleted")
 			}
 			{
@@ -449,44 +449,44 @@ var _ = Describe("AccessRequest Controller", func() {
 			oidc := &oidcv1alpha1.OpenIDConnect{}
 			oidc.Name = ctrlutils.K8sNameUUIDUnsafe(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name)
 			Expect(env.Client(shootCluster).Get(env.Ctx, client.ObjectKeyFromObject(oidc), oidc)).To(Succeed())
-			Expect(oidc.Spec.IssuerURL).To(Equal(ar.Spec.OIDCProvider.Issuer))
-			Expect(oidc.Spec.ClientID).To(Equal(ar.Spec.OIDCProvider.ClientID))
-			usernamePrefix := ar.Spec.OIDCProvider.UsernamePrefix
+			Expect(oidc.Spec.IssuerURL).To(Equal(ar.Spec.OIDC.Issuer))
+			Expect(oidc.Spec.ClientID).To(Equal(ar.Spec.OIDC.ClientID))
+			usernamePrefix := ar.Spec.OIDC.UsernamePrefix
 			if !strings.HasSuffix(usernamePrefix, ":") {
 				usernamePrefix += ":"
 			}
 			Expect(*oidc.Spec.UsernamePrefix).To(Equal(usernamePrefix))
-			groupsPrefix := ar.Spec.OIDCProvider.GroupsPrefix
+			groupsPrefix := ar.Spec.OIDC.GroupsPrefix
 			if !strings.HasSuffix(groupsPrefix, ":") {
 				groupsPrefix += ":"
 			}
 			Expect(*oidc.Spec.GroupsPrefix).To(Equal(groupsPrefix))
-			Expect(*oidc.Spec.UsernameClaim).To(Equal(ar.Spec.OIDCProvider.UsernameClaim))
-			Expect(*oidc.Spec.GroupsClaim).To(Equal(ar.Spec.OIDCProvider.GroupsClaim))
+			Expect(*oidc.Spec.UsernameClaim).To(Equal(ar.Spec.OIDC.UsernameClaim))
+			Expect(*oidc.Spec.GroupsClaim).To(Equal(ar.Spec.OIDC.GroupsClaim))
 
 			// clusterrole + binding
 			crl := &rbacv1.ClusterRoleList{}
 			Expect(env.Client(shootCluster).List(env.Ctx, crl, labelSelector)).To(Succeed())
 			Expect(crl.Items).To(HaveLen(1))
 			cr := &crl.Items[0]
-			Expect(cr.Rules).To(BeEquivalentTo(ar.Spec.Permissions[0].Rules))
-			Expect(cr.Name).To(Equal(ar.Spec.Permissions[0].Name))
+			Expect(cr.Rules).To(BeEquivalentTo(ar.Spec.OIDC.Roles[0].Rules))
+			Expect(cr.Name).To(Equal(ar.Spec.OIDC.Roles[0].Name))
 			crbl := &rbacv1.ClusterRoleBindingList{}
 			Expect(env.Client(shootCluster).List(env.Ctx, crbl, labelSelector)).To(Succeed())
 			Expect(crbl.Items).To(HaveLen(1))
 			crb := &crbl.Items[0]
 			Expect(crb.RoleRef.Name).To(Equal(cr.Name))
-			Expect(crb.Subjects).To(HaveLen(len(ar.Spec.OIDCProvider.RoleBindings[0].Subjects)))
-			for _, subject := range ar.Spec.OIDCProvider.RoleBindings[0].Subjects {
+			Expect(crb.Subjects).To(HaveLen(len(ar.Spec.OIDC.RoleBindings[0].Subjects)))
+			for _, subject := range ar.Spec.OIDC.RoleBindings[0].Subjects {
 				expected := rbacv1.Subject{
 					Kind:      subject.Kind,
 					Namespace: subject.Namespace,
 				}
 				switch expected.Kind {
 				case rbacv1.GroupKind:
-					expected.Name = ar.Spec.OIDCProvider.Default().GroupsPrefix + subject.Name
+					expected.Name = ar.Spec.OIDC.Default().GroupsPrefix + subject.Name
 				case rbacv1.UserKind:
-					expected.Name = ar.Spec.OIDCProvider.Default().UsernamePrefix + subject.Name
+					expected.Name = ar.Spec.OIDC.Default().UsernamePrefix + subject.Name
 				default:
 					expected.Name = subject.Name
 				}
@@ -495,27 +495,27 @@ var _ = Describe("AccessRequest Controller", func() {
 
 			// role + binding
 			rl := &rbacv1.RoleList{}
-			Expect(env.Client(shootCluster).List(env.Ctx, rl, labelSelector, client.InNamespace(ar.Spec.Permissions[1].Namespace))).To(Succeed())
+			Expect(env.Client(shootCluster).List(env.Ctx, rl, labelSelector, client.InNamespace(ar.Spec.OIDC.Roles[1].Namespace))).To(Succeed())
 			Expect(rl.Items).To(HaveLen(1))
 			r := &rl.Items[0]
-			Expect(r.Name).To(Equal(ar.Spec.Permissions[1].Name))
-			Expect(r.Rules).To(BeEquivalentTo(ar.Spec.Permissions[1].Rules))
+			Expect(r.Name).To(Equal(ar.Spec.OIDC.Roles[1].Name))
+			Expect(r.Rules).To(BeEquivalentTo(ar.Spec.OIDC.Roles[1].Rules))
 			rbl := &rbacv1.RoleBindingList{}
-			Expect(env.Client(shootCluster).List(env.Ctx, rbl, labelSelector, client.InNamespace(ar.Spec.Permissions[1].Namespace))).To(Succeed())
+			Expect(env.Client(shootCluster).List(env.Ctx, rbl, labelSelector, client.InNamespace(ar.Spec.OIDC.Roles[1].Namespace))).To(Succeed())
 			Expect(rbl.Items).To(HaveLen(1))
 			rb := &rbl.Items[0]
 			Expect(rb.RoleRef.Name).To(Equal(r.Name))
-			Expect(rb.Subjects).To(HaveLen(len(ar.Spec.OIDCProvider.RoleBindings[0].Subjects)))
-			for _, subject := range ar.Spec.OIDCProvider.RoleBindings[0].Subjects {
+			Expect(rb.Subjects).To(HaveLen(len(ar.Spec.OIDC.RoleBindings[0].Subjects)))
+			for _, subject := range ar.Spec.OIDC.RoleBindings[0].Subjects {
 				expected := rbacv1.Subject{
 					Kind:      subject.Kind,
 					Namespace: subject.Namespace,
 				}
 				switch expected.Kind {
 				case rbacv1.GroupKind:
-					expected.Name = ar.Spec.OIDCProvider.Default().GroupsPrefix + subject.Name
+					expected.Name = ar.Spec.OIDC.Default().GroupsPrefix + subject.Name
 				case rbacv1.UserKind:
-					expected.Name = ar.Spec.OIDCProvider.Default().UsernamePrefix + subject.Name
+					expected.Name = ar.Spec.OIDC.Default().UsernamePrefix + subject.Name
 				default:
 					expected.Name = subject.Name
 				}
@@ -570,10 +570,10 @@ var _ = Describe("AccessRequest Controller", func() {
 
 			// role + binding
 			rl := &rbacv1.RoleList{}
-			Expect(env.Client(shootCluster).List(env.Ctx, rl, labelSelector, client.InNamespace(ar.Spec.Permissions[1].Namespace))).To(Succeed())
+			Expect(env.Client(shootCluster).List(env.Ctx, rl, labelSelector, client.InNamespace(ar.Spec.OIDC.Roles[1].Namespace))).To(Succeed())
 			Expect(rl.Items).To(BeEmpty(), "Role should be deleted")
 			rbl := &rbacv1.RoleBindingList{}
-			Expect(env.Client(shootCluster).List(env.Ctx, rbl, labelSelector, client.InNamespace(ar.Spec.Permissions[1].Namespace))).To(Succeed())
+			Expect(env.Client(shootCluster).List(env.Ctx, rbl, labelSelector, client.InNamespace(ar.Spec.OIDC.Roles[1].Namespace))).To(Succeed())
 			Expect(rbl.Items).To(BeEmpty(), "RoleBinding should be deleted")
 		})
 

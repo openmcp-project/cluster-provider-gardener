@@ -216,12 +216,7 @@ func (r *AccessRequestReconciler) handleCreateOrUpdate(ctx context.Context, req 
 		}
 
 		if s != nil {
-			if ar.Spec.OIDCProvider != nil {
-				// the request is granted, the secret still exists and oidc permissions don't expire
-				log.Info("Request is already granted, secret still exists, oidc access does not expire - nothing to do")
-				createCon(providerv1alpha1.AccessRequestConditionSecretExistsAndIsValid, metav1.ConditionTrue, "", "")
-				return rr
-			} else {
+			if ar.Spec.Token != nil {
 				creationTimestamp := base64.StdEncoding.EncodeToString(s.Data[clustersv1alpha1.SecretKeyCreationTimestamp])
 				expirationTimestamp := base64.StdEncoding.EncodeToString(s.Data[clustersv1alpha1.SecretKeyExpirationTimestamp])
 				if creationTimestamp != "" && expirationTimestamp != "" {
@@ -248,6 +243,11 @@ func (r *AccessRequestReconciler) handleCreateOrUpdate(ctx context.Context, req 
 						return rr
 					}
 				}
+			} else if ar.Spec.OIDC != nil {
+				// the request is granted, the secret still exists and oidc permissions don't expire
+				log.Info("Request is already granted, secret still exists, oidc access does not expire - nothing to do")
+				createCon(providerv1alpha1.AccessRequestConditionSecretExistsAndIsValid, metav1.ConditionTrue, "", "")
+				return rr
 			}
 		}
 	}
@@ -262,14 +262,14 @@ func (r *AccessRequestReconciler) handleCreateOrUpdate(ctx context.Context, req 
 	createCon(providerv1alpha1.AccessRequestConditionShootAccess, metav1.ConditionTrue, "", "")
 
 	var keep []client.Object
-	if ar.Spec.OIDCProvider != nil {
-		keep, rr = r.ensureOIDCAccess(ctx, ar, getShootAccess, rr)
+	if ar.Spec.Token != nil {
+		keep, rr = r.renewToken(ctx, ar, getShootAccess, rr)
 		if rr.ReconcileError != nil {
 			createCon(providerv1alpha1.AccessRequestConditionSecretExistsAndIsValid, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 			return rr
 		}
-	} else {
-		keep, rr = r.renewToken(ctx, ar, getShootAccess, rr)
+	} else if ar.Spec.OIDC != nil {
+		keep, rr = r.ensureOIDCAccess(ctx, ar, getShootAccess, rr)
 		if rr.ReconcileError != nil {
 			createCon(providerv1alpha1.AccessRequestConditionSecretExistsAndIsValid, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 			return rr

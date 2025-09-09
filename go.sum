@@ -103,8 +103,8 @@ github.com/openmcp-project/controller-utils v0.20.0 h1:tHkwQb1xxDEXZGxYGzbCzcON9
 github.com/openmcp-project/controller-utils v0.20.0/go.mod h1:qefk05af4rYTyI2oeIDcACmKeFB1FN+mNHaDK0TuWxU=
 github.com/openmcp-project/controller-utils/api v0.20.0 h1:U0G4wSn+DiIGrCXBlRycMYtv9K/JP2apau+BixSCNvA=
 github.com/openmcp-project/controller-utils/api v0.20.0/go.mod h1:83a1ui1uJlmHRDTuKCq9AmCU4q/5BmnubZc0RITFVts=
-github.com/openmcp-project/openmcp-operator/api v0.12.0 h1:g3Q0VFNsggDmMD4r+RmtiNwGohzu2JfEqp4RtlT5b1A=
-github.com/openmcp-project/openmcp-operator/api v0.12.0/go.mod h1:malWxgwCmDPeNklWe23rw9f9cvmq6LdIxlKmvqcYMqw=
+github.com/openmcp-project/openmcp-operator/api v0.14.0 h1:/Ogg13b/IBBmAVQEuFnOKvHuVV3o2DlrQpSQhXca0+g=
+github.com/openmcp-project/openmcp-operator/api v0.14.0/go.mod h1:mgckJa59TpgTjta8+BWHwbOxlY1zVasqQTDFQLCs6M8=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=

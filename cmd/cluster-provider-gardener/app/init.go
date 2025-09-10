@@ -83,7 +83,6 @@ func (o *InitOptions) Run(ctx context.Context) error {
 
 	log := o.Log.WithName("main")
 	log.Info("Environment", "value", o.Environment)
-	log.Info("ProviderName", "value", o.ProviderName)
 
 	// apply CRDs
 	crdManager := crdutil.NewCRDManager(openmcpconst.ClusterLabel, crds.CRDs)

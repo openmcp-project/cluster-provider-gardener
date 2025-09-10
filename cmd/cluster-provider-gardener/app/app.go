@@ -34,9 +34,8 @@ func NewClusterProviderGardenerCommand() *cobra.Command {
 }
 
 type RawSharedOptions struct {
-	Environment  string `json:"environment"`
-	ProviderName string `json:"provider-name"`
-	DryRun       bool   `json:"dry-run"`
+	Environment string `json:"environment"`
+	DryRun      bool   `json:"dry-run"`
 }
 
 type SharedOptions struct {
@@ -44,8 +43,7 @@ type SharedOptions struct {
 	PlatformCluster *clusters.Cluster
 
 	// fields filled in Complete()
-	Log          logging.Logger
-	ProviderName string
+	Log logging.Logger
 }
 
 func (o *SharedOptions) AddPersistentFlags(cmd *cobra.Command) {
@@ -56,7 +54,6 @@ func (o *SharedOptions) AddPersistentFlags(cmd *cobra.Command) {
 	// environment
 	cmd.PersistentFlags().StringVar(&o.Environment, "environment", "", "Environment name. Required. This is used to distinguish between different environments that are watching the same Onboarding cluster. Must be globally unique.")
 	// provider name
-	cmd.PersistentFlags().StringVar(&o.ProviderName, "provider-name", "", "Name of the provider resource.")
 	cmd.PersistentFlags().BoolVar(&o.DryRun, "dry-run", false, "If set, the command aborts after evaluation of the given flags.")
 }
 
@@ -72,7 +69,6 @@ func (o *SharedOptions) PrintRaw(cmd *cobra.Command) {
 func (o *SharedOptions) PrintCompleted(cmd *cobra.Command) {
 	raw := map[string]any{
 		"platformCluster": o.PlatformCluster.APIServerEndpoint(),
-		"providerName":    o.ProviderName,
 	}
 	data, err := yaml.Marshal(raw)
 	if err != nil {
@@ -87,7 +83,6 @@ func (o *SharedOptions) Complete() error {
 		return fmt.Errorf("environment must not be empty")
 	}
 	shared.SetEnvironment(o.Environment)
-	shared.SetProviderName(o.ProviderName)
 
 	// build logger
 	log, err := logging.GetLogger()

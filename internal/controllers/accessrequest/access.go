@@ -519,9 +519,9 @@ func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clus
 		maps.Copy(oidc.Labels, pairs.PairsToMap(expectedLabels))
 		oidc.Spec.IssuerURL = oidcConfig.Issuer
 		oidc.Spec.GroupsClaim = &oidcConfig.GroupsClaim
-		oidc.Spec.GroupsPrefix = &oidcConfig.GroupsPrefix
+		oidc.Spec.GroupsPrefix = ptr.To(oidcConfig.UsernameGroupsPrefix())
 		oidc.Spec.UsernameClaim = &oidcConfig.UsernameClaim
-		oidc.Spec.UsernamePrefix = &oidcConfig.UsernamePrefix
+		oidc.Spec.UsernamePrefix = ptr.To(oidcConfig.UsernameGroupsPrefix())
 		oidc.Spec.ClientID = oidcConfig.ClientID
 		return nil
 	}); err != nil {
@@ -576,12 +576,7 @@ func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clus
 		for i, roleBinding := range ar.Spec.OIDC.RoleBindings {
 			// append username prefix and groups prefix to subjects
 			subjects := collections.ProjectSliceToSlice(roleBinding.Subjects, func(sub rbacv1.Subject) rbacv1.Subject {
-				switch sub.Kind {
-				case rbacv1.UserKind:
-					sub.Name = oidcConfig.UsernamePrefix + sub.Name
-				case rbacv1.GroupKind:
-					sub.Name = oidcConfig.GroupsPrefix + sub.Name
-				}
+				sub.Name = oidcConfig.UsernameGroupsPrefix() + sub.Name
 				return sub
 			})
 			// ensure (Cluster)RoleBindings

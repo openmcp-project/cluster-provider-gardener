@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -451,16 +450,8 @@ var _ = Describe("AccessRequest Controller", func() {
 			Expect(env.Client(shootCluster).Get(env.Ctx, client.ObjectKeyFromObject(oidc), oidc)).To(Succeed())
 			Expect(oidc.Spec.IssuerURL).To(Equal(ar.Spec.OIDC.Issuer))
 			Expect(oidc.Spec.ClientID).To(Equal(ar.Spec.OIDC.ClientID))
-			usernamePrefix := ar.Spec.OIDC.UsernamePrefix
-			if !strings.HasSuffix(usernamePrefix, ":") {
-				usernamePrefix += ":"
-			}
-			Expect(*oidc.Spec.UsernamePrefix).To(Equal(usernamePrefix))
-			groupsPrefix := ar.Spec.OIDC.GroupsPrefix
-			if !strings.HasSuffix(groupsPrefix, ":") {
-				groupsPrefix += ":"
-			}
-			Expect(*oidc.Spec.GroupsPrefix).To(Equal(groupsPrefix))
+			Expect(*oidc.Spec.UsernamePrefix).To(Equal(ar.Spec.OIDC.Name + ":"))
+			Expect(*oidc.Spec.GroupsPrefix).To(Equal(ar.Spec.OIDC.Name + ":"))
 			Expect(*oidc.Spec.UsernameClaim).To(Equal(ar.Spec.OIDC.UsernameClaim))
 			Expect(*oidc.Spec.GroupsClaim).To(Equal(ar.Spec.OIDC.GroupsClaim))
 
@@ -484,9 +475,9 @@ var _ = Describe("AccessRequest Controller", func() {
 				}
 				switch expected.Kind {
 				case rbacv1.GroupKind:
-					expected.Name = ar.Spec.OIDC.Default().GroupsPrefix + subject.Name
+					expected.Name = ar.Spec.OIDC.UsernameGroupsPrefix() + subject.Name
 				case rbacv1.UserKind:
-					expected.Name = ar.Spec.OIDC.Default().UsernamePrefix + subject.Name
+					expected.Name = ar.Spec.OIDC.UsernameGroupsPrefix() + subject.Name
 				default:
 					expected.Name = subject.Name
 				}
@@ -513,9 +504,9 @@ var _ = Describe("AccessRequest Controller", func() {
 				}
 				switch expected.Kind {
 				case rbacv1.GroupKind:
-					expected.Name = ar.Spec.OIDC.Default().GroupsPrefix + subject.Name
+					expected.Name = ar.Spec.OIDC.UsernameGroupsPrefix() + subject.Name
 				case rbacv1.UserKind:
-					expected.Name = ar.Spec.OIDC.Default().UsernamePrefix + subject.Name
+					expected.Name = ar.Spec.OIDC.UsernameGroupsPrefix() + subject.Name
 				default:
 					expected.Name = subject.Name
 				}

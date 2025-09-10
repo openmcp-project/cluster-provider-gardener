@@ -30,6 +30,8 @@ includes:
       REPO_URL: 'https://github.com/openmcp-project/cluster-provider-gardener'
       CHART_COMPONENTS: "[]"
       GENERATE_DOCS_INDEX: "true"
+      CRDS_COMPONENTS: 'cluster-provider-gardener'
+      CRDS_PATH: '{{.ROOT_DIR}}/api/crds/manifests'
 
 tasks:
   generate:code: # overwrites shared code task to add external API fetching

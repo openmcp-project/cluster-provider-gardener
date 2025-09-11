@@ -143,7 +143,7 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 	if !exists {
 		shoot = &gardenv1beta1.Shoot{}
 		shoot.SetGroupVersionKind(gardenv1beta1.SchemeGroupVersion.WithKind("Shoot"))
-		shoot.SetName(shared.ShootK8sNameFromCluster(c, profile.Project.Name))
+		shoot.SetName(shared.ShootK8sNameFromCluster(c))
 		shoot.SetNamespace(profile.Project.Namespace)
 	} else {
 		createCon(providerv1alpha1.ClusterConditionShootManagement, metav1.ConditionFalse, "ShootNotFound", "Shoot does not exist yet")

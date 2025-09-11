@@ -430,9 +430,9 @@ func ProfileK8sName(providerConfigName string) string {
 	return fmt.Sprintf("%s.%s.%s", Environment(), ProviderName(), providerConfigName)
 }
 
-func ShootK8sName(clusterName, clusterNamespace, projectName string) string {
-	return ctrlutils.K8sNameUUIDUnsafe(clusterNamespace, clusterName)[:(21 - len(projectName))]
+func ShootK8sName(clusterName, clusterNamespace string) string {
+	return fmt.Sprintf("s-%s", ctrlutils.NameHashSHAKE128Base32(clusterNamespace, clusterName))
 }
-func ShootK8sNameFromCluster(c *clustersv1alpha1.Cluster, projectName string) string {
-	return ShootK8sName(c.Name, c.Namespace, projectName)
+func ShootK8sNameFromCluster(c *clustersv1alpha1.Cluster) string {
+	return ShootK8sName(c.Name, c.Namespace)
 }

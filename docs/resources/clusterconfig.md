@@ -100,6 +100,12 @@ Removing extensions or merging their configuration is currently not possible thi
 
 For similar reasons as for `spec.extensions`, it is possible to inject named resource references into a shoot's `spec.resources` field via the cluster config's `spec.resources`. Existing resource references with the same name will be overwritten, otherwise the respective reference will be added to the shoot manifest.
 
+## Overwriting Shoot Names
+
+Note that the name of the generated `Shoot` can also be overwritten by setting the `gardener.clusters.openmcp.cloud/shoot-name` label on a `Cluster` resource. The label has no effect if the shoot for the Cluster has already been created and specifying a shoot name for which the shoot already exists, but belongs to a different Cluster, will result in an error.
+
+This method will not result in orphaned shoots if something goes wrong and is therefore recommended over manipulating the shoot name via the `ClusterConfig` resource.
+
 ## ⚠️ Warning
 
 Note that any of the shoot's fields (except for its `status`) can be modified using the `ClusterConfig` resource. This should be done very carefully, since there is a lot of potential for creating invalid changes to the shoot manifest.

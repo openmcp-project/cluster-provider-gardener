@@ -1,0 +1,15 @@
+apiVersion: clusters.openmcp.cloud/v1alpha1
+kind: Cluster
+metadata:
+  name: basic-with-name
+  namespace: clusters
+  labels:
+    gardener.clusters.openmcp.cloud/shoot-name: custom-shoot-name
+spec:
+  profile: test.gardener.gcp
+  purposes:
+  - test
+  tenancy: Exclusive
+status:
+  observedGeneration: 1
+  phase: Ready

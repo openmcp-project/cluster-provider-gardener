@@ -104,6 +104,48 @@ var _ = Describe("Cluster Controller", func() {
 		Expect(env.Client(gardenCluster).Get(env.Ctx, client.ObjectKeyFromObject(shoot), shoot)).To(Succeed())
 	})
 
+	It("should create a shoot for a new cluster with an overwritten name", func() {
+		env := defaultTestSetup("..", "cluster", "testdata", "test-05")
+
+		c := &clustersv1alpha1.Cluster{}
+		c.SetName("basic-with-name")
+		c.SetNamespace("clusters")
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(Succeed())
+		env.ShouldReconcile(cRec, testutils.RequestFromObject(c))
+
+		// verify shoot existence
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(Succeed())
+		Expect(c.Labels).To(HaveKeyWithValue(clustersv1alpha1.K8sVersionLabel, "1.32.2"))
+		Expect(c.Labels).To(HaveKeyWithValue(clustersv1alpha1.ProviderLabel, shared.ProviderName()))
+		Expect(c.Status.ProviderStatus).ToNot(BeNil())
+		cs := &providerv1alpha1.ClusterStatus{}
+		Expect(c.Status.GetProviderStatus(cs)).To(Succeed())
+		Expect(cs.Shoot).ToNot(BeNil())
+		Expect(cs.Shoot.Name).To(Equal("custom-shoot-name"))
+		shoot := &gardenv1beta1.Shoot{}
+		shoot.SetName(cs.Shoot.Name)
+		shoot.SetNamespace(cs.Shoot.Namespace)
+		Expect(env.Client(gardenCluster).Get(env.Ctx, client.ObjectKeyFromObject(shoot), shoot)).To(Succeed())
+	})
+
+	It("should fail if the shoot name is overwritten but there is an existing shoot with that name belonging to another cluster", func() {
+		env := defaultTestSetup("..", "cluster", "testdata", "test-05")
+
+		c := &clustersv1alpha1.Cluster{}
+		c.SetName("basic-with-name")
+		c.SetNamespace("clusters")
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(Succeed())
+		env.ShouldReconcile(cRec, testutils.RequestFromObject(c))
+
+		c2 := &clustersv1alpha1.Cluster{}
+		c2.SetName("another-name")
+		c2.SetNamespace("clusters")
+		c2.Labels = c.Labels
+		c2.Spec = *c.Spec.DeepCopy()
+		Expect(env.Client(platformCluster).Create(env.Ctx, c2)).To(Succeed())
+		env.ShouldNotReconcileWithError(cRec, testutils.RequestFromObject(c2), MatchError(And(ContainSubstring("already exists"), ContainSubstring("basic-with-name"))))
+	})
+
 	It("should update an existing shoot for an existing cluster", func() {
 		env := defaultTestSetup("..", "cluster", "testdata", "test-05")
 

@@ -10,6 +10,9 @@ const (
 	// AccessRequestFinalizer is the finalizer that is used by the AccessRequest controller on AccessRequest resources.
 	AccessRequestFinalizer = GroupName + "/accessrequest"
 
+	// ShootNameLabel is the label on Cluster resources that allows to overwrite the shoot name, which is otherwise generated based on the Cluster name and namespace.
+	ShootNameLabel = GroupName + "/shoot-name"
+
 	// ClusterConfigHashAnnotation is the name of the annotation that is used to store a hash over the names of the referenced ClusterConfig resources.
 	// This is used to detect changes in the ClusterConfig references.
 	ClusterConfigHashAnnotation = GroupName + "/clusterconfigs"

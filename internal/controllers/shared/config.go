@@ -434,5 +434,8 @@ func ShootK8sName(clusterName, clusterNamespace string) string {
 	return fmt.Sprintf("s-%s", ctrlutils.NameHashSHAKE128Base32(clusterNamespace, clusterName))
 }
 func ShootK8sNameFromCluster(c *clustersv1alpha1.Cluster) string {
+	if name, ok := c.Labels[providerv1alpha1.ShootNameLabel]; ok && name != "" {
+		return name
+	}
 	return ShootK8sName(c.Name, c.Namespace)
 }

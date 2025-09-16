@@ -145,6 +145,24 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 		shoot.SetGroupVersionKind(gardenv1beta1.SchemeGroupVersion.WithKind("Shoot"))
 		shoot.SetName(shared.ShootK8sNameFromCluster(c))
 		shoot.SetNamespace(profile.Project.Namespace)
+
+		// since it is possible to overwrite the shoot name via a label, we have to check for conflicts
+		if _, ok := c.Labels[providerv1alpha1.ShootNameLabel]; ok {
+			log.Info("Shoot name is overwritten, checking for conflicts", "shootName", shoot.Name, "shootNamespace", shoot.Namespace)
+			if err := landscape.Cluster.Client().Get(ctx, client.ObjectKeyFromObject(shoot), shoot); err != nil {
+				if !apierrors.IsNotFound(err) {
+					rr.ReconcileError = errutils.WithReason(fmt.Errorf("error checking for existing shoot with name '%s' in namespace '%s': %w", shoot.Name, shoot.Namespace, err), cconst.ReasonGardenClusterInteractionProblem)
+					createCon(providerv1alpha1.ClusterConditionShootManagement, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
+					return rr
+				}
+			} else {
+				clusterNameRef := shoot.Labels[providerv1alpha1.ClusterReferenceLabelName]
+				clusterNamespaceRef := shoot.Labels[providerv1alpha1.ClusterReferenceLabelNamespace]
+				rr.ReconcileError = errutils.WithReason(fmt.Errorf("shoot '%s/%s' already exists, but it belongs to Cluster '%s/%s', unable to create shoot", shoot.Namespace, shoot.Name, clusterNamespaceRef, clusterNameRef), cconst.ReasonConfigurationProblem)
+				createCon(providerv1alpha1.ClusterConditionShootManagement, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
+				return rr
+			}
+		}
 	} else {
 		createCon(providerv1alpha1.ClusterConditionShootManagement, metav1.ConditionFalse, "ShootNotFound", "Shoot does not exist yet")
 	}

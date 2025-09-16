@@ -12,8 +12,6 @@ spec:
     name: my-oidc-provider
     issuer: https://oidc.example.com
     clientID: my-client-id
-    usernamePrefix: "my-user:"
-    groupsPrefix: "my-group"
     usernameClaim: "user_claim"
     groupsClaim: "group_claim"
     extraScopes:

@@ -5,7 +5,7 @@ go 1.25.1
 require (
 	github.com/openmcp-project/controller-utils v0.22.0
 	github.com/openmcp-project/controller-utils/api v0.22.0
-	github.com/openmcp-project/openmcp-operator/api v0.14.0
+	github.com/openmcp-project/openmcp-operator/api v0.15.1
 	k8s.io/api v0.34.1
 	k8s.io/apiextensions-apiserver v0.34.1
 	k8s.io/client-go v0.34.1

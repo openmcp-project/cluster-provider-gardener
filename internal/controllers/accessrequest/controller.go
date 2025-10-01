@@ -368,6 +368,8 @@ func (r *AccessRequestReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				ctrlutils.DeletionTimestampChangedPredicate{},
 				ctrlutils.GotAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueReconcile),
 				ctrlutils.LostAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueIgnore),
+				ctrlutils.GotLabelPredicate(clustersv1alpha1.ProviderLabel, shared.ProviderName()),
+				ctrlutils.GotLabelPredicate(clustersv1alpha1.ProfileLabel, ""),
 			),
 			predicate.Not(
 				ctrlutils.HasAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueIgnore),

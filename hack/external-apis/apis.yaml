@@ -47,7 +47,7 @@ apis:
     - name: pkg/apis/authentication/v1alpha1/zz_generated.deepcopy.go
   oidc-webhook-authenticator:
     # renovate: datasource=github-releases
-    base: https://raw.githubusercontent.com/gardener/oidc-webhook-authenticator/v0.37.0
+    base: https://raw.githubusercontent.com/gardener/oidc-webhook-authenticator/v0.38.0
     vendor: github.com/gardener/oidc-webhook-authenticator
     files:
     - name: apis/authentication/v1alpha1/groupversion_info.go

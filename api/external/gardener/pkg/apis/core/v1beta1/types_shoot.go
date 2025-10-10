@@ -104,6 +104,8 @@ type ShootSpec struct {
 	// The field is mutually exclusive with CredentialsBindingName.
 	// This field is immutable.
 	// +optional
+	//
+	// Deprecated: Use CredentialsBindingName instead. See https://github.com/gardener/gardener/blob/master/docs/usage/shoot-operations/secretbinding-to-credentialsbinding-migration.md for migration instructions.
 	SecretBindingName *string `json:"secretBindingName,omitempty" protobuf:"bytes,13,opt,name=secretBindingName"`
 	// SeedName is the name of the seed cluster that runs the control plane of the Shoot.
 	// +optional
@@ -282,11 +284,10 @@ type ShootCredentialsRotation struct {
 	// CertificateAuthorities contains information about the certificate authority credential rotation.
 	// +optional
 	CertificateAuthorities *CARotation `json:"certificateAuthorities,omitempty" protobuf:"bytes,1,opt,name=certificateAuthorities"`
-	// Kubeconfig contains information about the kubeconfig credential rotation.
-	// +optional
-	//
-	// Deprecated: This field is deprecated and will be removed in gardener v1.120
-	Kubeconfig *ShootKubeconfigRotation `json:"kubeconfig,omitempty" protobuf:"bytes,2,opt,name=kubeconfig"`
+
+	// Kubeconfig is tombstoned to show why 2 is reserved protobuf tag.
+	// Kubeconfig *ShootKubeconfigRotation `json:"kubeconfig,omitempty" protobuf:"bytes,2,opt,name=kubeconfig"`
+
 	// SSHKeypair contains information about the ssh-keypair credential rotation.
 	// +optional
 	SSHKeypair *ShootSSHKeypairRotation `json:"sshKeypair,omitempty" protobuf:"bytes,3,opt,name=sshKeypair"`
@@ -400,6 +401,15 @@ type ETCDEncryptionKeyRotation struct {
 	// triggered.
 	// +optional
 	LastCompletionTriggeredTime *metav1.Time `json:"lastCompletionTriggeredTime,omitempty" protobuf:"bytes,5,opt,name=lastCompletionTriggeredTime"`
+	// AutoCompleteAfterPrepared indicates whether the current ETCD encryption key rotation should be auto completed after the preparation phase has finished.
+	// Such rotation can be triggered by the `rotate-etcd-encryption-key` annotation.
+	// This field is needed while we support two types of key rotations: two-operation and single operation rotation.
+	//
+	// Deprecated: This field will be removed in a future release. The field will be no longer needed with
+	// the removal `rotate-etcd-encryption-key-start` & `rotate-etcd-encryption-key-complete` annotations.
+	// TODO(AleksandarSavchev): Remove this after support for Kubernetes v1.33 is dropped.
+	// +optional
+	AutoCompleteAfterPrepared *bool `json:"autoCompleteAfterPrepared,omitempty" protobuf:"varint,6,opt,name=autoCompleteAfterPrepared"`
 }
 
 // CredentialsRotationPhase is a string alias.
@@ -2026,6 +2036,8 @@ const (
 	ShootReadyForMigration ConditionType = "ReadyForMigration"
 	// ShootDualStackNodesMigrationReady is a constant for a condition type indicating whether all nodes are migrated to dual-stack .
 	ShootDualStackNodesMigrationReady ConditionType = "DualStackNodesMigrationReady"
+	// ShootDNSServiceMigrationReady is a constant for a condition type indicating whether the kube-dns service is migrated.
+	ShootDNSServiceMigrationReady ConditionType = "DNSServiceMigrationReady"
 )
 
 // ShootPurpose is a type alias for string.

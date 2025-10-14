@@ -6,8 +6,10 @@ import (
 	. "github.com/onsi/gomega/gstruct"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
@@ -231,6 +233,55 @@ var _ = Describe("Cluster Controller", func() {
 
 		// delete the cluster
 		Expect(env.Client(platformCluster).Delete(env.Ctx, c)).To(Succeed())
+		env.ShouldReconcile(cRec, testutils.RequestFromObject(c))
+
+		// verify shoot deletion
+		Expect(env.Client(gardenCluster).Get(env.Ctx, client.ObjectKeyFromObject(shoot), shoot)).To(MatchError(apierrors.IsNotFound, "shoot should be deleted"))
+		// shoot is gone, reconcile again to remove cluster finalizer
+		env.ShouldReconcile(cRec, testutils.RequestFromObject(c))
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(MatchError(apierrors.IsNotFound, "cluster should be deleted"))
+	})
+
+	It("should not start with shoot deletion if there are foreign finalizers on the Cluster", func() {
+		env := defaultTestSetup("..", "cluster", "testdata", "test-05")
+
+		c := &clustersv1alpha1.Cluster{}
+		c.SetName("advanced")
+		c.SetNamespace("clusters")
+		env.ShouldReconcile(cRec, testutils.RequestFromObject(c))
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(Succeed())
+		c.Finalizers = append(c.Finalizers, "example.com/finalizer")
+		Expect(env.Client(platformCluster).Update(env.Ctx, c)).To(Succeed())
+
+		// verify shoot existence
+		Expect(c.Status.ProviderStatus).ToNot(BeNil())
+		cs := &providerv1alpha1.ClusterStatus{}
+		Expect(c.Status.GetProviderStatus(cs)).To(Succeed())
+		Expect(cs.Shoot).ToNot(BeNil())
+		shoot := &gardenv1beta1.Shoot{}
+		shoot.SetName(cs.Shoot.Name)
+		shoot.SetNamespace(cs.Shoot.Namespace)
+		Expect(env.Client(gardenCluster).Get(env.Ctx, client.ObjectKeyFromObject(shoot), shoot)).To(Succeed())
+
+		// delete the cluster
+		Expect(env.Client(platformCluster).Delete(env.Ctx, c)).To(Succeed())
+		env.ShouldReconcile(cRec, testutils.RequestFromObject(c))
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(Succeed())
+
+		// shoot should not be deleted because of the unknown finalizer
+		Expect(env.Client(gardenCluster).Get(env.Ctx, client.ObjectKeyFromObject(shoot), shoot)).To(Succeed())
+		Expect(shoot.DeletionTimestamp.IsZero()).To(BeTrue())
+
+		// there should be a condition indicating that there are foreign finalizers
+		Expect(c.Status.Conditions).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+			"Type":    Equal(providerv1alpha1.ClusterConditionForeignFinalizers),
+			"Status":  Equal(metav1.ConditionFalse),
+			"Message": ContainSubstring("example.com/finalizer"),
+		})))
+
+		// remove the foreign finalizer
+		Expect(controllerutil.RemoveFinalizer(c, "example.com/finalizer")).To(BeTrue())
+		Expect(env.Client(platformCluster).Update(env.Ctx, c)).To(Succeed())
 		env.ShouldReconcile(cRec, testutils.RequestFromObject(c))
 
 		// verify shoot deletion

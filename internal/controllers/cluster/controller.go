@@ -12,6 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -270,6 +271,20 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 		// DELETE
 		log.Info("Deleting resource")
 
+		// check if there are any foreign finalizers on the Cluster resource
+		foreignFinalizers := make([]string, 0, len(c.Finalizers))
+		for _, fin := range c.Finalizers {
+			if fin != providerv1alpha1.ClusterFinalizer {
+				foreignFinalizers = append(foreignFinalizers, fin)
+			}
+		}
+		if len(foreignFinalizers) > 0 {
+			log.Info("Postponing shoot deletion until foreign finalizers are removed", "foreignFinalizers", foreignFinalizers)
+			createCon(providerv1alpha1.ClusterConditionForeignFinalizers, metav1.ConditionFalse, cconst.ReasonWaitingForDeletion, "Waiting for foreign finalizers to be removed: "+fmt.Sprintf("%v", foreignFinalizers))
+			return rr
+		}
+		createCon(providerv1alpha1.ClusterConditionForeignFinalizers, metav1.ConditionTrue, "", "")
+
 		if exists {
 			// shoot is still there
 			if shoot.DeletionTimestamp == nil {
@@ -346,6 +361,7 @@ func (r *ClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			predicate.Or(
 				predicate.GenerationChangedPredicate{},
 				ctrlutils.DeletionTimestampChangedPredicate{},
+				finalizersLostWhileInDeletionPredicate{},
 				ctrlutils.GotAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueReconcile),
 				ctrlutils.LostAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueIgnore),
 			),
@@ -548,4 +564,32 @@ func (r *ClusterReconciler) getClusterConfigs(ctx context.Context, c *clustersv1
 	}
 
 	return clusterConfigs, nil
+}
+
+// TODO: move to controller-utils library
+type finalizersLostWhileInDeletionPredicate struct{}
+
+var _ predicate.Predicate = finalizersLostWhileInDeletionPredicate{}
+
+// Create implements predicate.TypedPredicate.
+func (f finalizersLostWhileInDeletionPredicate) Create(event.TypedCreateEvent[client.Object]) bool {
+	return false
+}
+
+// Delete implements predicate.TypedPredicate.
+func (f finalizersLostWhileInDeletionPredicate) Delete(event.TypedDeleteEvent[client.Object]) bool {
+	return false
+}
+
+// Generic implements predicate.TypedPredicate.
+func (f finalizersLostWhileInDeletionPredicate) Generic(event.TypedGenericEvent[client.Object]) bool {
+	return false
+}
+
+// Update implements predicate.TypedPredicate.
+func (f finalizersLostWhileInDeletionPredicate) Update(e event.TypedUpdateEvent[client.Object]) bool {
+	if e.ObjectOld == nil || e.ObjectNew == nil {
+		return false
+	}
+	return !e.ObjectNew.GetDeletionTimestamp().IsZero() && len(e.ObjectNew.GetFinalizers()) < len(e.ObjectOld.GetFinalizers())
 }

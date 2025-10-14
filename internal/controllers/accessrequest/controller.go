@@ -392,7 +392,8 @@ func (r *AccessRequestReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func defaultSecretName(ar *clustersv1alpha1.AccessRequest) string {
-	return ar.Name
+	suffix := ".kubeconfig"
+	return ctrlutils.ShortenToXCharactersUnsafe(ar.Name, ctrlutils.K8sMaxNameLength-len(suffix)) + suffix
 }
 
 type shootAccessGetter func() (*shootAccess, errutils.ReasonableError)

@@ -43,6 +43,7 @@ const (
 
 	ClusterConditionShootManagement       = "ShootManagement"
 	ClusterConditionClusterConfigurations = "ClusterConfigurations"
+	ClusterConditionForeignFinalizers     = "ForeignFinalizers"
 
 	ProviderConfigConditionCloudProfile             = "CloudProfile"
 	ProviderConfigConditionClusterProfileManagement = "ClusterProfileManagement"

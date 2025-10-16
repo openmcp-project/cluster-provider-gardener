@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -474,10 +475,12 @@ var _ = Describe("AccessRequest Controller", func() {
 					Namespace: subject.Namespace,
 				}
 				switch expected.Kind {
-				case rbacv1.GroupKind:
-					expected.Name = ar.Spec.OIDC.UsernameGroupsPrefix() + subject.Name
-				case rbacv1.UserKind:
-					expected.Name = ar.Spec.OIDC.UsernameGroupsPrefix() + subject.Name
+				case rbacv1.GroupKind, rbacv1.UserKind:
+					if suffix, ok := strings.CutPrefix(subject.Name, "::"); ok {
+						expected.Name = suffix
+					} else {
+						expected.Name = ar.Spec.OIDC.UsernameGroupsPrefix() + subject.Name
+					}
 				default:
 					expected.Name = subject.Name
 				}
@@ -503,10 +506,12 @@ var _ = Describe("AccessRequest Controller", func() {
 					Namespace: subject.Namespace,
 				}
 				switch expected.Kind {
-				case rbacv1.GroupKind:
-					expected.Name = ar.Spec.OIDC.UsernameGroupsPrefix() + subject.Name
-				case rbacv1.UserKind:
-					expected.Name = ar.Spec.OIDC.UsernameGroupsPrefix() + subject.Name
+				case rbacv1.GroupKind, rbacv1.UserKind:
+					if suffix, ok := strings.CutPrefix(subject.Name, "::"); ok {
+						expected.Name = suffix
+					} else {
+						expected.Name = ar.Spec.OIDC.UsernameGroupsPrefix() + subject.Name
+					}
 				default:
 					expected.Name = subject.Name
 				}

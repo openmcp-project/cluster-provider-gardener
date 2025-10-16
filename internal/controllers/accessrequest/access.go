@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"strconv"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -576,7 +577,11 @@ func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clus
 		for i, roleBinding := range ar.Spec.OIDC.RoleBindings {
 			// append username prefix and groups prefix to subjects
 			subjects := collections.ProjectSliceToSlice(roleBinding.Subjects, func(sub rbacv1.Subject) rbacv1.Subject {
-				sub.Name = oidcConfig.UsernameGroupsPrefix() + sub.Name
+				if suffix, ok := strings.CutPrefix(sub.Name, "::"); ok {
+					sub.Name = suffix
+				} else {
+					sub.Name = oidcConfig.UsernameGroupsPrefix() + sub.Name
+				}
 				return sub
 			})
 			// ensure (Cluster)RoleBindings

@@ -22,6 +22,8 @@ spec:
         name: foo
       - kind: Group
         name: bar
+      - kind: Group
+        name: "::asdf" # no prefix should be appended
       roleRefs:
       - kind: ClusterRole
         name: foo

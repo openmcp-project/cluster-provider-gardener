@@ -53,6 +53,7 @@ type ShootList struct {
 type ShootTemplate struct {
 	// Standard object metadata.
 	// +optional
+	// +kubebuilder:pruning:PreserveUnknownFields
 	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
 
 	// Specification of the desired behavior of the Shoot.

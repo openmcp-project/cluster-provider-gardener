@@ -38,6 +38,9 @@ apis:
     - name: pkg/apis/core/v1beta1/types_secretbinding.go
     - name: pkg/apis/core/v1beta1/types_seed.go
     - name: pkg/apis/core/v1beta1/types_shoot.go
+      patches:
+        - replace: "type ShootTemplate struct {\n	// Standard object metadata.\n	// +optional"
+          with: "type ShootTemplate struct {\n	// Standard object metadata.\n	// +optional\n  // +kubebuilder:pruning:PreserveUnknownFields"
     - name: pkg/apis/core/v1beta1/types_shootstate.go
     - name: pkg/apis/core/v1beta1/types_utils.go
     - name: pkg/apis/core/v1beta1/types.go

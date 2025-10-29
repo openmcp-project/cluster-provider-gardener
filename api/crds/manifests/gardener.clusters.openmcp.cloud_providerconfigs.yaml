@@ -90,6 +90,7 @@ spec:
                   metadata:
                     description: Standard object metadata.
                     type: object
+                    x-kubernetes-preserve-unknown-fields: true
                   spec:
                     description: Specification of the desired behavior of the Shoot.
                     properties:

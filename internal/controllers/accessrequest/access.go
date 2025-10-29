@@ -483,9 +483,8 @@ func (r *AccessRequestReconciler) renewToken(ctx context.Context, ar *clustersv1
 		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error creating/updating secret '%s/%s': %w", s.Namespace, s.Name, err), clusterconst.ReasonPlatformClusterInteractionProblem)
 		return nil, rr
 	}
-	rr.Object.Status.SecretRef = &commonapi.ObjectReference{}
+	rr.Object.Status.SecretRef = &commonapi.LocalObjectReference{}
 	rr.Object.Status.SecretRef.Name = s.Name
-	rr.Object.Status.SecretRef.Namespace = s.Namespace
 	rr.Object.Status.Phase = clustersv1alpha1.REQUEST_GRANTED
 
 	return keep, rr
@@ -622,7 +621,7 @@ func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clus
 
 	// create kubeconfig
 	kcfgOptions := []clusteraccess.CreateOIDCKubeconfigOption{
-		clusteraccess.UsePKCE(),
+		clusteraccess.WithPKCEMethod(clusteraccess.PKCEMethodAuto),
 		clusteraccess.WithClusterName(fmt.Sprintf("%s--%s", ar.Spec.ClusterRef.Namespace, ar.Spec.ClusterRef.Name)),
 		clusteraccess.WithContextName(fmt.Sprintf("%s--%s--%s", ar.Spec.ClusterRef.Namespace, ar.Spec.ClusterRef.Name, oidcConfig.Name)),
 	}
@@ -658,9 +657,8 @@ func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clus
 		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error creating/updating secret '%s/%s': %w", s.Namespace, s.Name, err), clusterconst.ReasonPlatformClusterInteractionProblem)
 		return nil, rr
 	}
-	rr.Object.Status.SecretRef = &commonapi.ObjectReference{}
+	rr.Object.Status.SecretRef = &commonapi.LocalObjectReference{}
 	rr.Object.Status.SecretRef.Name = s.Name
-	rr.Object.Status.SecretRef.Namespace = s.Namespace
 	rr.Object.Status.Phase = clustersv1alpha1.REQUEST_GRANTED
 
 	return keep, rr

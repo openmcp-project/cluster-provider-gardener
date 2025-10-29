@@ -1096,7 +1096,7 @@ type OIDCConfig struct {
 	// ClientAuthentication can optionally contain client configuration used for kubeconfig generation.
 	//
 	// Deprecated: This field has no implemented use and will be forbidden starting from Kubernetes 1.31.
-	// It's use was planned for genereting OIDC kubeconfig https://github.com/gardener/gardener/issues/1433
+	// It's use was planned for generating OIDC kubeconfig https://github.com/gardener/gardener/issues/1433
 	// TODO(AleksandarSavchev): Drop this field after support for Kubernetes 1.30 is dropped.
 	// +optional
 	ClientAuthentication *OpenIDConnectClientAuthentication `json:"clientAuthentication,omitempty" protobuf:"bytes,2,opt,name=clientAuthentication"`
@@ -2039,6 +2039,8 @@ const (
 	ShootDualStackNodesMigrationReady ConditionType = "DualStackNodesMigrationReady"
 	// ShootDNSServiceMigrationReady is a constant for a condition type indicating whether the kube-dns service is migrated.
 	ShootDNSServiceMigrationReady ConditionType = "DNSServiceMigrationReady"
+	// ShootUsesUnifiedHTTPProxyPort is a constant for a condition type indicating whether the new http-proxy port is consumed from istio.
+	ShootUsesUnifiedHTTPProxyPort ConditionType = "UsesUnifiedHTTPProxyPort"
 )
 
 // ShootPurpose is a type alias for string.

@@ -187,7 +187,7 @@ var _ = Describe("AccessRequest Controller", func() {
 			Expect(ar.Status.Phase).To(Equal(clustersv1alpha1.REQUEST_GRANTED))
 			Expect(ar.Status.SecretRef).ToNot(BeNil())
 			sName := ar.Status.SecretRef.Name
-			sNamespace := ar.Status.SecretRef.Namespace
+			sNamespace := ar.Namespace
 			Expect(sName).ToNot(BeEmpty())
 			Expect(sNamespace).ToNot(BeEmpty())
 
@@ -312,7 +312,7 @@ var _ = Describe("AccessRequest Controller", func() {
 			Expect(ar.Status.Phase).To(Equal(clustersv1alpha1.REQUEST_GRANTED))
 			Expect(ar.Status.SecretRef).ToNot(BeNil())
 			sName := ar.Status.SecretRef.Name
-			sNamespace := ar.Status.SecretRef.Namespace
+			sNamespace := ar.Namespace
 			Expect(sName).ToNot(BeEmpty())
 			Expect(sNamespace).ToNot(BeEmpty())
 			s := &corev1.Secret{}
@@ -388,7 +388,7 @@ var _ = Describe("AccessRequest Controller", func() {
 			Expect(ar.Status.Phase).To(Equal(clustersv1alpha1.REQUEST_GRANTED))
 			Expect(ar.Status.SecretRef).ToNot(BeNil())
 			sName := ar.Status.SecretRef.Name
-			sNamespace := ar.Status.SecretRef.Namespace
+			sNamespace := ar.Namespace
 			Expect(sName).ToNot(BeEmpty())
 			Expect(sNamespace).ToNot(BeEmpty())
 
@@ -421,7 +421,7 @@ var _ = Describe("AccessRequest Controller", func() {
 			Expect(ar.Status.Phase).To(Equal(clustersv1alpha1.REQUEST_GRANTED))
 			Expect(ar.Status.SecretRef).ToNot(BeNil())
 			sName := ar.Status.SecretRef.Name
-			sNamespace := ar.Status.SecretRef.Namespace
+			sNamespace := ar.Namespace
 			Expect(sName).ToNot(BeEmpty())
 			Expect(sNamespace).ToNot(BeEmpty())
 
@@ -529,7 +529,7 @@ var _ = Describe("AccessRequest Controller", func() {
 			Expect(ar.Status.Phase).To(Equal(clustersv1alpha1.REQUEST_GRANTED))
 			Expect(ar.Status.SecretRef).ToNot(BeNil())
 			sName := ar.Status.SecretRef.Name
-			sNamespace := ar.Status.SecretRef.Namespace
+			sNamespace := ar.Namespace
 			Expect(sName).ToNot(BeEmpty())
 			Expect(sNamespace).ToNot(BeEmpty())
 			s := &corev1.Secret{}

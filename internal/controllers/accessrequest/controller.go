@@ -206,9 +206,9 @@ func (r *AccessRequestReconciler) handleCreateOrUpdate(ctx context.Context, req 
 	if ar.Status.Phase == clustersv1alpha1.REQUEST_GRANTED && ar.Status.ObservedGeneration == ar.Generation && !enforceReconcile {
 		// check if the secret exists and is valid
 		s := &corev1.Secret{}
-		if err := r.PlatformCluster.Client().Get(ctx, ctrlutils.ObjectKey(ar.Status.SecretRef.Name, ar.Status.SecretRef.Namespace), s); err != nil {
+		if err := r.PlatformCluster.Client().Get(ctx, ctrlutils.ObjectKey(ar.Status.SecretRef.Name, ar.Namespace), s); err != nil {
 			if !apierrors.IsNotFound(err) {
-				rr.ReconcileError = errutils.WithReason(fmt.Errorf("error getting secret '%s/%s': %w", ar.Status.SecretRef.Namespace, ar.Status.SecretRef.Name, err), clusterconst.ReasonPlatformClusterInteractionProblem)
+				rr.ReconcileError = errutils.WithReason(fmt.Errorf("error getting secret '%s/%s': %w", ar.Namespace, ar.Status.SecretRef.Name, err), clusterconst.ReasonPlatformClusterInteractionProblem)
 				createCon(providerv1alpha1.AccessRequestConditionSecretExistsAndIsValid, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 				return rr
 			}

@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"slices"
 
 	"github.com/Masterminds/semver/v3"
@@ -73,16 +74,20 @@ func (r *GardenerProviderConfigReconciler) Reconcile(ctx context.Context, req re
 			r.UnsetProviderConfiguration(req.Name)
 		}
 		if profile != nil {
+			oldProfile := r.GetProfileForProviderConfiguration(req.Name)
+
 			// update internal profiles
 			log.Info("Updating profile registrations")
-			oldProfile := r.GetProfileForProviderConfiguration(req.Name)
 			r.SetProfileForProviderConfiguration(req.Name, profile)
-			if oldProfile == nil {
-				// notify clusters about new profile
+
+			// notify clusters about new/updated profile
+			if oldProfile == nil || IsProfileUpdated(oldProfile, profile) {
 				// this is required because clusters with unknown profiles are ignored by the controller
 				// so they would only be reconciled if somehow triggered by a modification from the outside
-				if err := r.notifyClustersAboutNewProfile(ctx, profile); err != nil {
-					rr.ReconcileError = errutils.Join(rr.ReconcileError, errutils.Errorf("error notifying clusters about new profile: %s", err, err.Error()))
+				// additionally, when a profile is updated (e.g., ShootTemplate changes), clusters need to be notified
+				// so they can update their corresponding shoot resources
+				if err := r.notifyClustersAboutProfileUpdate(ctx, profile); err != nil {
+					rr.ReconcileError = errutils.Join(rr.ReconcileError, errutils.Errorf("error notifying clusters about profile update: %s", err, err.Error()))
 				}
 			}
 		} else if rr.ReconcileError == nil {
@@ -307,9 +312,9 @@ func (r *GardenerProviderConfigReconciler) handleDelete(ctx context.Context, req
 	return rr
 }
 
-func (r *GardenerProviderConfigReconciler) notifyClustersAboutNewProfile(ctx context.Context, profile *shared.Profile) errutils.ReasonableError {
+func (r *GardenerProviderConfigReconciler) notifyClustersAboutProfileUpdate(ctx context.Context, profile *shared.Profile) errutils.ReasonableError {
 	log := logging.FromContextOrPanic(ctx)
-	log.Info("Notifying clusters about new profile")
+	log.Info("Notifying clusters about new/updated profile")
 
 	// list all clusters that reference the new profile
 	clusters := &clustersv1alpha1.ClusterList{}
@@ -320,7 +325,7 @@ func (r *GardenerProviderConfigReconciler) notifyClustersAboutNewProfile(ctx con
 	}
 
 	if len(clusters.Items) == 0 {
-		log.Debug("No clusters found that reference the new profile")
+		log.Debug("No clusters found that reference this profile")
 		return nil
 	}
 	for _, c := range clusters.Items {
@@ -328,6 +333,13 @@ func (r *GardenerProviderConfigReconciler) notifyClustersAboutNewProfile(ctx con
 		r.ReconcileCluster <- event.TypedGenericEvent[*clustersv1alpha1.Cluster]{Object: &c}
 	}
 	return nil
+}
+
+func IsProfileUpdated(oldProfile, newProfile *shared.Profile) bool {
+	if oldProfile == nil || newProfile == nil {
+		return oldProfile != newProfile
+	}
+	return !reflect.DeepEqual(oldProfile.ProviderConfig.Spec, newProfile.ProviderConfig.Spec)
 }
 
 // SetupWithManager sets up the controller with the Manager.

@@ -81,7 +81,7 @@ func (r *GardenerProviderConfigReconciler) Reconcile(ctx context.Context, req re
 			r.SetProfileForProviderConfiguration(req.Name, profile)
 
 			// notify clusters about new/updated profile
-			if oldProfile == nil || isProfileUpdated(oldProfile, profile) {
+			if oldProfile == nil || IsProfileUpdated(oldProfile, profile) {
 				// this is required because clusters with unknown profiles are ignored by the controller
 				// so they would only be reconciled if somehow triggered by a modification from the outside
 				// additionally, when a profile is updated (e.g., ShootTemplate changes), clusters need to be notified
@@ -335,7 +335,7 @@ func (r *GardenerProviderConfigReconciler) notifyClustersAboutProfileUpdate(ctx 
 	return nil
 }
 
-func isProfileUpdated(oldProfile, newProfile *shared.Profile) bool {
+func IsProfileUpdated(oldProfile, newProfile *shared.Profile) bool {
 	if oldProfile == nil || newProfile == nil {
 		return oldProfile != newProfile
 	}

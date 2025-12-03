@@ -289,3 +289,44 @@ var _ = Describe("ProviderConfig Controller", func() {
 	})
 
 })
+
+var _ = Describe("isProfileUpdated", func() {
+	It("should return false when ProviderConfig.Spec is identical", func() {
+		spec := providerv1alpha1.ProviderConfigSpec{
+			ProviderRef:  commonapi.LocalObjectReference{Name: "gardener"},
+			LandscapeRef: commonapi.LocalObjectReference{Name: "landscape-1"},
+			Project:      "my-project",
+		}
+		oldProfile := &shared.Profile{
+			ProviderConfig: &providerv1alpha1.ProviderConfig{
+				Spec: spec,
+			},
+		}
+		newProfile := &shared.Profile{
+			ProviderConfig: &providerv1alpha1.ProviderConfig{
+				Spec: spec,
+			},
+		}
+		result := config.IsProfileUpdated(oldProfile, newProfile)
+		Expect(result).To(BeFalse())
+	})
+
+	It("should return true when ProviderConfig.Spec differs", func() {
+		oldProfile := &shared.Profile{
+			ProviderConfig: &providerv1alpha1.ProviderConfig{
+				Spec: providerv1alpha1.ProviderConfigSpec{
+					Project: "project-1",
+				},
+			},
+		}
+		newProfile := &shared.Profile{
+			ProviderConfig: &providerv1alpha1.ProviderConfig{
+				Spec: providerv1alpha1.ProviderConfigSpec{
+					Project: "project-2",
+				},
+			},
+		}
+		result := config.IsProfileUpdated(oldProfile, newProfile)
+		Expect(result).To(BeTrue())
+	})
+})

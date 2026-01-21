@@ -3,6 +3,9 @@ kind: AccessRequest
 metadata:
   name: my-access
   namespace: foo
+  labels:
+    clusters.openmcp.cloud/provider: gardener
+    clusters.openmcp.cloud/profile: my-profile
 spec:
   clusterRef:
     name: advanced
@@ -32,3 +35,5 @@ spec:
       namespace: default
     - kind: ClusterRole
       name: cluster-admin
+status:
+  phase: Pending

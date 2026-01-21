@@ -28,6 +28,7 @@ import (
 	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
 	clusterconst "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1/constants"
 	openmcpconst "github.com/openmcp-project/openmcp-operator/api/constants"
+	libutils "github.com/openmcp-project/openmcp-operator/lib/utils"
 
 	providerv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
 	cconst "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1/constants"
@@ -97,6 +98,11 @@ func (r *AccessRequestReconciler) reconcile(ctx context.Context, req reconcile.R
 			return ReconcileResult{}
 		}
 		return ReconcileResult{ReconcileError: errutils.WithReason(fmt.Errorf("unable to get resource '%s' from cluster: %w", req.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)}
+	}
+
+	if !libutils.IsClusterProviderResponsibleForAccessRequest(ar, shared.ProviderName()) {
+		log.Info("ClusterProvider is not responsible for this AccessRequest, skipping reconciliation")
+		return ReconcileResult{}
 	}
 
 	// handle operation annotation
@@ -361,11 +367,12 @@ func (r *AccessRequestReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// watch AccessRequest resources
 		For(&clustersv1alpha1.AccessRequest{}).
 		WithEventFilter(predicate.And(
-			ctrlutils.HasLabelPredicate(clustersv1alpha1.ProviderLabel, shared.ProviderName()),
-			ctrlutils.HasLabelPredicate(clustersv1alpha1.ProfileLabel, ""),
+			predicate.NewPredicateFuncs(func(obj client.Object) bool {
+				return libutils.IsClusterProviderResponsibleForAccessRequest(obj.(*clustersv1alpha1.AccessRequest), shared.ProviderName())
+			}),
 			predicate.Or(
-				predicate.GenerationChangedPredicate{},
 				ctrlutils.DeletionTimestampChangedPredicate{},
+				libutils.AccessRequestPhasePredicateUntyped(clustersv1alpha1.REQUEST_PENDING),
 				ctrlutils.GotAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueReconcile),
 				ctrlutils.LostAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueIgnore),
 				ctrlutils.GotLabelPredicate(clustersv1alpha1.ProviderLabel, shared.ProviderName()),

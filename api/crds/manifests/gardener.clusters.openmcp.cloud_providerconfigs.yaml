@@ -377,10 +377,15 @@ spec:
                               ignoreTaints:
                                 description: |-
                                   IgnoreTaints specifies a list of taint keys to ignore in node templates when considering to scale a node group.
-                                  Deprecated: Ignore taints are deprecated as of K8S 1.29 and treated as startup taints
+                                  Deprecated: Ignore taints are deprecated and treated as startup taints
                                 items:
                                   type: string
                                 type: array
+                              initialNodeGroupBackoffDuration:
+                                description: 'InitialNodeGroupBackoffDuration is the
+                                  duration of first backoff after a new node failed
+                                  to start (default: 5m).'
+                                type: string
                               maxDrainParallelism:
                                 description: |-
                                   MaxDrainParallelism specifies the maximum number of nodes needing drain, that can be drained and deleted in parallel.
@@ -401,6 +406,11 @@ spec:
                                   trying to scale down a node (default: 600).'
                                 format: int32
                                 type: integer
+                              maxNodeGroupBackoffDuration:
+                                description: 'MaxNodeGroupBackoffDuration is the maximum
+                                  backoff duration for a NodeGroup after new nodes
+                                  failed to start (default: 30m).'
+                                type: string
                               maxNodeProvisionTime:
                                 description: 'MaxNodeProvisionTime defines how long
                                   CA waits for node to be provisioned (default: 20
@@ -416,6 +426,11 @@ spec:
                                 description: 'NewPodScaleUpDelay specifies how long
                                   CA should ignore newly created pods before they
                                   have to be considered for scale-up (default: 0s).'
+                                type: string
+                              nodeGroupBackoffResetTimeout:
+                                description: 'NodeGroupBackoffResetTimeout is the
+                                  time after last failed scale-up when the backoff
+                                  duration is reset (default: 3h).'
                                 type: string
                               scaleDownDelayAfterAdd:
                                 description: 'ScaleDownDelayAfterAdd defines how long
@@ -849,9 +864,8 @@ spec:
                                     type: string
                                 type: object
                               structuredAuthentication:
-                                description: |-
-                                  StructuredAuthentication contains configuration settings for structured authentication for the kube-apiserver.
-                                  This field is only available for Kubernetes v1.30 or later.
+                                description: StructuredAuthentication contains configuration
+                                  settings for structured authentication for the kube-apiserver.
                                 properties:
                                   configMapName:
                                     description: |-
@@ -862,9 +876,8 @@ spec:
                                 - configMapName
                                 type: object
                               structuredAuthorization:
-                                description: |-
-                                  StructuredAuthorization contains configuration settings for structured authorization for the kube-apiserver.
-                                  This field is only available for Kubernetes v1.30 or later.
+                                description: StructuredAuthorization contains configuration
+                                  settings for structured authorization for the kube-apiserver.
                                 properties:
                                   configMapName:
                                     description: |-
@@ -1325,7 +1338,7 @@ spec:
                                 properties:
                                   swapBehavior:
                                     description: |-
-                                      SwapBehavior configures swap memory available to container workloads. May be one of {"LimitedSwap", "UnlimitedSwap"}
+                                      SwapBehavior configures swap memory available to container workloads. May be one of {"NoSwap", "LimitedSwap"}
                                       defaults to: LimitedSwap
                                     type: string
                                 type: object
@@ -1707,7 +1720,7 @@ spec:
                                 controlPlane:
                                   description: |-
                                     ControlPlane specifies that the shoot cluster control plane components should be running in this worker pool.
-                                    This is only relevant for autonomous shoot clusters.
+                                    This is only relevant for self-hosted shoot clusters.
                                   properties:
                                     backup:
                                       description: |-
@@ -2141,7 +2154,7 @@ spec:
                                           properties:
                                             swapBehavior:
                                               description: |-
-                                                SwapBehavior configures swap memory available to container workloads. May be one of {"LimitedSwap", "UnlimitedSwap"}
+                                                SwapBehavior configures swap memory available to container workloads. May be one of {"NoSwap", "LimitedSwap"}
                                                 defaults to: LimitedSwap
                                               type: string
                                           type: object

@@ -151,6 +151,8 @@ const (
 	// DaemonSetNameFluentBit is a constant for the name of a Kubernetes Daemonset object that contains
 	// the fluent-bit pod.
 	DaemonSetNameFluentBit = "fluent-bit"
+	// ConfigMapNameFluentBitLua is a constant for the name of a Kubernetes Configmap which holds the lua scripts for fluent-bit.
+	ConfigMapNameFluentBitLua = "fluent-bit-lua-config"
 	// DeploymentNameKubeStateMetrics is a constant for the name of a Kubernetes deployment object that contains
 	// the kube-state-metrics pod.
 	DeploymentNameKubeStateMetrics = "kube-state-metrics"
@@ -209,6 +211,8 @@ const (
 	GardenCreatedBy = "gardener.cloud/created-by"
 	// GardenerOperation is a constant for an annotation on a resource that describes a desired operation.
 	GardenerOperation = "gardener.cloud/operation"
+	// GardenerOperationsSeparator is the separator used to separate parallel operations in the GardenerOperation annotation.
+	GardenerOperationsSeparator = ";"
 	// GardenerMaintenanceOperation is a constant for an annotation on a Shoot that describes a desired operation which
 	// will be performed during maintenance.
 	GardenerMaintenanceOperation = "maintenance.gardener.cloud/operation"
@@ -322,6 +326,8 @@ const (
 	// ShootDisableIstioTLSTermination is a constant for an annotation on a Shoot stating that the Istio TLS termination
 	// for its kube-apiserver shall be disabled.
 	ShootDisableIstioTLSTermination = "shoot.gardener.cloud/disable-istio-tls-termination"
+	// ShootIsSelfHosted is a constant for a label on a Shoot indicating that it is self-hosted.
+	ShootIsSelfHosted = "shoot.gardener.cloud/self-hosted"
 
 	// ShootAlphaControlPlaneScaleDownDisabled is a constant for an annotation on the Shoot resource stating that the
 	// automatic scale-down shall be disabled for the etcd, kube-apiserver, kube-controller-manager.
@@ -432,6 +438,9 @@ const (
 	// (comma-separated) when the certificate authorities or service account signing key credentials rotation is in
 	// WaitingForWorkersRollout phase.
 	OperationRotateRolloutWorkers = "rotate-rollout-workers"
+	// OperationRolloutWorkers is a constant for an annotation triggering the rollout of one or more worker pools
+	// (comma-separated).
+	OperationRolloutWorkers = "rollout-workers"
 	// SeedOperationRenewGardenAccessSecrets is a constant for an annotation on a Seed indicating that
 	// all garden access secrets on the seed shall be renewed.
 	SeedOperationRenewGardenAccessSecrets = "renew-garden-access-secrets" // #nosec G101 -- No credential.
@@ -455,6 +464,8 @@ const (
 	LabelBackupProvider = "backup.gardener.cloud/provider"
 	// LabelSeedProvider is used to identify the seed provider.
 	LabelSeedProvider = "seed.gardener.cloud/provider"
+	// LabelSeedRegion is used to identify the seed region.
+	LabelSeedRegion = "seed.gardener.cloud/region"
 	// LabelShootProvider is used to identify the shoot provider.
 	LabelShootProvider = "shoot.gardener.cloud/provider"
 	// LabelShootProviderPrefix is used to prefix label that indicates the provider type.
@@ -487,8 +498,8 @@ const (
 	// LabelKeyAggregateToProjectMember is a constant for a label on ClusterRoles that are aggregated to the project
 	// member ClusterRole.
 	LabelKeyAggregateToProjectMember = "rbac.gardener.cloud/aggregate-to-project-member"
-	// LabelAutonomousShootCluster is a constant for a label on a Seed indicating that it is an autonomous shoot cluster.
-	LabelAutonomousShootCluster = "seed.gardener.cloud/autonomous-shoot-cluster"
+	// LabelSelfHostedShootCluster is a constant for a label on a Seed indicating that it is a self-hosted shoot cluster.
+	LabelSelfHostedShootCluster = "seed.gardener.cloud/self-hosted-shoot-cluster"
 	// LabelSecretBindingReference is used to identify secrets which are referred by a SecretBinding (not necessarily in the same namespace).
 	LabelSecretBindingReference = "reference.gardener.cloud/secretbinding"
 	// LabelCredentialsBindingReference is used to identify credentials which are referred by a CredentialsBinding (not necessarily in the same namespace).
@@ -813,10 +824,10 @@ const (
 	SeedsGroup = "gardener.cloud:system:seeds"
 	// SeedUserNamePrefix is the identity username prefix for gardenlets when authenticating to the API server.
 	SeedUserNamePrefix = "gardener.cloud:system:seed:"
-	// ShootsGroup is the identity group for gardenlets running in autonomous shoot clusters when authenticating to the
+	// ShootsGroup is the identity group for gardenlets running in self-hosted shoot clusters when authenticating to the
 	// API server.
 	ShootsGroup = "gardener.cloud:system:shoots"
-	// ShootUserNamePrefix is the identity username prefix for gardenlets running in autonomous shoot clusters when
+	// ShootUserNamePrefix is the identity username prefix for gardenlets running in self-hosted shoot clusters when
 	// authenticating to the API server.
 	ShootUserNamePrefix = "gardener.cloud:system:shoot:"
 	// GardenadmUserNamePrefix is the identity username prefix for `gardenadm connect` when it bootstraps the

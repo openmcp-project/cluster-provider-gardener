@@ -1,10 +1,10 @@
 module github.com/openmcp-project/cluster-provider-gardener/api
 
-go 1.25.4
+go 1.25.6
 
 require (
 	github.com/openmcp-project/controller-utils v0.24.0
-	github.com/openmcp-project/controller-utils/api v0.24.0
+	github.com/openmcp-project/controller-utils/api v0.25.0
 	github.com/openmcp-project/openmcp-operator/api v0.17.1
 	k8s.io/api v0.35.0
 	k8s.io/apiextensions-apiserver v0.35.0
@@ -17,7 +17,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
-	github.com/fluxcd/pkg/apis/kustomize v1.13.0 // indirect
+	github.com/fluxcd/pkg/apis/kustomize v1.14.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-logr/zapr v1.3.0 // indirect
 	github.com/go-openapi/jsonpointer v0.21.2 // indirect

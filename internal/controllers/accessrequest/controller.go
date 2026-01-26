@@ -365,23 +365,27 @@ func (r *AccessRequestReconciler) getClusterAndProfile(ctx context.Context, ar *
 func (r *AccessRequestReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		// watch AccessRequest resources
-		For(&clustersv1alpha1.AccessRequest{}).
-		WithEventFilter(predicate.And(
-			predicate.NewPredicateFuncs(func(obj client.Object) bool {
-				return libutils.IsClusterProviderResponsibleForAccessRequest(obj.(*clustersv1alpha1.AccessRequest), shared.ProviderName())
-			}),
-			predicate.Or(
-				ctrlutils.DeletionTimestampChangedPredicate{},
-				libutils.AccessRequestPhasePredicateUntyped(clustersv1alpha1.REQUEST_PENDING),
-				ctrlutils.GotAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueReconcile),
-				ctrlutils.LostAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueIgnore),
-				ctrlutils.GotLabelPredicate(clustersv1alpha1.ProviderLabel, shared.ProviderName()),
-				ctrlutils.GotLabelPredicate(clustersv1alpha1.ProfileLabel, ""),
-			),
-			predicate.Not(
-				ctrlutils.HasAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueIgnore),
-			),
-		)).
+		For(&clustersv1alpha1.AccessRequest{}, builder.WithPredicates(
+			predicate.And(
+				predicate.NewPredicateFuncs(func(obj client.Object) bool {
+					ar, ok := obj.(*clustersv1alpha1.AccessRequest)
+					if !ok {
+						return false
+					}
+					return libutils.IsClusterProviderResponsibleForAccessRequest(ar, shared.ProviderName())
+				}),
+				predicate.Or(
+					ctrlutils.DeletionTimestampChangedPredicate{},
+					libutils.AccessRequestPhasePredicateUntyped(clustersv1alpha1.REQUEST_PENDING),
+					ctrlutils.GotAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueReconcile),
+					ctrlutils.LostAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueIgnore),
+					ctrlutils.GotLabelPredicate(clustersv1alpha1.ProviderLabel, shared.ProviderName()),
+					ctrlutils.GotLabelPredicate(clustersv1alpha1.ProfileLabel, ""),
+				),
+				predicate.Not(
+					ctrlutils.HasAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueIgnore),
+				),
+			))).
 		Owns(&corev1.Secret{}, builder.WithPredicates(
 			predicate.Funcs{
 				CreateFunc: func(tce event.CreateEvent) bool {

@@ -1,6 +1,6 @@
 module github.com/openmcp-project/cluster-provider-gardener/api
 
-go 1.25.4
+go 1.25.6
 
 require (
 	github.com/openmcp-project/controller-utils v0.24.0

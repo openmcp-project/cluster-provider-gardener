@@ -7,7 +7,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -39,7 +39,7 @@ import (
 const ControllerName = "Cluster"
 const GardenerDeletionConfirmationAnnotation = "confirmation.gardener.cloud/deletion"
 
-func NewClusterReconciler(rc *shared.RuntimeConfiguration, eventRecorder record.EventRecorder) *ClusterReconciler {
+func NewClusterReconciler(rc *shared.RuntimeConfiguration, eventRecorder events.EventRecorder) *ClusterReconciler {
 	return &ClusterReconciler{
 		RuntimeConfiguration: rc,
 		eventRecorder:        eventRecorder,
@@ -48,7 +48,7 @@ func NewClusterReconciler(rc *shared.RuntimeConfiguration, eventRecorder record.
 
 type ClusterReconciler struct {
 	*shared.RuntimeConfiguration
-	eventRecorder record.EventRecorder
+	eventRecorder events.EventRecorder
 }
 
 var _ reconcile.Reconciler = &ClusterReconciler{}

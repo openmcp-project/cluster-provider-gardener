@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/certwatcher"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -290,17 +290,17 @@ func (o *RunOptions) Run(ctx context.Context) error {
 
 	// setup Cluster controllers
 	if slices.Contains(o.Controllers, strings.ToLower(cluster.ControllerName)) {
-		if _, _, _, err := controllers.SetupClusterControllersWithManager(mgr, rc, map[string]record.EventRecorder{
-			landscape.ControllerName: mgr.GetEventRecorderFor(landscape.ControllerName),
-			config.ControllerName:    mgr.GetEventRecorderFor(config.ControllerName),
-			cluster.ControllerName:   mgr.GetEventRecorderFor(cluster.ControllerName),
+		if _, _, _, err := controllers.SetupClusterControllersWithManager(mgr, rc, map[string]events.EventRecorder{
+			landscape.ControllerName: mgr.GetEventRecorder(landscape.ControllerName),
+			config.ControllerName:    mgr.GetEventRecorder(config.ControllerName),
+			cluster.ControllerName:   mgr.GetEventRecorder(cluster.ControllerName),
 		}); err != nil {
 			return fmt.Errorf("unable to setup Cluster controllers: %w", err)
 		}
 	}
 	// setup AccessRequest controller
 	if slices.Contains(o.Controllers, strings.ToLower(accessrequest.ControllerName)) {
-		arr := accessrequest.NewAccessRequestReconciler(rc, mgr.GetEventRecorderFor(accessrequest.ControllerName))
+		arr := accessrequest.NewAccessRequestReconciler(rc, mgr.GetEventRecorder(accessrequest.ControllerName))
 		if err := arr.SetupWithManager(mgr); err != nil {
 			return fmt.Errorf("unable to setup AccessRequest controller: %w", err)
 		}

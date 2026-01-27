@@ -16,7 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -56,7 +56,7 @@ var gardenerScheme = install.InstallGardenerAPIs(runtime.NewScheme())
 // If found, the corresponding client will be used instead of constructing one from the bytes.
 var FakeClientMappingsForTesting = map[string]client.Client{}
 
-func NewLandscapeReconciler(rc *shared.RuntimeConfiguration, eventRecorder record.EventRecorder) *LandscapeReconciler {
+func NewLandscapeReconciler(rc *shared.RuntimeConfiguration, eventRecorder events.EventRecorder) *LandscapeReconciler {
 	return &LandscapeReconciler{
 		RuntimeConfiguration: rc,
 		TmpKubeconfigDir:     filepath.Join(os.TempDir(), "garden-kubeconfigs"),
@@ -69,7 +69,7 @@ type LandscapeReconciler struct {
 	// TmpKubeconfigDir is a path to a directory where temporary kubeconfig files can be stored.
 	// The directory will be created during startup, if it doesn't exist.
 	TmpKubeconfigDir string
-	eventRecorder    record.EventRecorder
+	eventRecorder    events.EventRecorder
 }
 
 var _ reconcile.Reconciler = &LandscapeReconciler{}

@@ -11,7 +11,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -49,7 +49,7 @@ func managedResourcesLabels(ac *clustersv1alpha1.AccessRequest) map[string]strin
 
 var DefaultRequestedTokenValidityDuration = 30 * 24 * time.Hour // 30 days
 
-func NewAccessRequestReconciler(rc *shared.RuntimeConfiguration, eventRecorder record.EventRecorder) *AccessRequestReconciler {
+func NewAccessRequestReconciler(rc *shared.RuntimeConfiguration, eventRecorder events.EventRecorder) *AccessRequestReconciler {
 	return &AccessRequestReconciler{
 		RuntimeConfiguration: rc,
 		eventRecorder:        eventRecorder,
@@ -58,7 +58,7 @@ func NewAccessRequestReconciler(rc *shared.RuntimeConfiguration, eventRecorder r
 
 type AccessRequestReconciler struct {
 	*shared.RuntimeConfiguration
-	eventRecorder record.EventRecorder
+	eventRecorder events.EventRecorder
 }
 
 var _ reconcile.Reconciler = &AccessRequestReconciler{}

@@ -2,7 +2,6 @@ package accessrequest
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"strconv"
 	"time"
@@ -223,8 +222,8 @@ func (r *AccessRequestReconciler) handleCreateOrUpdate(ctx context.Context, req 
 
 		if s != nil {
 			if ar.Spec.Token != nil {
-				creationTimestamp := base64.StdEncoding.EncodeToString(s.Data[clustersv1alpha1.SecretKeyCreationTimestamp])
-				expirationTimestamp := base64.StdEncoding.EncodeToString(s.Data[clustersv1alpha1.SecretKeyExpirationTimestamp])
+				creationTimestamp := string(s.Data[clustersv1alpha1.SecretKeyCreationTimestamp])
+				expirationTimestamp := string(s.Data[clustersv1alpha1.SecretKeyExpirationTimestamp])
 				if creationTimestamp != "" && expirationTimestamp != "" {
 					tmp, err := strconv.ParseInt(creationTimestamp, 10, 64)
 					if err != nil {

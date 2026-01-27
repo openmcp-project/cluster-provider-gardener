@@ -79,7 +79,7 @@ func defaultTestSetup(testDirPathSegments ...string) (*accessrequest.AccessReque
 					if !ok {
 						return fmt.Errorf("unexpected object type %T", subResource)
 					}
-					tr.Status.Token = "fake"
+					tr.Status.Token = fmt.Sprintf("fake:%d", time.Now().Unix())
 					tr.Status.ExpirationTimestamp = metav1.Time{Time: time.Now().Add(time.Duration(*tr.Spec.ExpirationSeconds * int64(time.Second)))}
 					return nil
 				}
@@ -217,6 +217,7 @@ var _ = Describe("AccessRequest Controller", func() {
 
 			// verify renewal time
 			Expect(rr.RequeueAfter).To(BeNumerically("<", et.Sub(ct)))
+			Expect(rr.RequeueAfter).To(BeNumerically(">", et.Sub(ct)/2))
 
 			// verify resources on shoot cluster
 			labelSelector := client.MatchingLabels{
@@ -300,6 +301,78 @@ var _ = Describe("AccessRequest Controller", func() {
 				Expect(rb.Subjects[0].Name).To(Equal(sa.Name))
 				Expect(rb.Subjects[0].Namespace).To(Equal(sa.Namespace))
 			}
+		})
+
+		It("should refresh expired tokens", func() {
+			ar := &clustersv1alpha1.AccessRequest{}
+			ar.SetName("my-access")
+			ar.SetNamespace("foo")
+			Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(ar), ar)).To(Succeed())
+			now := time.Now()
+			env.ShouldReconcile(arRec, testutils.RequestFromObject(ar))
+			Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(ar), ar)).To(Succeed())
+
+			// verify access request status
+			Expect(ar.Status.Phase).To(Equal(clustersv1alpha1.REQUEST_GRANTED))
+			Expect(ar.Status.SecretRef).ToNot(BeNil())
+			sName := ar.Status.SecretRef.Name
+			sNamespace := ar.Namespace
+			Expect(sName).ToNot(BeEmpty())
+			Expect(sNamespace).ToNot(BeEmpty())
+
+			// verify secret
+			s := &corev1.Secret{}
+			s.SetName(sName)
+			s.SetNamespace(sNamespace)
+			Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(s), s)).To(Succeed())
+			Expect(s.OwnerReferences).To(ConsistOf(MatchFields(IgnoreExtras, Fields{
+				"APIVersion": Equal(clustersv1alpha1.GroupVersion.String()),
+				"Kind":       Equal("AccessRequest"),
+				"Name":       Equal(ar.Name),
+				"UID":        Equal(ar.UID),
+				"Controller": PointTo(BeTrue()),
+			})))
+			Expect(s.Data).To(HaveKey(clustersv1alpha1.SecretKeyKubeconfig))
+			Expect(s.Data).To(HaveKey(clustersv1alpha1.SecretKeyCreationTimestamp))
+			ctr, err := strconv.Atoi(string(s.Data[clustersv1alpha1.SecretKeyCreationTimestamp]))
+			Expect(err).ToNot(HaveOccurred())
+			ct := time.Unix(int64(ctr), 0)
+			Expect(ct).To(BeTemporally("~", now, time.Second))
+			Expect(s.Data).To(HaveKey(clustersv1alpha1.SecretKeyExpirationTimestamp))
+			etr, err := strconv.Atoi(string(s.Data[clustersv1alpha1.SecretKeyExpirationTimestamp]))
+			Expect(err).ToNot(HaveOccurred())
+			et := time.Unix(int64(etr), 0)
+			Expect(et).To(BeTemporally("~", now.Add(accessrequest.DefaultRequestedTokenValidityDuration), time.Second))
+
+			// immediately reconcile should not refresh token
+			rr := env.ShouldReconcile(arRec, testutils.RequestFromObject(ar))
+			Expect(rr.RequeueAfter).To(BeNumerically("<", et.Sub(ct)))
+			Expect(rr.RequeueAfter).To(BeNumerically(">", et.Sub(ct)/2))
+			s2 := &corev1.Secret{}
+			s2.SetName(s.Name)
+			s2.SetNamespace(s.Namespace)
+			Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(s2), s2)).To(Succeed())
+			Expect(s2.Data).To(Equal(s.Data))
+
+			// fake expiration by setting expiration timestamp in the past
+			ctPast := time.Now().Add(-1*time.Minute + -1*time.Hour)
+			etPast := time.Now().Add(-1 * time.Minute)
+			s2.Data[clustersv1alpha1.SecretKeyCreationTimestamp] = []byte(strconv.FormatInt(ctPast.Unix(), 10))
+			s2.Data[clustersv1alpha1.SecretKeyExpirationTimestamp] = []byte(strconv.FormatInt(etPast.Unix(), 10))
+			Expect(env.Client(platformCluster).Update(env.Ctx, s2)).To(Succeed())
+
+			// reconcile should refresh the token
+			time.Sleep(1 * time.Second)
+			rr = env.ShouldReconcile(arRec, testutils.RequestFromObject(ar))
+			s3 := &corev1.Secret{}
+			s3.SetName(s.Name)
+			s3.SetNamespace(s.Namespace)
+			Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(s3), s3)).To(Succeed())
+			Expect(s3.Data[clustersv1alpha1.SecretKeyCreationTimestamp]).ToNot(Equal(s.Data[clustersv1alpha1.SecretKeyCreationTimestamp]))
+			Expect(s3.Data[clustersv1alpha1.SecretKeyCreationTimestamp]).ToNot(Equal(s2.Data[clustersv1alpha1.SecretKeyCreationTimestamp]))
+			Expect(s3.Data[clustersv1alpha1.SecretKeyExpirationTimestamp]).ToNot(Equal(s.Data[clustersv1alpha1.SecretKeyExpirationTimestamp]))
+			Expect(s3.Data[clustersv1alpha1.SecretKeyExpirationTimestamp]).ToNot(Equal(s2.Data[clustersv1alpha1.SecretKeyExpirationTimestamp]))
+			Expect(s3.Data[clustersv1alpha1.SecretKeyKubeconfig]).ToNot(Equal(s.Data[clustersv1alpha1.SecretKeyKubeconfig]))
 		})
 
 		It("should remove all resources again when the accessrequest is deleted", func() {

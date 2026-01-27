@@ -1,6 +1,6 @@
 module github.com/openmcp-project/cluster-provider-gardener
 
-go 1.25.4
+go 1.25.6
 
 replace github.com/openmcp-project/cluster-provider-gardener/api => ./api
 
@@ -10,11 +10,11 @@ require (
 	github.com/onsi/ginkgo/v2 v2.27.5
 	github.com/onsi/gomega v1.39.0
 	github.com/openmcp-project/cluster-provider-gardener/api v0.9.1
-	github.com/openmcp-project/openmcp-operator/api v0.17.1
+	github.com/openmcp-project/openmcp-operator/api v0.18.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/apimachinery v0.35.0
 	k8s.io/client-go v0.35.0
-	sigs.k8s.io/controller-runtime v0.22.4
+	sigs.k8s.io/controller-runtime v0.23.1
 )
 
 require (
@@ -53,7 +53,7 @@ require (
 	k8s.io/component-base v0.35.0 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.2 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
-	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
+	sigs.k8s.io/structured-merge-diff/v6 v6.3.2-0.20260122202528-d9cc6641c482 // indirect
 )
 
 require (

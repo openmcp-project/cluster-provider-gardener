@@ -2,7 +2,6 @@ package accessrequest
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"strconv"
 	"time"
@@ -11,7 +10,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -28,6 +27,7 @@ import (
 	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
 	clusterconst "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1/constants"
 	openmcpconst "github.com/openmcp-project/openmcp-operator/api/constants"
+	libutils "github.com/openmcp-project/openmcp-operator/lib/utils"
 
 	providerv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
 	cconst "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1/constants"
@@ -48,7 +48,7 @@ func managedResourcesLabels(ac *clustersv1alpha1.AccessRequest) map[string]strin
 
 var DefaultRequestedTokenValidityDuration = 30 * 24 * time.Hour // 30 days
 
-func NewAccessRequestReconciler(rc *shared.RuntimeConfiguration, eventRecorder record.EventRecorder) *AccessRequestReconciler {
+func NewAccessRequestReconciler(rc *shared.RuntimeConfiguration, eventRecorder events.EventRecorder) *AccessRequestReconciler {
 	return &AccessRequestReconciler{
 		RuntimeConfiguration: rc,
 		eventRecorder:        eventRecorder,
@@ -57,7 +57,7 @@ func NewAccessRequestReconciler(rc *shared.RuntimeConfiguration, eventRecorder r
 
 type AccessRequestReconciler struct {
 	*shared.RuntimeConfiguration
-	eventRecorder record.EventRecorder
+	eventRecorder events.EventRecorder
 }
 
 var _ reconcile.Reconciler = &AccessRequestReconciler{}
@@ -97,6 +97,11 @@ func (r *AccessRequestReconciler) reconcile(ctx context.Context, req reconcile.R
 			return ReconcileResult{}
 		}
 		return ReconcileResult{ReconcileError: errutils.WithReason(fmt.Errorf("unable to get resource '%s' from cluster: %w", req.String(), err), clusterconst.ReasonPlatformClusterInteractionProblem)}
+	}
+
+	if !libutils.IsClusterProviderResponsibleForAccessRequest(ar, shared.ProviderName()) {
+		log.Info("ClusterProvider is not responsible for this AccessRequest, skipping reconciliation")
+		return ReconcileResult{}
 	}
 
 	// handle operation annotation
@@ -217,8 +222,8 @@ func (r *AccessRequestReconciler) handleCreateOrUpdate(ctx context.Context, req 
 
 		if s != nil {
 			if ar.Spec.Token != nil {
-				creationTimestamp := base64.StdEncoding.EncodeToString(s.Data[clustersv1alpha1.SecretKeyCreationTimestamp])
-				expirationTimestamp := base64.StdEncoding.EncodeToString(s.Data[clustersv1alpha1.SecretKeyExpirationTimestamp])
+				creationTimestamp := string(s.Data[clustersv1alpha1.SecretKeyCreationTimestamp])
+				expirationTimestamp := string(s.Data[clustersv1alpha1.SecretKeyExpirationTimestamp])
 				if creationTimestamp != "" && expirationTimestamp != "" {
 					tmp, err := strconv.ParseInt(creationTimestamp, 10, 64)
 					if err != nil {
@@ -359,22 +364,27 @@ func (r *AccessRequestReconciler) getClusterAndProfile(ctx context.Context, ar *
 func (r *AccessRequestReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		// watch AccessRequest resources
-		For(&clustersv1alpha1.AccessRequest{}).
-		WithEventFilter(predicate.And(
-			ctrlutils.HasLabelPredicate(clustersv1alpha1.ProviderLabel, shared.ProviderName()),
-			ctrlutils.HasLabelPredicate(clustersv1alpha1.ProfileLabel, ""),
-			predicate.Or(
-				predicate.GenerationChangedPredicate{},
-				ctrlutils.DeletionTimestampChangedPredicate{},
-				ctrlutils.GotAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueReconcile),
-				ctrlutils.LostAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueIgnore),
-				ctrlutils.GotLabelPredicate(clustersv1alpha1.ProviderLabel, shared.ProviderName()),
-				ctrlutils.GotLabelPredicate(clustersv1alpha1.ProfileLabel, ""),
-			),
-			predicate.Not(
-				ctrlutils.HasAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueIgnore),
-			),
-		)).
+		For(&clustersv1alpha1.AccessRequest{}, builder.WithPredicates(
+			predicate.And(
+				predicate.NewPredicateFuncs(func(obj client.Object) bool {
+					ar, ok := obj.(*clustersv1alpha1.AccessRequest)
+					if !ok {
+						return false
+					}
+					return libutils.IsClusterProviderResponsibleForAccessRequest(ar, shared.ProviderName())
+				}),
+				predicate.Or(
+					ctrlutils.DeletionTimestampChangedPredicate{},
+					libutils.AccessRequestPhasePredicateUntyped(clustersv1alpha1.REQUEST_PENDING),
+					ctrlutils.GotAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueReconcile),
+					ctrlutils.LostAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueIgnore),
+					ctrlutils.GotLabelPredicate(clustersv1alpha1.ProviderLabel, shared.ProviderName()),
+					ctrlutils.GotLabelPredicate(clustersv1alpha1.ProfileLabel, ""),
+				),
+				predicate.Not(
+					ctrlutils.HasAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueIgnore),
+				),
+			))).
 		Owns(&corev1.Secret{}, builder.WithPredicates(
 			predicate.Funcs{
 				CreateFunc: func(tce event.CreateEvent) bool {

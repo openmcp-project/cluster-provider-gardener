@@ -464,10 +464,10 @@ func (r *AccessRequestReconciler) renewToken(ctx context.Context, ar *clustersv1
 	}
 
 	// create/update secret
-	sm := resources.NewSecretMutatorWithStringData(defaultSecretName(ar), ar.Namespace, map[string]string{
-		clustersv1alpha1.SecretKeyKubeconfig:          string(kcfg),
-		clustersv1alpha1.SecretKeyExpirationTimestamp: strconv.FormatInt(token.ExpirationTimestamp.Unix(), 10),
-		clustersv1alpha1.SecretKeyCreationTimestamp:   strconv.FormatInt(token.CreationTimestamp.Unix(), 10),
+	sm := resources.NewSecretMutator(defaultSecretName(ar), ar.Namespace, map[string][]byte{
+		clustersv1alpha1.SecretKeyKubeconfig:          kcfg,
+		clustersv1alpha1.SecretKeyExpirationTimestamp: []byte(strconv.FormatInt(token.ExpirationTimestamp.Unix(), 10)),
+		clustersv1alpha1.SecretKeyCreationTimestamp:   []byte(strconv.FormatInt(token.CreationTimestamp.Unix(), 10)),
 	}, corev1.SecretTypeOpaque)
 	sm.MetadataMutator().WithOwnerReferences([]metav1.OwnerReference{
 		{

@@ -10,7 +10,7 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -39,7 +39,7 @@ import (
 const ControllerName = "ProviderConfig"
 const ProfileConditionPrefix = "Profile_"
 
-func NewGardenerProviderConfigReconciler(rc *shared.RuntimeConfiguration, eventRecorder record.EventRecorder) *GardenerProviderConfigReconciler {
+func NewGardenerProviderConfigReconciler(rc *shared.RuntimeConfiguration, eventRecorder events.EventRecorder) *GardenerProviderConfigReconciler {
 	return &GardenerProviderConfigReconciler{
 		RuntimeConfiguration: rc,
 		eventRecorder:        eventRecorder,
@@ -48,7 +48,7 @@ func NewGardenerProviderConfigReconciler(rc *shared.RuntimeConfiguration, eventR
 
 type GardenerProviderConfigReconciler struct {
 	*shared.RuntimeConfiguration
-	eventRecorder record.EventRecorder
+	eventRecorder events.EventRecorder
 }
 
 var _ reconcile.Reconciler = &GardenerProviderConfigReconciler{}

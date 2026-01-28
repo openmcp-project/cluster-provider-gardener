@@ -3,6 +3,9 @@ kind: AccessRequest
 metadata:
   name: my-access-oidc
   namespace: foo
+  labels:
+    clusters.openmcp.cloud/provider: gardener
+    clusters.openmcp.cloud/profile: my-profile
 spec:
   clusterRef:
     name: advanced
@@ -48,3 +51,5 @@ spec:
         - "*"
         verbs:
         - "*"
+status:
+  phase: Pending

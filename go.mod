@@ -9,7 +9,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/onsi/ginkgo/v2 v2.27.5
 	github.com/onsi/gomega v1.39.0
-	github.com/openmcp-project/cluster-provider-gardener/api v0.9.1
+	github.com/openmcp-project/cluster-provider-gardener/api v0.10.0
 	github.com/openmcp-project/controller-utils v0.25.2
 	github.com/openmcp-project/openmcp-operator/api v0.18.1
 	github.com/openmcp-project/openmcp-operator/lib v0.18.1

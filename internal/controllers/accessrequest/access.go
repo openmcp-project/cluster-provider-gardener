@@ -523,7 +523,7 @@ func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clus
 		oidc.Spec.UsernameClaim = &oidcConfig.UsernameClaim
 		oidc.Spec.UsernamePrefix = ptr.To(oidcConfig.UsernameGroupsPrefix())
 		oidc.Spec.Audiences = []string{oidcConfig.ClientID}
-		oidc.Spec.ClientID = "" //+nolint:staticcheck
+		oidc.Spec.ClientID = "" // nolint:staticcheck
 		return nil
 	}); err != nil {
 		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error creating/updating OpenIDConnect resource '%s' in shoot '%s/%s': %w", oidc.Name, sac.Shoot.Namespace, sac.Shoot.Name, err), cconst.ReasonShootClusterInteractionProblem)

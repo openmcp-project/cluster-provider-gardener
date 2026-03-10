@@ -27,9 +27,10 @@ import (
 	ctrlutils "github.com/openmcp-project/controller-utils/pkg/controller"
 	testutils "github.com/openmcp-project/controller-utils/pkg/testing"
 
+	authenticationv1alpha1 "github.com/gardener/gardener/pkg/apis/authentication/v1alpha1"
+	oidcv1alpha1 "github.com/gardener/oidc-webhook-authenticator/apis/authentication/v1alpha1"
+
 	providerv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
-	authenticationv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/authentication/v1alpha1"
-	oidcv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/external/oidc-webhook-authenticator/apis/authentication/v1alpha1"
 	"github.com/openmcp-project/cluster-provider-gardener/api/install"
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/accessrequest"
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/landscape"

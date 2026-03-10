@@ -5,8 +5,8 @@ import (
 
 	commonapi "github.com/openmcp-project/openmcp-operator/api/common"
 
-	gardenv1beta1 "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1"
-	gardenconstants "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1/constants"
+	gardenv1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
+	gardenconstants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 )
 
 type ProviderConfigSpec struct {

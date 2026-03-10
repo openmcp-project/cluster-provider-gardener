@@ -19,10 +19,11 @@ import (
 	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
 	clusterconst "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1/constants"
 
+	gardenv1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
+	gardenconst "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
+
 	providerv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
 	cconst "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1/constants"
-	gardenv1beta1 "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1"
-	gardenconst "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/shared"
 )
 

@@ -31,10 +31,11 @@ import (
 	clusterconst "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1/constants"
 	commonapi "github.com/openmcp-project/openmcp-operator/api/common"
 
+	authenticationv1alpha1 "github.com/gardener/gardener/pkg/apis/authentication/v1alpha1"
+	gardenv1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
+	oidcv1alpha1 "github.com/gardener/oidc-webhook-authenticator/apis/authentication/v1alpha1"
+
 	cconst "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1/constants"
-	authenticationv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/authentication/v1alpha1"
-	gardenv1beta1 "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1"
-	oidcv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/external/oidc-webhook-authenticator/apis/authentication/v1alpha1"
 	"github.com/openmcp-project/cluster-provider-gardener/api/install"
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/shared"
 )

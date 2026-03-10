@@ -164,21 +164,31 @@ func UpdateShootFields(ctx context.Context, shoot *gardenv1beta1.Shoot, profile 
 		}
 	}
 
-	// as long as we don't have our own OIDC solution, let's ensure that the Gardener OIDC extension is enabled
-	found := false
-	for _, ext := range shoot.Spec.Extensions {
-		if ext.Type == GardenerOIDCExtensionType {
-			found = true
-			break
-		}
+	if shoot.Spec.Extensions == nil {
+		shoot.Spec.Extensions = []gardenv1beta1.Extension{}
 	}
-	if !found {
-		if shoot.Spec.Extensions == nil {
-			shoot.Spec.Extensions = []gardenv1beta1.Extension{}
-		}
-		shoot.Spec.Extensions = append(shoot.Spec.Extensions, gardenv1beta1.Extension{
+	enforcedExtensions := make([]gardenv1beta1.Extension, len(profile.ProviderConfig.Spec.EnforcedShootExtensions))
+	if profile.ProviderConfig.Spec.EnforcedShootExtensions == nil {
+		// backward compatibility: enforce Gardener OIDC extension
+		enforcedExtensions = append(enforcedExtensions, gardenv1beta1.Extension{
 			Type: GardenerOIDCExtensionType,
 		})
+	} else {
+		copy(enforcedExtensions, profile.ProviderConfig.Spec.EnforcedShootExtensions)
+	}
+	for _, enforcedExt := range enforcedExtensions {
+		idx := -1
+		for i, ext := range shoot.Spec.Extensions {
+			if ext.Type == enforcedExt.Type {
+				idx = i
+				break
+			}
+		}
+		if idx == -1 {
+			shoot.Spec.Extensions = append(shoot.Spec.Extensions, *enforcedExt.DeepCopy())
+		} else {
+			shoot.Spec.Extensions[idx] = *enforcedExt.DeepCopy()
+		}
 	}
 
 	// apply cluster configs, if specified

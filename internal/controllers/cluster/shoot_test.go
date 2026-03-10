@@ -272,6 +272,119 @@ var _ = Describe("Shoot Logic", func() {
 			Expect(shoot.Spec.Maintenance.AutoUpdate.MachineImageVersion).To(PointTo(BeFalse())) // should be overwritten with false
 		})
 
+		Context("Enforced Shoot Extensions", func() {
+
+			It("should not enforce any shoot extensions if not configured", func() {
+				rc, env := defaultTestSetupForShootLogic("..", "cluster", "testdata", "test-04")
+
+				// fake landscape
+				ls := &providerv1alpha1.Landscape{}
+				ls.SetName("my-landscape")
+				Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(ls), ls)).To(Succeed())
+				Expect(rc.SetLandscape(env.Ctx, &shared.Landscape{
+					Name:     ls.Name,
+					Cluster:  clusters.NewTestClusterFromClient(gardenCluster, env.Client(gardenCluster)),
+					Resource: ls,
+				})).To(Succeed())
+
+				// fake profile
+				pc := &providerv1alpha1.ProviderConfig{}
+				pc.SetName("no-ext")
+				Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(pc), pc)).To(Succeed())
+				p := &shared.Profile{
+					ProviderConfig: pc,
+					RuntimeData: shared.RuntimeData{
+						Project: providerv1alpha1.ProjectData{
+							Name:      "my-project",
+							Namespace: "garden-my-project",
+						},
+					},
+				}
+				rc.SetProfileForProviderConfiguration(pc.Name, p)
+
+				// fake cluster
+				c := &clustersv1alpha1.Cluster{}
+				c.SetName("basic")
+				c.SetNamespace("clusters")
+				Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(Succeed())
+
+				// create empty shoot
+				shoot := &gardenv1beta1.Shoot{}
+				shoot.SetName("basic")
+				shoot.SetNamespace("garden-my-project")
+
+				// verify update
+				Expect(cluster.UpdateShootFields(env.Ctx, shoot, p, c, nil)).To(Succeed())
+
+				Expect(shoot.Spec.Extensions).To(BeEmpty())
+			})
+
+			It("should enforce the configured shoot extensions", func() {
+				rc, env := defaultTestSetupForShootLogic("..", "cluster", "testdata", "test-04")
+
+				// fake landscape
+				ls := &providerv1alpha1.Landscape{}
+				ls.SetName("my-landscape")
+				Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(ls), ls)).To(Succeed())
+				Expect(rc.SetLandscape(env.Ctx, &shared.Landscape{
+					Name:     ls.Name,
+					Cluster:  clusters.NewTestClusterFromClient(gardenCluster, env.Client(gardenCluster)),
+					Resource: ls,
+				})).To(Succeed())
+
+				// fake profile
+				pc := &providerv1alpha1.ProviderConfig{}
+				pc.SetName("other-ext")
+				Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(pc), pc)).To(Succeed())
+				p := &shared.Profile{
+					ProviderConfig: pc,
+					RuntimeData: shared.RuntimeData{
+						Project: providerv1alpha1.ProjectData{
+							Name:      "my-project",
+							Namespace: "garden-my-project",
+						},
+					},
+				}
+				rc.SetProfileForProviderConfiguration(pc.Name, p)
+
+				// fake cluster
+				c := &clustersv1alpha1.Cluster{}
+				c.SetName("basic")
+				c.SetNamespace("clusters")
+				Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(Succeed())
+
+				// create empty shoot
+				shoot := &gardenv1beta1.Shoot{}
+				shoot.SetName("basic")
+				shoot.SetNamespace("garden-my-project")
+
+				// verify update
+				Expect(cluster.UpdateShootFields(env.Ctx, shoot, p, c, nil)).To(Succeed())
+
+				Expect(shoot.Spec.Extensions).To(ConsistOf(
+					MatchFields(IgnoreExtras, Fields{
+						"Type": Equal("shoot-custom-extension"),
+						"ProviderConfig": PointTo(MatchFields(IgnoreExtras, Fields{
+							"Raw": Equal([]byte(`{"value":"foo"}`)),
+						})),
+					}),
+				))
+
+				// modify value and verify that it is restored on next update
+				shoot.Spec.Extensions[0].ProviderConfig.Raw = []byte(`{"value":"modified"}`)
+				Expect(cluster.UpdateShootFields(env.Ctx, shoot, p, c, nil)).To(Succeed())
+				Expect(shoot.Spec.Extensions).To(ConsistOf(
+					MatchFields(IgnoreExtras, Fields{
+						"Type": Equal("shoot-custom-extension"),
+						"ProviderConfig": PointTo(MatchFields(IgnoreExtras, Fields{
+							"Raw": Equal([]byte(`{"value":"foo"}`)),
+						})),
+					}),
+				))
+			})
+
+		})
+
 	})
 
 })

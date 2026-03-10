@@ -24,6 +24,14 @@ type ProviderConfigSpec struct {
 
 	// ShootTemplate contains the shoot template for this configuration.
 	ShootTemplate gardenv1beta1.ShootTemplate `json:"shootTemplate"`
+
+	// EnforcedShootExtensions is a list of Gardener extensions that are to be enforced on the shoot.
+	// For backward compatibility reasons, there is a difference between this being nil and being an empty list:
+	//   If nil, the Gardener OIDC extension will be enforced by default.
+	//   If empty, no extensions will be enforced by default.
+	// +nullable
+	// +optional
+	EnforcedShootExtensions []gardenv1beta1.Extension `json:"enforcedShootExtensions"`
 }
 
 type ProviderConfigStatus struct {

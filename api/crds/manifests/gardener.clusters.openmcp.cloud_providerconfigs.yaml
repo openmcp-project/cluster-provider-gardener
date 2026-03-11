@@ -45,6 +45,33 @@ spec:
             type: object
           spec:
             properties:
+              enforcedShootExtensions:
+                description: |-
+                  EnforcedShootExtensions is a list of Gardener extensions that are to be enforced on the shoot.
+                  For backward compatibility reasons, there is a difference between this being nil and being an empty list:
+                    If nil, the Gardener OIDC extension will be enforced by default.
+                    If empty, no extensions will be enforced by default.
+                items:
+                  description: Extension contains type and provider information for
+                    extensions.
+                  properties:
+                    disabled:
+                      description: Disabled allows to disable extensions that were
+                        marked as 'automatically enabled' by Gardener administrators.
+                      type: boolean
+                    providerConfig:
+                      description: ProviderConfig is the configuration passed to extension
+                        resource.
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
+                    type:
+                      description: Type is the type of the extension resource.
+                      type: string
+                  required:
+                  - type
+                  type: object
+                nullable: true
+                type: array
               landscapeRef:
                 description: LandscapeRef is a reference to the Landscape resource
                   this configuration belongs to.

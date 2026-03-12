@@ -117,7 +117,6 @@ spec:
                   metadata:
                     description: Standard object metadata.
                     type: object
-                    x-kubernetes-preserve-unknown-fields: true
                   spec:
                     description: Specification of the desired behavior of the Shoot.
                     properties:
@@ -143,8 +142,9 @@ spec:
                           type: object
                         type: array
                       addons:
-                        description: Addons contains information about enabled/disabled
-                          addons and their configuration.
+                        description: |-
+                          Addons contains information about enabled/disabled addons and their configuration.
+                          Deprecated: This field is deprecated. Enabling addons will be forbidden starting from Kubernetes 1.35.
                         properties:
                           kubernetesDashboard:
                             description: KubernetesDashboard holds configuration settings
@@ -262,6 +262,28 @@ spec:
                               description: DNSProvider contains information about
                                 a DNS provider.
                               properties:
+                                credentialsRef:
+                                  description: |-
+                                    CredentialsRef is a reference to a resource providing credentials for the DNS provider.
+                                    Supported resources are Secret and WorkloadIdentity.
+                                  properties:
+                                    apiVersion:
+                                      description: apiVersion is the API version of
+                                        the referent
+                                      type: string
+                                    kind:
+                                      description: 'kind is the kind of the referent;
+                                        More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+                                      type: string
+                                    name:
+                                      description: 'name is the name of the referent;
+                                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names'
+                                      type: string
+                                  required:
+                                  - kind
+                                  - name
+                                  type: object
+                                  x-kubernetes-map-type: atomic
                                 domains:
                                   description: |-
                                     Domains contains information about which domains shall be included/excluded for this provider.
@@ -295,6 +317,9 @@ spec:
                                     provider. When not specified, the Gardener will use the cloud provider credentials referenced
                                     by the Shoot and try to find respective credentials there (primary provider only). Specifying this field may override
                                     this behavior, i.e. forcing the Gardener to only look into the given secret.
+
+                                    Deprecated: This field is deprecated and will be forbidden starting from Kubernetes 1.35. Please use `CredentialsRef` instead.
+                                    Until removed, this field is synced with the `CredentialsRef` field when it refers to a secret.
                                   type: string
                                 type:
                                   description: Type is the DNS provider type.
@@ -699,14 +724,27 @@ spec:
                                   of the API server should be allowed (flag `--anonymous-auth`).
                                   See: https://kubernetes.io/docs/reference/command-line-tools-reference/kube-apiserver/
 
-                                  Deprecated: This field is deprecated and will be removed in a future release.
+                                  Deprecated: This field is deprecated and will be removed after support for Kubernetes v1.34 is dropped.
+                                  This field is forbidden for clusters with Kubernetes version >= 1.35.
                                   Please use anonymous authentication configuration instead.
-                                  For more information see: https://kubernetes.io/docs/reference/access-authn-authz/authentication/#anonymous-authenticator-configuration
                                 type: boolean
                               encryptionConfig:
                                 description: EncryptionConfig contains customizable
                                   encryption configuration of the Kube API server.
                                 properties:
+                                  provider:
+                                    description: Provider contains information about
+                                      the encryption provider.
+                                    properties:
+                                      type:
+                                        description: |-
+                                          Type contains the type of the encryption provider.
+
+                                          Supported types:
+                                            - "aescbc"
+                                          Defaults to aescbc.
+                                        type: string
+                                    type: object
                                   resources:
                                     description: |-
                                       Resources contains the list of resources that shall be encrypted in addition to secrets.
@@ -717,7 +755,7 @@ spec:
                                       type: string
                                     type: array
                                 required:
-                                - resources
+                                - provider
                                 type: object
                               eventTTL:
                                 description: |-
@@ -948,9 +986,9 @@ spec:
                                 properties:
                                   default:
                                     description: |-
-                                      Default configures the default watch cache size of the kube-apiserver
-                                      (flag `--default-watch-cache-size`, defaults to 100).
-                                      See: https://kubernetes.io/docs/reference/command-line-tools-reference/kube-apiserver/
+                                      Default is not respected anymore by kube-apiserver.
+                                      The cache is sized automatically.
+                                      Deprecated: This field is deprecated. Setting the default cache size will be forbidden starting from Kubernetes 1.35.
                                     format: int32
                                     type: integer
                                   resources:
@@ -1084,10 +1122,10 @@ spec:
                                 type: object
                               kubeMaxPDVols:
                                 description: |-
-                                  KubeMaxPDVols allows to configure the `KUBE_MAX_PD_VOLS` environment variable for the kube-scheduler.
-                                  Please find more information here: https://kubernetes.io/docs/concepts/storage/storage-limits/#custom-limits
-                                  Note that using this field is considered alpha-/experimental-level and is on your own risk. You should be aware
-                                  of all the side-effects and consequences when changing it.
+                                  KubeMaxPDVols is not respected anymore by kube-scheduler.
+                                  The maximum number of attached volumes is configured by the CSI driver.
+                                  More information can be found at https://kubernetes.io/docs/concepts/storage/storage-limits/#custom-limits.
+                                  Deprecated: This field is deprecated. Using this field will be forbidden starting from Kubernetes 1.35.
                                 type: string
                               profile:
                                 description: |-
@@ -1554,6 +1592,12 @@ spec:
                                 description: 'RecommenderInterval is the interval
                                   how often metrics should be fetched (default: 1m0s).'
                                 type: string
+                              recommenderUpdateWorkerCount:
+                                description: |-
+                                  RecommenderUpdateWorkerCount is the number of workers used in the vpa-recommender for updating VPAs and VPACheckpoints in parallel.
+                                  (default: 10)
+                                format: int64
+                                type: integer
                               targetCPUPercentile:
                                 description: |-
                                   TargetCPUPercentile is the usage percentile that will be used as a base for CPU target recommendation.
@@ -1579,6 +1623,46 @@ spec:
                           Maintenance contains information about the time window for maintenance operations and which
                           operations should be performed.
                         properties:
+                          autoRotation:
+                            description: AutoRotation contains information about which
+                              rotations should be automatically performed.
+                            properties:
+                              credentials:
+                                description: Credentials contains information about
+                                  which credentials should be automatically rotated.
+                                properties:
+                                  etcdEncryptionKey:
+                                    description: ETCDEncryptionKey configures the
+                                      automatic rotation for the etcd encryption key.
+                                    properties:
+                                      rotationPeriod:
+                                        description: |-
+                                          RotationPeriod is the period between a completed rotation and the start of a new rotation (default: 7d).
+                                          The allowed rotation period is between 30m and 90d. When set to 0, rotation is disabled.
+                                        type: string
+                                    type: object
+                                  observability:
+                                    description: Observability configures the automatic
+                                      rotation for the observability credentials.
+                                    properties:
+                                      rotationPeriod:
+                                        description: |-
+                                          RotationPeriod is the period between a completed rotation and the start of a new rotation (default: 7d).
+                                          The allowed rotation period is between 30m and 90d. When set to 0, rotation is disabled.
+                                        type: string
+                                    type: object
+                                  sshKeypair:
+                                    description: SSHKeypair configures the automatic
+                                      rotation for the ssh keypair for worker nodes.
+                                    properties:
+                                      rotationPeriod:
+                                        description: |-
+                                          RotationPeriod is the period between a completed rotation and the start of a new rotation (default: 7d).
+                                          The allowed rotation period is between 30m and 90d. When set to 0, rotation is disabled.
+                                        type: string
+                                    type: object
+                                type: object
+                            type: object
                           autoUpdate:
                             description: AutoUpdate contains information about which
                               constraints should be automatically updated.
@@ -1816,6 +1900,33 @@ spec:
                                           type: string
                                       required:
                                       - provider
+                                      type: object
+                                    exposure:
+                                      description: Exposure holds the exposure configuration
+                                        for the shoot (either `extension` or `dns`
+                                        or omitted/empty).
+                                      properties:
+                                        dns:
+                                          description: |-
+                                            DNS specifies that this shoot will be exposed by DNS.
+                                            Mutually exclusive with Extension.
+                                          type: object
+                                        extension:
+                                          description: |-
+                                            Extension holds the type and provider config of the exposure extension.
+                                            Mutually exclusive with DNS.
+                                          properties:
+                                            providerConfig:
+                                              description: ProviderConfig holds the
+                                                extension specific configuration.
+                                              type: object
+                                              x-kubernetes-preserve-unknown-fields: true
+                                            type:
+                                              description: |-
+                                                Type defines the type of the extension exposure.
+                                                Defaults to `.spec.provider.type`
+                                              type: string
+                                          type: object
                                       type: object
                                   type: object
                                 cri:
@@ -2577,9 +2688,9 @@ spec:
                           runs the control plane of the Shoot.
                         type: string
                       seedSelector:
-                        description: SeedSelector is an optional selector which must
-                          match a seed's labels for the shoot to be scheduled on that
-                          seed.
+                        description: |-
+                          SeedSelector is an optional selector which must match a seed's labels for the shoot to be scheduled on that seed.
+                          Once the shoot is assigned to a seed, the selector can only be changed later if the new one still matches the assigned seed.
                         properties:
                           matchExpressions:
                             description: matchExpressions is a list of label selector

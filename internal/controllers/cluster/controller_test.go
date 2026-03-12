@@ -17,9 +17,10 @@ import (
 	"github.com/openmcp-project/controller-utils/pkg/clusters"
 	testutils "github.com/openmcp-project/controller-utils/pkg/testing"
 
+	gardenv1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
+	gardenconst "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
+
 	providerv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
-	gardenv1beta1 "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1"
-	gardenconst "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/openmcp-project/cluster-provider-gardener/api/install"
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/cluster"
 	"github.com/openmcp-project/cluster-provider-gardener/internal/controllers/landscape"

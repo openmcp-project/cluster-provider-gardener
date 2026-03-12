@@ -5,7 +5,7 @@ import (
 
 	jpapi "github.com/openmcp-project/controller-utils/api/jsonpatch"
 
-	gardenv1beta1 "github.com/openmcp-project/cluster-provider-gardener/api/external/gardener/pkg/apis/core/v1beta1"
+	gardenv1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 )
 
 type ClusterConfigSpec struct {

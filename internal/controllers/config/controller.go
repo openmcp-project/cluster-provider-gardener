@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"time"
 
 	"github.com/Masterminds/semver/v3"
 
@@ -234,11 +235,32 @@ func (r *GardenerProviderConfigReconciler) handleCreateOrUpdate(ctx context.Cont
 
 	// extract supported k8s versions
 	for _, version := range cp.Spec.Kubernetes.Versions {
-		if version.Classification != nil && (*version.Classification == gardenv1beta1.ClassificationSupported || *version.Classification == gardenv1beta1.ClassificationDeprecated) {
-			p.SupportedK8sVersions = append(p.SupportedK8sVersions, shared.K8sVersion{
-				Version:    version.Version,
-				Deprecated: *version.Classification == gardenv1beta1.ClassificationDeprecated,
-			})
+		// old logic, remove once all CloudProfiles have been migrated to the new lifecycle field
+		if version.Classification != nil { // nolint:staticcheck
+			if *version.Classification == gardenv1beta1.ClassificationSupported || *version.Classification == gardenv1beta1.ClassificationDeprecated { // nolint:staticcheck
+				p.SupportedK8sVersions = append(p.SupportedK8sVersions, shared.K8sVersion{
+					Version:    version.Version,
+					Deprecated: *version.Classification == gardenv1beta1.ClassificationDeprecated, // nolint:staticcheck
+				})
+			}
+		} else if len(version.Lifecycle) > 0 { // new logic
+			currentLifecycleStage := determineCurrentLifecycleStage(version)
+			k8sv := shared.K8sVersion{
+				Version: version.Version,
+			}
+			if currentLifecycleStage == nil {
+				// assume the version is supported if there is no lifecycle information
+				p.SupportedK8sVersions = append(p.SupportedK8sVersions, k8sv)
+			} else {
+				switch currentLifecycleStage.Classification {
+				case gardenv1beta1.ClassificationDeprecated:
+					k8sv.Deprecated = true
+					fallthrough
+				case gardenv1beta1.ClassificationSupported:
+					p.SupportedK8sVersions = append(p.SupportedK8sVersions, k8sv)
+					// we don't consider other lifecycle stages (e.g. 'preview', 'expired') as supported
+				}
+			}
 		}
 	}
 
@@ -381,4 +403,43 @@ func (r *GardenerProviderConfigReconciler) SetupWithManager(mgr ctrl.Manager) er
 			}
 		}))).
 		Complete(r)
+}
+
+// determineCurrentLifecycleStage determines the current lifecycle stage Gardener 'ExpirableVersion' based on the current time and the lifecycle stages defined in the version.
+// Returns nil if no lifecycle stages are defined, or if none of the lifecycle stages has started yet.
+func determineCurrentLifecycleStage(version gardenv1beta1.ExpirableVersion) *gardenv1beta1.LifecycleStage {
+	if len(version.Lifecycle) == 0 {
+		return nil
+	}
+	// sort lifecycle phases by start time
+	slices.SortStableFunc(version.Lifecycle, func(a, b gardenv1beta1.LifecycleStage) int {
+		if a.StartTime == nil && b.StartTime == nil {
+			return 0
+		}
+		if a.StartTime == nil {
+			return -1
+		}
+		if b.StartTime == nil {
+			return 1
+		}
+		return a.StartTime.Compare(b.StartTime.Time)
+	})
+	now := time.Now()
+	var currentLifecycleStage *gardenv1beta1.LifecycleStage
+	// identify the lifecycle which has most recently started
+	for _, lifecycle := range version.Lifecycle {
+		// we sorted by start time, so we can abort as soon as we encounter a lifecycle which has a start time in the future
+		if lifecycle.StartTime != nil && lifecycle.StartTime.After(now) {
+			break
+		}
+		if currentLifecycleStage == nil {
+			currentLifecycleStage = &lifecycle
+		} else {
+			if currentLifecycleStage.StartTime == nil || lifecycle.StartTime.After(currentLifecycleStage.StartTime.Time) {
+				currentLifecycleStage = &lifecycle
+			}
+		}
+	}
+
+	return currentLifecycleStage
 }

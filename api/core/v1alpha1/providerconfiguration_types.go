@@ -75,8 +75,6 @@ func (gpcfg *ProviderConfig) CloudProfile() string {
 			return "" // we can only handle standard CloudProfiles at the moment
 		}
 		return gpcfg.Spec.ShootTemplate.Spec.CloudProfile.Name
-	} else if gpcfg.Spec.ShootTemplate.Spec.CloudProfileName != nil {
-		return *gpcfg.Spec.ShootTemplate.Spec.CloudProfileName
 	}
 	return ""
 }

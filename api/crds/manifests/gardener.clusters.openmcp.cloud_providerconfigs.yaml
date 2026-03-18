@@ -144,6 +144,7 @@ spec:
                       addons:
                         description: |-
                           Addons contains information about enabled/disabled addons and their configuration.
+
                           Deprecated: This field is deprecated. Enabling addons will be forbidden starting from Kubernetes 1.35.
                         properties:
                           kubernetesDashboard:
@@ -209,6 +210,7 @@ spec:
                       cloudProfileName:
                         description: |-
                           CloudProfileName is a name of a CloudProfile object.
+
                           Deprecated: This field will be removed in a future version of Gardener. Use `CloudProfile` instead.
                           Until Kubernetes v1.33, this field is synced with the `CloudProfile` field.
                           Starting with Kubernetes v1.34, this field is set to empty string and must not be provided anymore.
@@ -429,6 +431,7 @@ spec:
                               ignoreTaints:
                                 description: |-
                                   IgnoreTaints specifies a list of taint keys to ignore in node templates when considering to scale a node group.
+
                                   Deprecated: Ignore taints are deprecated and treated as startup taints
                                 items:
                                   type: string
@@ -988,6 +991,7 @@ spec:
                                     description: |-
                                       Default is not respected anymore by kube-apiserver.
                                       The cache is sized automatically.
+
                                       Deprecated: This field is deprecated. Setting the default cache size will be forbidden starting from Kubernetes 1.35.
                                     format: int32
                                     type: integer
@@ -1071,6 +1075,12 @@ spec:
                                   is immutable.
                                 format: int32
                                 type: integer
+                              nodeCIDRMaskSizeIPv6:
+                                description: NodeCIDRMaskSizeIPv6 defines the mask
+                                  size for node cidr in cluster (default is 64). This
+                                  field is immutable.
+                                format: int32
+                                type: integer
                               nodeMonitorGracePeriod:
                                 description: NodeMonitorGracePeriod defines the grace
                                   period before an unresponsive node is marked unhealthy.
@@ -1125,6 +1135,7 @@ spec:
                                   KubeMaxPDVols is not respected anymore by kube-scheduler.
                                   The maximum number of attached volumes is configured by the CSI driver.
                                   More information can be found at https://kubernetes.io/docs/concepts/storage/storage-limits/#custom-limits.
+
                                   Deprecated: This field is deprecated. Using this field will be forbidden starting from Kubernetes 1.35.
                                 type: string
                               profile:

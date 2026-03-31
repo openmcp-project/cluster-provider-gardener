@@ -350,9 +350,9 @@ spec:
                             type: array
                         type: object
                       exposureClassName:
-                        description: |-
-                          ExposureClassName is the optional name of an exposure class to apply a control plane endpoint exposure strategy.
-                          This field is immutable.
+                        description: ExposureClassName is the optional name of an
+                          exposure class to apply a control plane endpoint exposure
+                          strategy.
                         type: string
                       extensions:
                         description: Extensions contain type and provider information

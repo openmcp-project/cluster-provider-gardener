@@ -3,7 +3,7 @@ module github.com/openmcp-project/cluster-provider-gardener/api
 go 1.26.1
 
 require (
-	github.com/gardener/gardener/pkg/apis v1.138.0
+	github.com/gardener/gardener/pkg/apis v1.139.0
 	github.com/gardener/oidc-webhook-authenticator v0.42.0
 	github.com/openmcp-project/controller-utils v0.27.0
 	github.com/openmcp-project/controller-utils/api v0.27.0
@@ -76,7 +76,7 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	k8s.io/apimachinery v0.35.3
 	k8s.io/klog/v2 v2.130.1 // indirect
-	k8s.io/utils v0.0.0-20260210185600-b8788abfbbc2 // indirect
+	k8s.io/utils v0.0.0-20260319190234-28399d86e0b5 // indirect
 	sigs.k8s.io/controller-runtime v0.23.3
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect

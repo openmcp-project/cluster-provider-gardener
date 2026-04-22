@@ -1,6 +1,6 @@
 module github.com/openmcp-project/cluster-provider-gardener
 
-go 1.26.1
+go 1.26.2
 
 replace github.com/openmcp-project/cluster-provider-gardener/api => ./api
 
@@ -13,7 +13,7 @@ require (
 	github.com/onsi/gomega v1.39.1
 	github.com/openmcp-project/cluster-provider-gardener/api v0.12.0
 	github.com/openmcp-project/controller-utils v0.27.1
-	github.com/openmcp-project/openmcp-operator/api v0.18.1
+	github.com/openmcp-project/openmcp-operator/api v0.19.0
 	github.com/openmcp-project/openmcp-operator/lib v0.18.1
 	k8s.io/apimachinery v0.35.3
 	k8s.io/client-go v0.35.3

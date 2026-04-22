@@ -11,6 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
@@ -309,6 +310,10 @@ func (r *AccessRequestReconciler) cleanupOpenIDConnectResources(ctx context.Cont
 	errs := errutils.NewReasonableErrorList()
 	oidcs := &oidcv1alpha1.OpenIDConnectList{}
 	if err := sac.Client.List(ctx, oidcs, selector); err != nil {
+		if meta.IsNoMatchError(err) {
+			log.Info("Skipping cleanup of OpenIDConnect resources, because kind is not known (Gardener OIDC extension disabled?)", "error", err.Error())
+			return errs.Aggregate()
+		}
 		errs.Append(errutils.WithReason(fmt.Errorf("error listing OpenIDConnect resources: %w", err), cconst.ReasonShootClusterInteractionProblem))
 		return errs.Aggregate()
 	}

@@ -1,44 +1,20 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "git-submodules": {
-    "enabled": true
-  },
-  "minimumReleaseAge": "0 days",
-  "gitIgnoredAuthors": [
-    "github-actions[bot]@users.noreply.github.com"
-  ],
   "extends": [
     "config:recommended",
     "config:best-practices",
     "security:openssf-scorecard",
     "helpers:pinGitHubActionDigests",
-    ":rebaseStalePrs"
+    ":rebaseStalePrs",
+    ":enableVulnerabilityAlerts"
   ],
+  "git-submodules": {
+    "enabled": true
+  },
   "postUpdateOptions": [
     "gomodTidy"
   ],
   "packageRules": [
-    {
-      "matchManagers": [
-        "gomod"
-      ],
-      "matchDepNames": [
-        "go"
-      ],
-      "matchDepTypes": [
-        "golang"
-      ],
-      "rangeStrategy": "bump"
-    },
-    {
-      "matchPackageNames": [
-        "github.com/openmcp-project/*"
-      ],
-      "description": "Update all components from openmcp-project immediately",
-      "rebaseWhen": "auto",
-      "minimumReleaseAge": "0 days",
-      "enabled": true
-    },
     {
       "description": "Ignore version update for our own API",
       "matchManagers": [

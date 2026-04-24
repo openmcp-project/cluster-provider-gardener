@@ -13,8 +13,8 @@ require (
 	github.com/onsi/gomega v1.39.1
 	github.com/openmcp-project/cluster-provider-gardener/api v0.12.0
 	github.com/openmcp-project/controller-utils v0.27.1
-	github.com/openmcp-project/openmcp-operator/api v0.19.0
-	github.com/openmcp-project/openmcp-operator/lib v0.19.0
+	github.com/openmcp-project/openmcp-operator/api v0.19.1
+	github.com/openmcp-project/openmcp-operator/lib v0.19.1
 	k8s.io/apimachinery v0.35.4
 	k8s.io/client-go v0.35.4
 	sigs.k8s.io/controller-runtime v0.23.3

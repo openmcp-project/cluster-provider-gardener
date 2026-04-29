@@ -418,6 +418,10 @@ spec:
                             description: ClusterAutoscaler contains the configuration
                               flags for the Kubernetes cluster autoscaler.
                             properties:
+                              emitPerNodeGroupMetrics:
+                                description: 'EmitPerNodeGroupMetrics emits additional
+                                  per node group metrics (default: false).'
+                                type: boolean
                               expander:
                                 description: |-
                                   Expander defines the algorithm to use during scale up (default: least-waste).
@@ -745,6 +749,8 @@ spec:
 
                                           Supported types:
                                             - "aescbc"
+                                            - "aesgcm"
+                                            - "secretbox"
                                           Defaults to aescbc.
                                         type: string
                                     type: object
@@ -801,25 +807,6 @@ spec:
                                       the oidc-ca-file, otherwise the host's root
                                       CA set will be used.
                                     type: string
-                                  clientAuthentication:
-                                    description: |-
-                                      ClientAuthentication can optionally contain client configuration used for kubeconfig generation.
-
-                                      Deprecated: This field has no implemented use and will be forbidden starting from Kubernetes 1.31.
-                                      It's use was planned for generating OIDC kubeconfig https://github.com/gardener/gardener/issues/1433
-                                    properties:
-                                      extraConfig:
-                                        additionalProperties:
-                                          type: string
-                                        description: |-
-                                          Extra configuration added to kubeconfig's auth-provider.
-                                          Must not be any of idp-issuer-url, client-id, client-secret, idp-certificate-authority, idp-certificate-authority-data, id-token or refresh-token
-                                        type: object
-                                      secret:
-                                        description: The client Secret for the OpenID
-                                          Connect client.
-                                        type: string
-                                    type: object
                                   clientID:
                                     description: The client ID for the OpenID Connect
                                       client, must be set.
@@ -1458,44 +1445,6 @@ spec:
                                   This field cannot be set lower than "30s" or greater than "4h".
                                   Default: "5m".
                                 type: string
-                              systemReserved:
-                                description: |-
-                                  SystemReserved is the configuration for resources reserved for system processes not managed by kubernetes (e.g. journald).
-                                  When updating these values, be aware that cgroup resizes may not succeed on active worker nodes. Look for the NodeAllocatableEnforced event to determine if the configuration was applied.
-
-                                  Deprecated: Separately configuring resource reservations for system processes is deprecated in Gardener and will be forbidden starting from Kubernetes 1.31.
-                                  Please merge existing resource reservations into the kubeReserved field.
-                                properties:
-                                  cpu:
-                                    anyOf:
-                                    - type: integer
-                                    - type: string
-                                    description: CPU is the reserved cpu.
-                                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                                    x-kubernetes-int-or-string: true
-                                  ephemeralStorage:
-                                    anyOf:
-                                    - type: integer
-                                    - type: string
-                                    description: EphemeralStorage is the reserved
-                                      ephemeral-storage.
-                                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                                    x-kubernetes-int-or-string: true
-                                  memory:
-                                    anyOf:
-                                    - type: integer
-                                    - type: string
-                                    description: Memory is the reserved memory.
-                                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                                    x-kubernetes-int-or-string: true
-                                  pid:
-                                    anyOf:
-                                    - type: integer
-                                    - type: string
-                                    description: PID is the reserved process-ids.
-                                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                                    x-kubernetes-int-or-string: true
-                                type: object
                             type: object
                           version:
                             description: |-
@@ -2349,45 +2298,6 @@ spec:
                                             This field cannot be set lower than "30s" or greater than "4h".
                                             Default: "5m".
                                           type: string
-                                        systemReserved:
-                                          description: |-
-                                            SystemReserved is the configuration for resources reserved for system processes not managed by kubernetes (e.g. journald).
-                                            When updating these values, be aware that cgroup resizes may not succeed on active worker nodes. Look for the NodeAllocatableEnforced event to determine if the configuration was applied.
-
-                                            Deprecated: Separately configuring resource reservations for system processes is deprecated in Gardener and will be forbidden starting from Kubernetes 1.31.
-                                            Please merge existing resource reservations into the kubeReserved field.
-                                          properties:
-                                            cpu:
-                                              anyOf:
-                                              - type: integer
-                                              - type: string
-                                              description: CPU is the reserved cpu.
-                                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                                              x-kubernetes-int-or-string: true
-                                            ephemeralStorage:
-                                              anyOf:
-                                              - type: integer
-                                              - type: string
-                                              description: EphemeralStorage is the
-                                                reserved ephemeral-storage.
-                                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                                              x-kubernetes-int-or-string: true
-                                            memory:
-                                              anyOf:
-                                              - type: integer
-                                              - type: string
-                                              description: Memory is the reserved
-                                                memory.
-                                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                                              x-kubernetes-int-or-string: true
-                                            pid:
-                                              anyOf:
-                                              - type: integer
-                                              - type: string
-                                              description: PID is the reserved process-ids.
-                                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                                              x-kubernetes-int-or-string: true
-                                          type: object
                                       type: object
                                     version:
                                       description: |-

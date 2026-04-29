@@ -8,6 +8,9 @@
     ":rebaseStalePrs",
     ":enableVulnerabilityAlerts"
   ],
+  "gitIgnoredAuthors": [
+    "github-actions[bot]@users.noreply.github.com"
+  ],
   "git-submodules": {
     "enabled": true
   },

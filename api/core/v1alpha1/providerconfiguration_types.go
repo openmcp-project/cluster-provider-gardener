@@ -61,7 +61,7 @@ type ProviderConfigList struct {
 }
 
 func init() {
-	SchemeBuilder.Register(&ProviderConfig{}, &ProviderConfigList{})
+	RegisterToSchemeBuilder(&ProviderConfig{}, &ProviderConfigList{})
 }
 
 // CloudProfile returns the name of the Gardener CloudProfile that is referenced in the shoot template.

@@ -132,8 +132,8 @@ func defaultTestSetup(testDirPathSegments ...string) (*accessrequest.AccessReque
 	accessrequest.FakeClientMappingsForTesting = map[string]client.Client{
 		"fake": env.Client(shootCluster),
 	}
-	arr, ok := env.Reconciler(arRec).(*accessrequest.AccessRequestReconciler)
-	Expect(ok).To(BeTrue(), "Reconciler is not of type AccessRequestReconciler")
+	arr, err := testutils.ReconcilerAs[*accessrequest.AccessRequestReconciler](env, arRec)
+	Expect(err).ToNot(HaveOccurred(), "Reconciler is not of type AccessRequestReconciler")
 	return arr, env
 }
 

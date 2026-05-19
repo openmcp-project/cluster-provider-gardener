@@ -51,8 +51,8 @@ func defaultTestSetup(testDirPathSegments ...string) *testutils.ComplexEnvironme
 	landscape.FakeClientMappingsForTesting = map[string]client.Client{
 		"fake": env.Client(gardenCluster),
 	}
-	cr, ok := env.Reconciler(cRec).(*cluster.ClusterReconciler)
-	Expect(ok).To(BeTrue(), "Reconciler is not of type ClusterReconciler")
+	cr, err := testutils.ReconcilerAs[*cluster.ClusterReconciler](env, cRec)
+	Expect(err).ToNot(HaveOccurred(), "Reconciler is not of type ClusterReconciler")
 
 	// fake landscape
 	ls := &providerv1alpha1.Landscape{}

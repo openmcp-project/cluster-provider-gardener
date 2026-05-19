@@ -59,8 +59,8 @@ func defaultTestSetup(testDirPathSegments ...string) (*config.GardenerProviderCo
 	landscape.FakeClientMappingsForTesting = map[string]client.Client{
 		"fake": env.Client(gardenCluster),
 	}
-	pcr, ok := env.Reconciler(pcRec).(*config.GardenerProviderConfigReconciler)
-	Expect(ok).To(BeTrue(), "Reconciler is not of type GardenerProviderConfigReconciler")
+	pcr, err := testutils.ReconcilerAs[*config.GardenerProviderConfigReconciler](env, pcRec)
+	Expect(err).ToNot(HaveOccurred(), "Reconciler is not of type GardenerProviderConfigReconciler")
 	return pcr, env
 }
 

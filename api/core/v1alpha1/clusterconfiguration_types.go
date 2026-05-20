@@ -49,5 +49,5 @@ type ClusterConfigList struct {
 }
 
 func init() {
-	SchemeBuilder.Register(&ClusterConfig{}, &ClusterConfigList{})
+	RegisterToSchemeBuilder(&ClusterConfig{}, &ClusterConfigList{})
 }

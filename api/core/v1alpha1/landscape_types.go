@@ -65,5 +65,5 @@ type LandscapeList struct {
 }
 
 func init() {
-	SchemeBuilder.Register(&Landscape{}, &LandscapeList{})
+	RegisterToSchemeBuilder(&Landscape{}, &LandscapeList{})
 }

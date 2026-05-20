@@ -4,7 +4,7 @@ go 1.26.2
 
 require (
 	github.com/gardener/gardener/pkg/apis v1.142.1
-	github.com/gardener/oidc-webhook-authenticator v0.42.0
+	github.com/gardener/oidc-webhook-authenticator v0.43.0
 	github.com/openmcp-project/controller-utils v0.28.0
 	github.com/openmcp-project/controller-utils/api v0.28.0
 	github.com/openmcp-project/openmcp-operator/api v0.19.1

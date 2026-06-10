@@ -18,7 +18,6 @@ import (
 	testutils "github.com/openmcp-project/controller-utils/pkg/testing"
 
 	gardenv1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
-	gardenconst "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 
 	providerv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
 	"github.com/openmcp-project/cluster-provider-gardener/api/install"
@@ -182,7 +181,7 @@ var _ = Describe("Cluster Controller", func() {
 		Expect(shoot.Spec.Provider.Workers[0].Machine.Image.Version).To(PointTo(Equal("2000.0.0")))
 	})
 
-	It("should set the shoot's apiserver endpoint in the cluster status", func() {
+	It("should expose shoot endpoints in cluster status", func() {
 		env := defaultTestSetup("..", "cluster", "testdata", "test-05")
 
 		c := &clustersv1alpha1.Cluster{}
@@ -200,17 +199,12 @@ var _ = Describe("Cluster Controller", func() {
 		shoot.SetNamespace(cs.Shoot.Namespace)
 		Expect(env.Client(gardenCluster).Get(env.Ctx, client.ObjectKeyFromObject(shoot), shoot)).To(Succeed())
 		Expect(shoot.Status.AdvertisedAddresses).ToNot(BeEmpty())
-		var shootEndpoint string
+		Expect(c.Status.Endpoints).To(HaveLen(len(shoot.Status.AdvertisedAddresses)))
 		for _, addr := range shoot.Status.AdvertisedAddresses {
-			if addr.Name == gardenconst.AdvertisedAddressExternal {
-				shootEndpoint = addr.URL
-				break
-			}
+			url, exists := c.Status.Endpoints.Get(addr.Name)
+			Expect(exists).To(BeTrue(), "endpoint with name %s should exist in cluster status", addr.Name)
+			Expect(url).To(Equal(addr.URL), "endpoint URL should match the advertised address URL")
 		}
-		Expect(shootEndpoint).ToNot(BeEmpty())
-
-		Expect(c.Status.APIServer).ToNot(BeEmpty())
-		Expect(c.Status.APIServer).To(Equal(shootEndpoint))
 	})
 
 	It("should delete the shoot when the cluster is deleted", func() {

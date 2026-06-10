@@ -30,7 +30,6 @@ import (
 	openmcpconst "github.com/openmcp-project/openmcp-operator/api/constants"
 
 	gardenv1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
-	gardenconst "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 
 	providerv1alpha1 "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1"
 	cconst "github.com/openmcp-project/cluster-provider-gardener/api/core/v1alpha1/constants"
@@ -233,14 +232,10 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 			Spec:       *shoot.Spec.DeepCopy(),
 		}
 
-		// set shoot apiserver endpoint in status
-		if len(shoot.Status.AdvertisedAddresses) > 0 {
-			for _, addr := range shoot.Status.AdvertisedAddresses {
-				if addr.Name == gardenconst.AdvertisedAddressExternal {
-					rr.Object.Status.APIServer = addr.URL
-					break
-				}
-			}
+		// expose shoot endpoints in cluster status
+		c.Status.Endpoints = make(clustersv1alpha1.Endpoints, 0, len(shoot.Status.AdvertisedAddresses))
+		for _, addr := range shoot.Status.AdvertisedAddresses {
+			c.Status.Endpoints.Set(addr.Name, addr.URL)
 		}
 		manifest.ManagedFields = nil
 		manifest.ResourceVersion = ""
@@ -286,8 +281,12 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 		}
 		createCon(providerv1alpha1.ClusterConditionForeignFinalizers, metav1.ConditionTrue, "", "")
 
+		c.Status.Endpoints = clustersv1alpha1.Endpoints{}
 		if exists {
 			// shoot is still there
+			for _, addr := range shoot.Status.AdvertisedAddresses {
+				c.Status.Endpoints.Set(addr.Name, addr.URL)
+			}
 			if shoot.DeletionTimestamp == nil {
 				log.Info("Deleting shoot", "shootName", shoot.Name, "shootNamespace", shoot.Namespace)
 				if err := ctrlutils.EnsureAnnotation(ctx, landscape.Cluster.Client(), shoot, GardenerDeletionConfirmationAnnotation, "true", true, ctrlutils.OVERWRITE); err != nil {

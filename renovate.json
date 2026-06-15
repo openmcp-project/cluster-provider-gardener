@@ -1,5 +1,9 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "git-submodules": {
+    "enabled": true
+  },
+  "minimumReleaseAge": "0 days",
   "extends": [
     "config:recommended",
     "config:best-practices",
@@ -11,9 +15,6 @@
   "gitIgnoredAuthors": [
     "github-actions[bot]@users.noreply.github.com"
   ],
-  "git-submodules": {
-    "enabled": true
-  },
   "postUpdateOptions": [
     "gomodTidy"
   ],
@@ -35,6 +36,24 @@
         "openmcp-project/build"
       ],
       "groupName": "openmcp-project/build"
+    },
+    {
+      "description": "Update and automerge all components from openmcp-project immediately in one singe PR",
+      "matchManagers": [
+        "gomod"
+      ],
+      "groupName": "openmcp-project Go dependencies",
+      "groupSlug": "openmcp-go-deps",
+      "automerge": true,
+      "automergeType": "pr",
+      "prPriority": 10,
+      "semanticCommitType": "chore",
+      "rebaseWhen": "auto",
+      "minimumReleaseAge": "0 days",
+      "enabled": true,
+      "matchPackageNames": [
+        "/^github.com/openmcp-project//"
+      ]
     }
   ]
 }

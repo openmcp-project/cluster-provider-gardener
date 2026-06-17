@@ -1,6 +1,8 @@
 package cluster_test
 
 import (
+	"strings"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
@@ -10,6 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
+	openmcpconst "github.com/openmcp-project/openmcp-operator/api/constants"
 
 	"github.com/openmcp-project/controller-utils/pkg/clusters"
 	testutils "github.com/openmcp-project/controller-utils/pkg/testing"
@@ -154,20 +157,38 @@ var _ = Describe("Shoot Logic", func() {
 			for k, v := range oldShoot.Annotations {
 				Expect(shoot.Annotations).To(HaveKeyWithValue(k, v))
 			}
+			atLeastOne := false
+			for k, v := range c.Annotations {
+				if strings.HasPrefix(k, openmcpconst.MetadataAnnotationLabelPrefix) {
+					Expect(shoot.Annotations).To(HaveKeyWithValue(k, v))
+					atLeastOne = true
+				}
+			}
+			Expect(atLeastOne).To(BeTrue(), "there should be at least one metadata annotation on the cluster for this check to be effective")
+			Expect(shoot.Annotations).ToNot(HaveKey("some.other.annotation")) // should not be copied from cluster annotations
 
 			// verify labels
-			expecedLabels := map[string]string{
+			expectedLabels := map[string]string{
 				providerv1alpha1.ClusterReferenceLabelName:        c.Name,
 				providerv1alpha1.ClusterReferenceLabelNamespace:   c.Namespace,
 				providerv1alpha1.ClusterReferenceLabelProvider:    shared.ProviderName(),
 				providerv1alpha1.ClusterReferenceLabelEnvironment: shared.Environment(),
 			}
-			for k, v := range expecedLabels {
+			for k, v := range expectedLabels {
 				Expect(shoot.Labels).To(HaveKeyWithValue(k, v))
 			}
 			for k, v := range oldShoot.Labels {
 				Expect(shoot.Labels).To(HaveKeyWithValue(k, v))
 			}
+			atLeastOne = false
+			for k, v := range c.Labels {
+				if strings.HasPrefix(k, openmcpconst.MetadataAnnotationLabelPrefix) {
+					Expect(shoot.Labels).To(HaveKeyWithValue(k, v))
+					atLeastOne = true
+				}
+			}
+			Expect(atLeastOne).To(BeTrue(), "there should be at least one metadata label on the cluster for this check to be effective")
+			Expect(shoot.Labels).ToNot(HaveKey("some.other.label")) // should not be copied from cluster labels
 
 			// verify spec
 			Expect(shoot.Spec.Provider).To(Equal(pc.Spec.ShootTemplate.Spec.Provider))

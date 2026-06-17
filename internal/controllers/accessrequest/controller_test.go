@@ -521,7 +521,7 @@ var _ = Describe("AccessRequest Controller", func() {
 
 			// OpenIDConnect resource
 			oidc := &oidcv1alpha1.OpenIDConnect{}
-			oidc.Name = ctrlutils.K8sNameUUIDUnsafe(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name)
+			oidc.Name = ctrlutils.NameHashSHAKE128Base32(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name)
 			Expect(env.Client(shootCluster).Get(env.Ctx, client.ObjectKeyFromObject(oidc), oidc)).To(Succeed())
 			Expect(oidc.Spec.IssuerURL).To(Equal(ar.Spec.OIDC.Issuer))
 			Expect(oidc.Spec.Audiences).To(ConsistOf(ar.Spec.OIDC.ClientID))

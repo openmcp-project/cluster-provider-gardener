@@ -496,6 +496,7 @@ func (r *AccessRequestReconciler) renewToken(ctx context.Context, ar *clustersv1
 	return keep, rr
 }
 
+// nolint:gocyclo
 func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clustersv1alpha1.AccessRequest, getShootAccess shootAccessGetter, rr ReconcileResult) ([]client.Object, ReconcileResult) {
 	log := logging.FromContextOrPanic(ctx)
 	log.Info("Ensuring OIDC access")
@@ -525,9 +526,17 @@ func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clus
 		maps.Copy(oidc.Labels, pairs.PairsToMap(expectedLabels))
 		oidc.Spec.IssuerURL = oidcConfig.Issuer
 		oidc.Spec.GroupsClaim = &oidcConfig.GroupsClaim
-		oidc.Spec.GroupsPrefix = ptr.To(oidcConfig.UsernameGroupsPrefix())
+		groupsPrefix := oidcConfig.GetGroupsPrefix()
+		if groupsPrefix == "" {
+			groupsPrefix = "-" // Gardener uses '-' to disable prefixing
+		}
+		oidc.Spec.GroupsPrefix = &groupsPrefix
 		oidc.Spec.UsernameClaim = &oidcConfig.UsernameClaim
-		oidc.Spec.UsernamePrefix = ptr.To(oidcConfig.UsernameGroupsPrefix())
+		usernamePrefix := oidcConfig.GetUsernamePrefix()
+		if usernamePrefix == "" {
+			usernamePrefix = "-" // Gardener uses '-' to disable prefixing
+		}
+		oidc.Spec.UsernamePrefix = &usernamePrefix
 		oidc.Spec.Audiences = []string{oidcConfig.ClientID}
 		oidc.Spec.ClientID = "" // nolint:staticcheck
 		return nil
@@ -586,7 +595,12 @@ func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clus
 				if suffix, ok := strings.CutPrefix(sub.Name, "::"); ok {
 					sub.Name = suffix
 				} else {
-					sub.Name = oidcConfig.UsernameGroupsPrefix() + sub.Name
+					switch sub.Kind {
+					case rbacv1.UserKind:
+						sub.Name = oidcConfig.GetUsernamePrefix() + sub.Name
+					case rbacv1.GroupKind:
+						sub.Name = oidcConfig.GetGroupsPrefix() + sub.Name
+					}
 				}
 				return sub
 			})

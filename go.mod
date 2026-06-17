@@ -12,8 +12,8 @@ require (
 	github.com/onsi/ginkgo/v2 v2.29.0
 	github.com/onsi/gomega v1.41.0
 	github.com/openmcp-project/cluster-provider-gardener/api v0.12.1
-	github.com/openmcp-project/controller-utils v0.28.0
-	github.com/openmcp-project/openmcp-operator/api v0.19.1
+	github.com/openmcp-project/controller-utils v0.29.0
+	github.com/openmcp-project/openmcp-operator/api v1.0.1
 	github.com/openmcp-project/openmcp-operator/lib v0.19.1
 	k8s.io/apimachinery v0.36.1
 	k8s.io/client-go v0.36.1
@@ -44,7 +44,7 @@ require (
 	github.com/google/cel-go v0.26.1 // indirect
 	github.com/google/pprof v0.0.0-20260402051712-545e8a4df936 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.7 // indirect
-	github.com/openmcp-project/controller-utils/api v0.28.0 // indirect
+	github.com/openmcp-project/controller-utils/api v0.29.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/stoewer/go-strcase v1.3.1 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect

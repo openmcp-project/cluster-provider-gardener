@@ -5,9 +5,9 @@ go 1.26.4
 require (
 	github.com/gardener/gardener/pkg/apis v1.142.1
 	github.com/gardener/oidc-webhook-authenticator v0.43.0
-	github.com/openmcp-project/controller-utils v0.28.0
-	github.com/openmcp-project/controller-utils/api v0.28.0
-	github.com/openmcp-project/openmcp-operator/api v0.19.1
+	github.com/openmcp-project/controller-utils v0.29.0
+	github.com/openmcp-project/controller-utils/api v0.29.0
+	github.com/openmcp-project/openmcp-operator/api v1.0.1-0.20260611112902-626a7e9aebc3
 	k8s.io/apiextensions-apiserver v0.36.1
 	k8s.io/client-go v0.36.1
 )

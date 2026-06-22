@@ -157,14 +157,14 @@ var _ = Describe("Shoot Logic", func() {
 			for k, v := range oldShoot.Annotations {
 				Expect(shoot.Annotations).To(HaveKeyWithValue(k, v))
 			}
-			atLeastOne := false
+			hasMetadataAnnotation := false
 			for k, v := range c.Annotations {
 				if strings.HasPrefix(k, openmcpconst.MetadataAnnotationLabelPrefix) {
 					Expect(shoot.Annotations).To(HaveKeyWithValue(k, v))
-					atLeastOne = true
+					hasMetadataAnnotation = true
 				}
 			}
-			Expect(atLeastOne).To(BeTrue(), "there should be at least one metadata annotation on the cluster for this check to be effective")
+			Expect(hasMetadataAnnotation).To(BeTrue(), "there should be at least one metadata annotation on the cluster for this check to be effective")
 			Expect(shoot.Annotations).ToNot(HaveKey("some.other.annotation")) // should not be copied from cluster annotations
 
 			// verify labels

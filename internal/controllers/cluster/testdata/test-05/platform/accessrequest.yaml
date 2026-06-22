@@ -29,6 +29,16 @@ spec:
         - "*"
         verbs:
         - "*"
+    - name: qux
+      namespace: baz
+      rules:
+        - apiGroups:
+          - "*"
+          resources:
+          - "*"
+          verbs:
+          - "*"
+      disableAutomaticNamespaceCreation: true
     roleRefs:
     - kind: Role
       name: secret-viewer

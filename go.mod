@@ -14,7 +14,7 @@ require (
 	github.com/openmcp-project/cluster-provider-gardener/api v0.12.1
 	github.com/openmcp-project/controller-utils v0.30.0
 	github.com/openmcp-project/openmcp-operator/api v1.1.0
-	github.com/openmcp-project/openmcp-operator/lib v0.19.1
+	github.com/openmcp-project/openmcp-operator/lib v0.21.0
 	k8s.io/apimachinery v0.36.2
 	k8s.io/client-go v0.36.2
 	sigs.k8s.io/controller-runtime v0.24.1

@@ -3,6 +3,12 @@ kind: Cluster
 metadata:
   name: basic
   namespace: clusters
+  annotations:
+    metadata.open-control-plane.io/annotation: foo
+    some.other.annotation: foobar
+  labels:
+    metadata.open-control-plane.io/label: baz
+    some.other.label: foobaz
 spec:
   profile: test.gardener.gcp
   purposes:

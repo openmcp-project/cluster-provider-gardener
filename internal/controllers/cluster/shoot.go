@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"dario.cat/mergo"
 	"github.com/Masterminds/semver/v3"
@@ -18,6 +19,7 @@ import (
 
 	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
 	clusterconst "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1/constants"
+	openmcpconst "github.com/openmcp-project/openmcp-operator/api/constants"
 
 	gardenv1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	gardenconst "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
@@ -94,7 +96,10 @@ func UpdateShootFields(ctx context.Context, shoot *gardenv1beta1.Shoot, profile 
 	oldShoot := shoot.DeepCopy()
 
 	// annotations
-	enforcedAnnotations := maputils.Merge(tmpl.Annotations, map[string]string{
+	metadataAnnotations := maputils.Filter(cluster.Annotations, func(args ...any) bool {
+		return strings.HasPrefix(args[0].(string), openmcpconst.MetadataAnnotationLabelPrefix)
+	})
+	enforcedAnnotations := maputils.Merge(metadataAnnotations, tmpl.Annotations, map[string]string{
 		"shoot.gardener.cloud/cleanup-extended-apis-finalize-grace-period-seconds": "30",
 		gardenconst.AnnotationAuthenticationIssuer:                                 gardenconst.AnnotationAuthenticationIssuerManaged,
 	})
@@ -112,18 +117,15 @@ func UpdateShootFields(ctx context.Context, shoot *gardenv1beta1.Shoot, profile 
 	}
 
 	// labels
-	enforcedLabels := maputils.Merge(tmpl.Labels, map[string]string{
+	metadataLabels := maputils.Filter(cluster.Labels, func(args ...any) bool {
+		return strings.HasPrefix(args[0].(string), openmcpconst.MetadataAnnotationLabelPrefix)
+	})
+	enforcedLabels := maputils.Merge(metadataLabels, tmpl.Labels, map[string]string{
 		providerv1alpha1.ClusterReferenceLabelName:        cluster.Name,
 		providerv1alpha1.ClusterReferenceLabelNamespace:   cluster.Namespace,
 		providerv1alpha1.ClusterReferenceLabelProvider:    shared.ProviderName(),
 		providerv1alpha1.ClusterReferenceLabelEnvironment: shared.Environment(),
 	})
-	if project, ok := cluster.Labels["openmcp.cloud/project"]; ok { // TODO: use constant
-		enforcedLabels["openmcp.cloud/project"] = project
-	}
-	if workspace, ok := cluster.Labels["openmcp.cloud/workspace"]; ok { // TODO: use constant
-		enforcedLabels["openmcp.cloud/workspace"] = workspace
-	}
 	existingLabels := shoot.GetLabels()
 	if existingLabels == nil {
 		shoot.SetLabels(enforcedLabels)

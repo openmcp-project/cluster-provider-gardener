@@ -267,8 +267,16 @@ var _ = Describe("AccessRequest Controller", func() {
 
 			// --------------------------------------------------------------------------------
 
-			// role + binding from permissions field
+			// namespace, role + binding from permissions field
 			{
+				createdNS := &corev1.Namespace{}
+				createdNS.SetName(ar.Spec.Token.Permissions[1].Namespace)
+				Expect(env.Client(shootCluster).Get(env.Ctx, client.ObjectKeyFromObject(createdNS), createdNS)).To(Succeed())
+
+				notCreatedNS := &corev1.Namespace{}
+				notCreatedNS.SetName(ar.Spec.Token.Permissions[2].Namespace)
+				Expect(env.Client(shootCluster).Get(env.Ctx, client.ObjectKeyFromObject(notCreatedNS), notCreatedNS)).ToNot(Succeed())
+
 				rl := &rbacv1.RoleList{}
 				Expect(env.Client(shootCluster).List(env.Ctx, rl, labelSelector, client.InNamespace(ar.Spec.Token.Permissions[1].Namespace))).To(Succeed())
 				Expect(rl.Items).To(HaveLen(1))
@@ -567,7 +575,15 @@ var _ = Describe("AccessRequest Controller", func() {
 				Expect(crb.Subjects).To(ContainElement(expected))
 			}
 
-			// role + binding
+			// namespace, role + binding
+			createdNS := &corev1.Namespace{}
+			createdNS.SetName(ar.Spec.OIDC.Roles[1].Namespace)
+			Expect(env.Client(shootCluster).Get(env.Ctx, client.ObjectKeyFromObject(createdNS), createdNS)).To(Succeed())
+
+			notCreatedNS := &corev1.Namespace{}
+			notCreatedNS.SetName(ar.Spec.OIDC.Roles[2].Namespace)
+			Expect(env.Client(shootCluster).Get(env.Ctx, client.ObjectKeyFromObject(notCreatedNS), notCreatedNS)).ToNot(Succeed())
+
 			rl := &rbacv1.RoleList{}
 			Expect(env.Client(shootCluster).List(env.Ctx, rl, labelSelector, client.InNamespace(ar.Spec.OIDC.Roles[1].Namespace))).To(Succeed())
 			Expect(rl.Items).To(HaveLen(1))

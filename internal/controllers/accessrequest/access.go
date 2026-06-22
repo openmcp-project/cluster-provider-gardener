@@ -387,6 +387,14 @@ func (r *AccessRequestReconciler) renewToken(ctx context.Context, ar *clustersv1
 			roleName = fmt.Sprintf("openmcp:permission:%s:%d", ctrlutils.NameHashSHAKE128Base32(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name), i)
 		}
 		if permission.Namespace != "" {
+			// ensure namespace for role + binding if not disabled
+			if !permission.DisableAutomaticNamespaceCreation {
+				log.Debug("Ensuring Namespace for Role and RoleBinding", "roleName", roleName, "namespace", permission.Namespace)
+				if _, err := clusteraccess.EnsureNamespace(ctx, sac.Client, permission.Namespace); err != nil {
+					errs.Append(errutils.WithReason(fmt.Errorf("error ensuring namespace '%s' for role '%s' in shoot '%s': %w", permission.Namespace, roleName, sac.Shoot.Name, err), cconst.ReasonShootClusterInteractionProblem))
+					continue
+				}
+			}
 			// ensure role + binding
 			log.Debug("Ensuring Role and RoleBinding", "roleName", roleName, "namespace", permission.Namespace)
 			rb, r, err := clusteraccess.EnsureRoleAndBinding(ctx, sac.Client, roleName, permission.Namespace, subjects, permission.Rules, expectedLabels...)
@@ -560,6 +568,14 @@ func (r *AccessRequestReconciler) ensureOIDCAccess(ctx context.Context, ar *clus
 				roleName = fmt.Sprintf("openmcp:%s:%d", ctrlutils.NameHashSHAKE128Base32(shared.Environment(), shared.ProviderName(), ar.Namespace, ar.Name), i)
 			}
 			if roleDef.Namespace != "" {
+				// ensure namespace for role + rolebinding if not disabled
+				if !roleDef.DisableAutomaticNamespaceCreation {
+					log.Debug("Ensuring Namespace for Role and RoleBinding", "roleName", roleName, "namespace", roleDef.Namespace)
+					if _, err := clusteraccess.EnsureNamespace(ctx, sac.Client, roleDef.Namespace); err != nil {
+						errs.Append(errutils.WithReason(fmt.Errorf("error ensuring namespace '%s' for role '%s' in shoot '%s': %w", roleDef.Namespace, roleName, sac.Shoot.Name, err), cconst.ReasonShootClusterInteractionProblem))
+						continue
+					}
+				}
 				log.Debug("Ensuring Role", "roleName", roleName, "namespace", roleDef.Namespace)
 				r, err := clusteraccess.EnsureRole(ctx, sac.Client, roleName, roleDef.Namespace, roleDef.Rules, expectedLabels...)
 				if err != nil {

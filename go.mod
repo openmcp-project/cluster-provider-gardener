@@ -9,9 +9,9 @@ require (
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/gardener/gardener/pkg/apis v1.145.0
 	github.com/gardener/oidc-webhook-authenticator v0.44.0
-	github.com/onsi/ginkgo/v2 v2.31.0
-	github.com/onsi/gomega v1.42.0
-	github.com/openmcp-project/cluster-provider-gardener/api v0.13.0
+	github.com/onsi/ginkgo/v2 v2.32.0
+	github.com/onsi/gomega v1.42.1
+	github.com/openmcp-project/cluster-provider-gardener/api v0.0.0-00010101000000-000000000000
 	github.com/openmcp-project/controller-utils v0.30.0
 	github.com/openmcp-project/openmcp-operator/api v1.1.0
 	github.com/openmcp-project/openmcp-operator/lib v1.1.0
@@ -19,7 +19,7 @@ require (
 	k8s.io/api v0.36.2
 	k8s.io/apimachinery v0.36.2
 	k8s.io/client-go v0.36.2
-	k8s.io/utils v0.0.0-20260617174310-a95e086a2553
+	k8s.io/utils v0.0.0-20260626114624-be93311217bd
 	sigs.k8s.io/controller-runtime v0.24.1
 	sigs.k8s.io/yaml v1.6.0
 )

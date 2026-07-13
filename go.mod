@@ -1,6 +1,6 @@
 module github.com/openmcp-project/cluster-provider-gardener
 
-go 1.26.4
+go 1.26.5
 
 replace github.com/openmcp-project/cluster-provider-gardener/api => ./api
 
@@ -13,8 +13,8 @@ require (
 	github.com/onsi/gomega v1.42.1
 	github.com/openmcp-project/cluster-provider-gardener/api v0.0.0-00010101000000-000000000000
 	github.com/openmcp-project/controller-utils v0.30.0
-	github.com/openmcp-project/openmcp-operator/api v1.1.0
-	github.com/openmcp-project/openmcp-operator/lib v1.1.0
+	github.com/openmcp-project/openmcp-operator/api v1.2.0
+	github.com/openmcp-project/openmcp-operator/lib v1.2.0
 	github.com/spf13/cobra v1.10.2
 	k8s.io/api v0.36.2
 	k8s.io/apimachinery v0.36.2
@@ -35,7 +35,7 @@ require (
 	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
-	github.com/fluxcd/pkg/apis/kustomize v1.19.0 // indirect
+	github.com/fluxcd/pkg/apis/kustomize v1.20.0 // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.2 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
@@ -67,7 +67,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/openmcp-project/controller-utils/api v0.30.0 // indirect
+	github.com/openmcp-project/controller-utils/api v0.31.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_golang v1.23.2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect

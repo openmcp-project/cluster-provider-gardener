@@ -3,7 +3,7 @@ module github.com/openmcp-project/cluster-provider-gardener/api
 go 1.26.5
 
 require (
-	github.com/gardener/gardener/pkg/apis v1.145.0
+	github.com/gardener/gardener/pkg/apis v1.146.3
 	github.com/gardener/oidc-webhook-authenticator v0.44.0
 	github.com/openmcp-project/controller-utils v0.31.0
 	github.com/openmcp-project/controller-utils/api v0.31.0

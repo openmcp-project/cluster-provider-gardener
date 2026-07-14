@@ -240,20 +240,7 @@ func (rc *RuntimeConfiguration) SetLandscape(ctx context.Context, ls *Landscape)
 					}
 					// since the state of our Cluster is based purely on the shoot's conditions,
 					// only trigger a reconciliation, if the conditions changed
-					changed := false
-					for _, newCon := range newShoot.Status.Conditions {
-						for _, oldCon := range oldShoot.Status.Conditions {
-							if newCon.Type != oldCon.Type {
-								continue
-							}
-							changed = reflect.DeepEqual(newCon, oldCon)
-							break
-						}
-						if changed {
-							break
-						}
-					}
-					if changed {
+					if !reflect.DeepEqual(oldShoot.Status.Conditions, newShoot.Status.Conditions) {
 						enqueueReconcile(newShoot)
 					}
 				},

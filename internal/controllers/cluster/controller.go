@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -212,6 +213,8 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 		createCon(providerv1alpha1.ClusterConditionClusterConfigurations, metav1.ConditionTrue, "", "")
 
 		// take over fields from shoot template and update shoot
+		// keep a snapshot of the current shoot to detect whether the update is a no-op
+		shootBeforeUpdate := shoot.DeepCopy()
 		if err := UpdateShootFields(ctx, shoot, profile, c, clusterConfigs); err != nil {
 			rr.ReconcileError = errutils.WithReason(fmt.Errorf("error updating shoot fields: %w", err), clusterconst.ReasonInternalError)
 			createCon(providerv1alpha1.ClusterConditionShootManagement, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
@@ -249,8 +252,15 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 
 		var err error
 		if exists {
-			log.Info("Updating shoot", "shootName", shoot.Name, "shootNamespace", shoot.Namespace)
-			err = landscape.Cluster.Client().Update(ctx, shoot)
+			// only issue an update if the shoot actually changed to avoid unnecessary API calls and update conflicts
+			if equality.Semantic.DeepEqual(shootBeforeUpdate.Spec, shoot.Spec) &&
+				equality.Semantic.DeepEqual(shootBeforeUpdate.Labels, shoot.Labels) &&
+				equality.Semantic.DeepEqual(shootBeforeUpdate.Annotations, shoot.Annotations) {
+				log.Debug("Shoot is already up-to-date, skipping update", "shootName", shoot.Name, "shootNamespace", shoot.Namespace)
+			} else {
+				log.Info("Updating shoot", "shootName", shoot.Name, "shootNamespace", shoot.Namespace)
+				err = landscape.Cluster.Client().Update(ctx, shoot)
+			}
 		} else {
 			log.Info("Creating shoot", "shootName", shoot.Name, "shootNamespace", shoot.Namespace)
 			err = landscape.Cluster.Client().Create(ctx, shoot)

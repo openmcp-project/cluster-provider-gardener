@@ -435,6 +435,25 @@ spec:
                             description: ClusterAutoscaler contains the configuration
                               flags for the Kubernetes cluster autoscaler.
                             properties:
+                              autoscaling:
+                                description: Autoscaling contains auto-scaling configuration
+                                  options for the cluster-autoscaler.
+                                properties:
+                                  minAllowed:
+                                    additionalProperties:
+                                      anyOf:
+                                      - type: integer
+                                      - type: string
+                                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                      x-kubernetes-int-or-string: true
+                                    description: |-
+                                      MinAllowed configures the minimum allowed resource requests for vertical pod autoscaling..
+                                      Configuration of minAllowed resources is an advanced feature that can help clusters to overcome scale-up delays.
+                                      Default values are not applied to this field.
+                                    type: object
+                                required:
+                                - minAllowed
+                                type: object
                               emitPerNodeGroupMetrics:
                                 description: 'EmitPerNodeGroupMetrics emits additional
                                   per node group metrics (default: false).'
@@ -2322,6 +2341,12 @@ spec:
                                     configurations for different worker-pools. Eg.
                                     MachineDrainTimeout, MachineHealthTimeout.
                                   properties:
+                                    autoPreserveFailedMachineMax:
+                                      description: |-
+                                        AutoPreserveFailedMachineMax is the maximum number of machines that can be auto-preserved by MCM for the worker pool.
+                                        This value is distributed across zones like Minimum and Maximum.
+                                      format: int32
+                                      type: integer
                                     disableHealthTimeout:
                                       description: |-
                                         DisableHealthTimeout if set to true, health timeout will be ignored. Leading to machine never being declared failed.
@@ -2344,6 +2369,14 @@ spec:
                                     machineHealthTimeout:
                                       description: MachineHealthTimeout is the period
                                         after which machine is declared failed.
+                                      type: string
+                                    machinePreserveTimeout:
+                                      description: |-
+                                        MachinePreserveTimeout defines the duration after which machine preservation is disabled.
+                                        If preservation is disabled while the machine is in the Failed phase, the machine transitions
+                                        to the Terminating phase. For machines in any other phase, disabling preservation does not
+                                        alter the current phase, and normal behavior and phase transitions continue as usual.
+                                        However, the Cluster Autoscaler (CA) may scale down the machine if required.
                                       type: string
                                     maxEvictRetries:
                                       description: MaxEvictRetries are the number

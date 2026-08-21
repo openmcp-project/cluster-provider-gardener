@@ -228,14 +228,14 @@ func prometheusURLFromAdvertisedAddresses(addresses []gardenv1beta1.ShootAdverti
 
 func scrapeTargetFromPrometheusURL(rawURL string) (target, scheme string, err error) {
 	if rawURL == "" {
-		return "", "", fmt.Errorf("Prometheus URL is empty")
+		return "", "", fmt.Errorf("prometheus URL is empty")
 	}
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return "", "", err
 	}
 	if u.Scheme == "" || u.Host == "" {
-		return "", "", fmt.Errorf("Prometheus URL %q must include scheme and host", rawURL)
+		return "", "", fmt.Errorf("prometheus URL %q must include scheme and host", rawURL)
 	}
 	scheme = strings.ToLower(u.Scheme)
 	host := u.Host

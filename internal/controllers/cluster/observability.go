@@ -67,7 +67,7 @@ func shootPrometheusResourceLabels(c *clustersv1alpha1.Cluster, shoot *gardenv1b
 func (r *ClusterReconciler) ensureShootPrometheusObservability(ctx context.Context, c *clustersv1alpha1.Cluster, shoot *gardenv1beta1.Shoot, profile *shared.Profile, landscape *shared.Landscape) errutils.ReasonableError {
 	if _, err := r.PlatformCluster.Client().RESTMapper().RESTMapping(scrapeConfigGVK.GroupKind(), scrapeConfigGVK.Version); err != nil {
 		if meta.IsNoMatchError(err) {
-			return errutils.WithReason(fmt.Errorf("ScrapeConfig CRD %s is not installed on platform cluster", scrapeConfigGVK.GroupVersion().String()), cconst.ReasonConfigurationProblem)
+			return errutils.WithReason(fmt.Errorf("scrapeConfig CRD %s is not installed on platform cluster", scrapeConfigGVK.GroupVersion().String()), cconst.ReasonConfigurationProblem)
 		}
 		return errutils.WithReason(fmt.Errorf("error checking ScrapeConfig CRD on platform cluster: %w", err), clusterconst.ReasonPlatformClusterInteractionProblem)
 	}

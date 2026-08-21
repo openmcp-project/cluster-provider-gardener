@@ -77,18 +77,18 @@ func (r *ClusterReconciler) ensureShootPrometheusObservability(ctx context.Conte
 	monitoringSecret.SetNamespace(shoot.Namespace)
 	if err := landscape.Cluster.Client().Get(ctx, client.ObjectKeyFromObject(monitoringSecret), monitoringSecret); err != nil {
 		if apierrors.IsNotFound(err) {
-			return errutils.WithReason(fmt.Errorf("Gardener monitoring secret '%s/%s' does not exist yet", monitoringSecret.Namespace, monitoringSecret.Name), cconst.ReasonConfigurationProblem)
+			return errutils.WithReason(fmt.Errorf("gardener monitoring secret '%s/%s' does not exist yet", monitoringSecret.Namespace, monitoringSecret.Name), cconst.ReasonConfigurationProblem)
 		}
 		return errutils.WithReason(fmt.Errorf("error getting Gardener monitoring secret '%s/%s': %w", monitoringSecret.Namespace, monitoringSecret.Name, err), cconst.ReasonGardenClusterInteractionProblem)
 	}
 
 	username, ok := monitoringSecret.Data[gardenerMonitoringSecretUsername]
 	if !ok || len(username) == 0 {
-		return errutils.WithReason(fmt.Errorf("Gardener monitoring secret '%s/%s' does not contain key %q", monitoringSecret.Namespace, monitoringSecret.Name, gardenerMonitoringSecretUsername), cconst.ReasonConfigurationProblem)
+		return errutils.WithReason(fmt.Errorf("gardener monitoring secret '%s/%s' does not contain key %q", monitoringSecret.Namespace, monitoringSecret.Name, gardenerMonitoringSecretUsername), cconst.ReasonConfigurationProblem)
 	}
 	password, ok := monitoringSecret.Data[gardenerMonitoringSecretPassword]
 	if !ok || len(password) == 0 {
-		return errutils.WithReason(fmt.Errorf("Gardener monitoring secret '%s/%s' does not contain key %q", monitoringSecret.Namespace, monitoringSecret.Name, gardenerMonitoringSecretPassword), cconst.ReasonConfigurationProblem)
+		return errutils.WithReason(fmt.Errorf("gardener monitoring secret '%s/%s' does not contain key %q", monitoringSecret.Namespace, monitoringSecret.Name, gardenerMonitoringSecretPassword), cconst.ReasonConfigurationProblem)
 	}
 
 	prometheusURL := monitoringSecret.Annotations[gardenerPrometheusURLAnnotation]

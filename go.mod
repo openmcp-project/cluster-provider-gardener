@@ -9,7 +9,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/gardener/gardener/pkg/apis v1.148.2
 	github.com/gardener/oidc-webhook-authenticator v0.44.0
-	github.com/onsi/ginkgo/v2 v2.32.0
+	github.com/onsi/ginkgo/v2 v2.32.1
 	github.com/onsi/gomega v1.42.1
 	github.com/openmcp-project/cluster-provider-gardener/api v0.14.0
 	github.com/openmcp-project/controller-utils v0.31.0

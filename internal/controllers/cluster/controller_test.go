@@ -4,10 +4,15 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
+	corev1 "k8s.io/api/core/v1"
 
+	ctrlutils "github.com/openmcp-project/controller-utils/pkg/controller"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -35,9 +40,24 @@ const (
 var providerScheme = install.InstallProviderAPIs(runtime.NewScheme())
 var gardenScheme = install.InstallGardenerAPIs(runtime.NewScheme())
 
+var scrapeConfigGVK = schema.GroupVersionKind{Group: "monitoring.coreos.com", Version: "v1alpha1", Kind: "ScrapeConfig"}
+
+// newPlatformRESTMapper returns a DefaultRESTMapper that includes the ScrapeConfig CRD so the fake
+// platform client's RESTMapper can answer RESTMapping calls for it.
+func newPlatformRESTMapper() meta.RESTMapper {
+	m := meta.NewDefaultRESTMapper([]schema.GroupVersion{scrapeConfigGVK.GroupVersion()})
+	m.Add(scrapeConfigGVK, meta.RESTScopeNamespace)
+	return m
+}
+
+func init() {
+	providerScheme.AddKnownTypeWithName(scrapeConfigGVK, &unstructured.Unstructured{})
+}
+
 func defaultTestSetup(testDirPathSegments ...string) *testutils.ComplexEnvironment {
 	env := testutils.NewComplexEnvironmentBuilder().
 		WithFakeClient(platformCluster, providerScheme).
+		WithFakeClientBuilderCall(platformCluster, "WithRESTMapper", newPlatformRESTMapper()).
 		WithFakeClient(gardenCluster, gardenScheme).
 		WithInitObjectPath(platformCluster, append(testDirPathSegments, "platform")...).
 		WithInitObjectPath(gardenCluster, append(testDirPathSegments, "garden")...).
@@ -207,6 +227,175 @@ var _ = Describe("Cluster Controller", func() {
 		}
 	})
 
+	It("should create a ScrapeConfig for an observable cluster", func() {
+		env := defaultTestSetup("..", "cluster", "testdata", "test-05")
+
+		c := &clustersv1alpha1.Cluster{}
+		c.SetName("advanced")
+		c.SetNamespace("clusters")
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(Succeed())
+		c.Labels = map[string]string{providerv1alpha1.ObservabilityLabel: providerv1alpha1.ObservabilityLabelValueEnabled}
+		Expect(env.Client(platformCluster).Update(env.Ctx, c)).To(Succeed())
+
+		// Monitoring secret lives in the shoot's namespace (= project namespace in Gardener)
+		monitoringSecret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+			Name:        "shoot-advanced.monitoring",
+			Namespace:   "garden-clusters",
+			Annotations: map[string]string{"prometheus-url": "https://prometheus-shoot.example.com"},
+		}, Data: map[string][]byte{"username": []byte("admin"), "password": []byte("secret")}}
+		Expect(env.Client(gardenCluster).Create(env.Ctx, monitoringSecret)).To(Succeed())
+
+		env.ShouldReconcile(cRec, testutils.RequestFromObject(c))
+
+		name := "shoot-prom-" + ctrlutils.NameHashSHAKE128Base32(shared.Environment(), shared.ProviderName(), c.Namespace, c.Name)
+		forwardedSecret := &corev1.Secret{}
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKey{Name: name + "-auth", Namespace: c.Namespace}, forwardedSecret)).To(Succeed())
+		Expect(forwardedSecret.Labels).To(HaveKeyWithValue(providerv1alpha1.ObservabilityLabel, providerv1alpha1.ObservabilityLabelValueEnabled))
+		Expect(forwardedSecret.Data).To(HaveKeyWithValue("username", []byte("admin")))
+		Expect(forwardedSecret.Data).To(HaveKeyWithValue("password", []byte("secret")))
+
+		scrapeConfig := &unstructured.Unstructured{}
+		scrapeConfig.SetGroupVersionKind(scrapeConfigGVK)
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKey{Name: name, Namespace: c.Namespace}, scrapeConfig)).To(Succeed())
+		Expect(scrapeConfig.GetLabels()).To(HaveKeyWithValue(providerv1alpha1.ObservabilityLabel, providerv1alpha1.ObservabilityLabelValueEnabled))
+		Expect(scrapeConfig.Object).To(HaveKey("spec"))
+		spec := scrapeConfig.Object["spec"].(map[string]any)
+		Expect(spec).To(MatchKeys(IgnoreExtras, Keys{
+			"metricsPath": Equal("/federate"),
+			"scheme":      Equal("https"),
+			"jobName":     Equal("gardener-shoot-prometheus-garden-clusters-shoot-advanced"),
+		}))
+	})
+
+	It("should derive Prometheus URL from shoot advertised addresses when annotation is absent", func() {
+		env := defaultTestSetup("..", "cluster", "testdata", "test-05")
+
+		c := &clustersv1alpha1.Cluster{}
+		c.SetName("advanced")
+		c.SetNamespace("clusters")
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(Succeed())
+		c.Labels = map[string]string{providerv1alpha1.ObservabilityLabel: providerv1alpha1.ObservabilityLabelValueEnabled}
+		Expect(env.Client(platformCluster).Update(env.Ctx, c)).To(Succeed())
+
+		// No prometheus-url annotation; shoot has no prometheus advertised address either
+		// so we expect a ConfigurationProblem condition
+		monitoringSecret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+			Name:      "shoot-advanced.monitoring",
+			Namespace: "garden-clusters",
+			// deliberately no prometheus-url annotation
+		}, Data: map[string][]byte{"username": []byte("admin"), "password": []byte("secret")}}
+		Expect(env.Client(gardenCluster).Create(env.Ctx, monitoringSecret)).To(Succeed())
+
+		env.ShouldNotReconcile(cRec, testutils.RequestFromObject(c))
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(Succeed())
+		condition := findCondition(c.Status.Conditions, providerv1alpha1.ClusterConditionShootObservability)
+		Expect(condition).ToNot(BeNil())
+		Expect(condition.Status).To(Equal(metav1.ConditionFalse))
+	})
+
+	It("should set condition False when monitoring secret is missing", func() {
+		env := defaultTestSetup("..", "cluster", "testdata", "test-05")
+
+		c := &clustersv1alpha1.Cluster{}
+		c.SetName("advanced")
+		c.SetNamespace("clusters")
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(Succeed())
+		c.Labels = map[string]string{providerv1alpha1.ObservabilityLabel: providerv1alpha1.ObservabilityLabelValueEnabled}
+		Expect(env.Client(platformCluster).Update(env.Ctx, c)).To(Succeed())
+
+		// No monitoring secret created
+		env.ShouldNotReconcile(cRec, testutils.RequestFromObject(c))
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(Succeed())
+		condition := findCondition(c.Status.Conditions, providerv1alpha1.ClusterConditionShootObservability)
+		Expect(condition).ToNot(BeNil())
+		Expect(condition.Status).To(Equal(metav1.ConditionFalse))
+	})
+
+	It("should clean up ScrapeConfig and auth Secret when observability label is removed", func() {
+		env := defaultTestSetup("..", "cluster", "testdata", "test-05")
+
+		c := &clustersv1alpha1.Cluster{}
+		c.SetName("advanced")
+		c.SetNamespace("clusters")
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(Succeed())
+		c.Labels = map[string]string{providerv1alpha1.ObservabilityLabel: providerv1alpha1.ObservabilityLabelValueEnabled}
+		Expect(env.Client(platformCluster).Update(env.Ctx, c)).To(Succeed())
+
+		monitoringSecret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+			Name:        "shoot-advanced.monitoring",
+			Namespace:   "garden-clusters",
+			Annotations: map[string]string{"prometheus-url": "https://prometheus-shoot.example.com"},
+		}, Data: map[string][]byte{"username": []byte("admin"), "password": []byte("secret")}}
+		Expect(env.Client(gardenCluster).Create(env.Ctx, monitoringSecret)).To(Succeed())
+
+		env.ShouldReconcile(cRec, testutils.RequestFromObject(c))
+		name := "shoot-prom-" + ctrlutils.NameHashSHAKE128Base32(shared.Environment(), shared.ProviderName(), c.Namespace, c.Name)
+
+		// Verify resources were created
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKey{Name: name + "-auth", Namespace: c.Namespace}, &corev1.Secret{})).To(Succeed())
+		sc := &unstructured.Unstructured{}
+		sc.SetGroupVersionKind(scrapeConfigGVK)
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKey{Name: name, Namespace: c.Namespace}, sc)).To(Succeed())
+
+		// Remove the observability label
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(Succeed())
+		delete(c.Labels, providerv1alpha1.ObservabilityLabel)
+		Expect(env.Client(platformCluster).Update(env.Ctx, c)).To(Succeed())
+
+		env.ShouldReconcile(cRec, testutils.RequestFromObject(c))
+
+		// Resources must be gone
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKey{Name: name + "-auth", Namespace: c.Namespace}, &corev1.Secret{})).
+			To(MatchError(apierrors.IsNotFound, "auth secret should be deleted"))
+		sc2 := &unstructured.Unstructured{}
+		sc2.SetGroupVersionKind(scrapeConfigGVK)
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKey{Name: name, Namespace: c.Namespace}, sc2)).
+			To(MatchError(apierrors.IsNotFound, "ScrapeConfig should be deleted"))
+
+		// Condition should be True (cleanup succeeded)
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(Succeed())
+		condition := findCondition(c.Status.Conditions, providerv1alpha1.ClusterConditionShootObservability)
+		Expect(condition).ToNot(BeNil())
+		Expect(condition.Status).To(Equal(metav1.ConditionTrue))
+	})
+
+	It("should set OwnerReference on observability resources so GC deletes them with the cluster", func() {
+		env := defaultTestSetup("..", "cluster", "testdata", "test-05")
+
+		c := &clustersv1alpha1.Cluster{}
+		c.SetName("advanced")
+		c.SetNamespace("clusters")
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(Succeed())
+		c.Labels = map[string]string{providerv1alpha1.ObservabilityLabel: providerv1alpha1.ObservabilityLabelValueEnabled}
+		Expect(env.Client(platformCluster).Update(env.Ctx, c)).To(Succeed())
+
+		monitoringSecret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+			Name:        "shoot-advanced.monitoring",
+			Namespace:   "garden-clusters",
+			Annotations: map[string]string{"prometheus-url": "https://prometheus-shoot.example.com"},
+		}, Data: map[string][]byte{"username": []byte("admin"), "password": []byte("secret")}}
+		Expect(env.Client(gardenCluster).Create(env.Ctx, monitoringSecret)).To(Succeed())
+
+		env.ShouldReconcile(cRec, testutils.RequestFromObject(c))
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(Succeed())
+
+		name := "shoot-prom-" + ctrlutils.NameHashSHAKE128Base32(shared.Environment(), shared.ProviderName(), c.Namespace, c.Name)
+		ownerMatcher := ContainElement(MatchFields(IgnoreExtras, Fields{
+			"Name":       Equal(c.Name),
+			"Kind":       Equal("Cluster"),
+			"Controller": PointTo(BeTrue()),
+		}))
+
+		authSecret := &corev1.Secret{}
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKey{Name: name + "-auth", Namespace: c.Namespace}, authSecret)).To(Succeed())
+		Expect(authSecret.OwnerReferences).To(ownerMatcher)
+
+		sc := &unstructured.Unstructured{}
+		sc.SetGroupVersionKind(scrapeConfigGVK)
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKey{Name: name, Namespace: c.Namespace}, sc)).To(Succeed())
+		Expect(sc.GetOwnerReferences()).To(ownerMatcher)
+	})
+
 	It("should delete the shoot when the cluster is deleted", func() {
 		env := defaultTestSetup("..", "cluster", "testdata", "test-05")
 
@@ -352,3 +541,13 @@ var _ = Describe("Cluster Controller", func() {
 	})
 
 })
+
+// findCondition returns the condition with the given type from the list, or nil.
+func findCondition(conditions []metav1.Condition, condType string) *metav1.Condition {
+	for i := range conditions {
+		if conditions[i].Type == condType {
+			return &conditions[i]
+		}
+	}
+	return nil
+}

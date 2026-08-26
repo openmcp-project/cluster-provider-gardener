@@ -5,8 +5,8 @@ go 1.26.6
 require (
 	github.com/gardener/gardener/pkg/apis v1.148.2
 	github.com/gardener/oidc-webhook-authenticator v0.44.0
-	github.com/openmcp-project/controller-utils v0.31.0
-	github.com/openmcp-project/controller-utils/api v0.31.0
+	github.com/openmcp-project/controller-utils v0.33.0
+	github.com/openmcp-project/controller-utils/api v0.33.0
 	github.com/openmcp-project/openmcp-operator/api v1.3.0
 	k8s.io/apiextensions-apiserver v0.36.3
 	k8s.io/apimachinery v0.36.3
@@ -22,7 +22,7 @@ require (
 	github.com/fluxcd/pkg/apis/kustomize v1.20.0 // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.2 // indirect
-	github.com/go-logr/logr v1.4.3 // indirect
+	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/zapr v1.3.0 // indirect
 	github.com/go-openapi/jsonpointer v0.23.1 // indirect
 	github.com/go-openapi/jsonreference v0.21.6 // indirect

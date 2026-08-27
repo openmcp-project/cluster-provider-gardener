@@ -30,6 +30,9 @@ linters:
       - linters:
           - dupl
         path: internal/*
+      - linters:
+          - goconst
+        path: _test\.go
     paths:
       - third_party$
       - builtin$

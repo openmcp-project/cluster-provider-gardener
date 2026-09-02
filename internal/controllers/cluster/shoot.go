@@ -30,6 +30,14 @@ import (
 )
 
 const GardenerOIDCExtensionType = "shoot-oidc-service"
+const (
+	// AnnotationAuthenticationTrusted is the key for an annotation applied to a Shoot which marks
+	// the shoot as trusted for authentication purposes.
+	// TODO: replace with gardenconst.AnnotationAuthenticationTrusted once available in the gardener dependency.
+	AnnotationAuthenticationTrusted = "authentication.gardener.cloud/trusted"
+	// AnnotationAuthenticationTrustedValue is the value for [AnnotationAuthenticationTrusted] annotation.
+	AnnotationAuthenticationTrustedValue = "true"
+)
 
 func GetShoot(ctx context.Context, landscapeClient client.Client, projectNamespace string, c *clustersv1alpha1.Cluster) (*gardenv1beta1.Shoot, errutils.ReasonableError) {
 	log := logging.FromContextOrPanic(ctx)
@@ -102,6 +110,7 @@ func UpdateShootFields(ctx context.Context, shoot *gardenv1beta1.Shoot, profile 
 	enforcedAnnotations := maputils.Merge(metadataAnnotations, tmpl.Annotations, map[string]string{
 		"shoot.gardener.cloud/cleanup-extended-apis-finalize-grace-period-seconds": "30",
 		gardenconst.AnnotationAuthenticationIssuer:                                 gardenconst.AnnotationAuthenticationIssuerManaged,
+		AnnotationAuthenticationTrusted:                                            AnnotationAuthenticationTrustedValue,
 	})
 	existingAnnotations := shoot.GetAnnotations()
 	if existingAnnotations == nil {

@@ -47,6 +47,8 @@ func NewClusterReconciler(rc *shared.RuntimeConfiguration, eventRecorder events.
 	}
 }
 
+// +kubebuilder:rbac:groups=monitoring.coreos.com,resources=scrapeconfigs,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete,namespace=true
 type ClusterReconciler struct {
 	*shared.RuntimeConfiguration
 	eventRecorder events.EventRecorder
@@ -271,6 +273,22 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 			return rr
 		}
 		createCon(providerv1alpha1.ClusterConditionShootManagement, metav1.ConditionTrue, "", "")
+
+		if c.Labels[providerv1alpha1.ObservabilityLabel] == providerv1alpha1.ObservabilityLabelValueEnabled {
+			if rerr := r.ensureShootPrometheusObservability(ctx, c, shoot, profile, landscape); rerr != nil {
+				rr.ReconcileError = rerr
+				createCon(providerv1alpha1.ClusterConditionShootObservability, metav1.ConditionFalse, rerr.Reason(), rerr.Error())
+				return rr
+			}
+			createCon(providerv1alpha1.ClusterConditionShootObservability, metav1.ConditionTrue, "", "")
+		} else {
+			if rerr := r.cleanupShootPrometheusObservability(ctx, c); rerr != nil {
+				rr.ReconcileError = rerr
+				createCon(providerv1alpha1.ClusterConditionShootObservability, metav1.ConditionFalse, rerr.Reason(), rerr.Error())
+				return rr
+			}
+			createCon(providerv1alpha1.ClusterConditionShootObservability, metav1.ConditionTrue, "", "")
+		}
 
 	} else {
 

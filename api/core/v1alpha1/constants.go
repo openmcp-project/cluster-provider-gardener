@@ -17,6 +17,11 @@ const (
 	// This is used to detect changes in the ClusterConfig references.
 	ClusterConfigHashAnnotation = GroupName + "/clusterconfigs"
 
+	// ObservabilityLabel is used to enable observability integration for a Cluster.
+	ObservabilityLabel = "open-control-plane.io/observability"
+	// ObservabilityLabelValueEnabled is the value that enables observability integration for a Cluster.
+	ObservabilityLabelValueEnabled = "enabled"
+
 	// ManagedByNameLabel is used to mark resources that are managed by the Gardener ClusterProvider.
 	ManagedByNameLabel = GroupName + "/managed-by-name"
 	// ManagedByNamespaceLabel is used to mark resources that are managed by the Gardener ClusterProvider.
@@ -43,6 +48,7 @@ const (
 
 	ClusterConditionShootManagement       = "ShootManagement"
 	ClusterConditionClusterConfigurations = "ClusterConfigurations"
+	ClusterConditionShootObservability    = "ShootObservability"
 	ClusterConditionForeignFinalizers     = "ForeignFinalizers"
 
 	ProviderConfigConditionCloudProfile             = "CloudProfile"

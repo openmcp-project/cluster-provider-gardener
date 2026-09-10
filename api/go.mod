@@ -1,6 +1,6 @@
 module github.com/openmcp-project/cluster-provider-gardener/api
 
-go 1.27.0
+go 1.27.1
 
 require (
 	github.com/gardener/gardener/pkg/apis v1.149.3

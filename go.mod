@@ -11,7 +11,7 @@ require (
 	github.com/gardener/oidc-webhook-authenticator v0.44.0
 	github.com/onsi/ginkgo/v2 v2.32.2
 	github.com/onsi/gomega v1.43.0
-	github.com/openmcp-project/cluster-provider-gardener/api v0.16.0
+	github.com/openmcp-project/cluster-provider-gardener/api v0.16.1
 	github.com/openmcp-project/controller-utils v0.33.1
 	github.com/openmcp-project/openmcp-operator/api v1.4.1
 	github.com/openmcp-project/openmcp-operator/lib v1.4.1

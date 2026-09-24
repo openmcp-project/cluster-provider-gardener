@@ -130,8 +130,13 @@ func (r *AccessRequestReconciler) reconcile(ctx context.Context, req reconcile.R
 		Conditions: []metav1.Condition{},
 	}
 
+	inDeletion := !ar.DeletionTimestamp.IsZero()
 	c, p, rerr := r.getClusterAndProfile(ctx, ar)
 	if rerr != nil {
+		if inDeletion && rerr.Reason() == clusterconst.ReasonInvalidReference {
+			log.Info("Referenced Cluster no longer exists, skipping Shoot cleanup")
+			return r.removeFinalizer(ctx, req, ar, rr)
+		}
 		rr.Conditions = append(rr.Conditions, metav1.Condition{
 			Type:               providerv1alpha1.AccessRequestConditionFoundClusterAndProfile,
 			Status:             metav1.ConditionFalse,
@@ -177,7 +182,6 @@ func (r *AccessRequestReconciler) reconcile(ctx context.Context, req reconcile.R
 		}, nil
 	}
 
-	inDeletion := !ar.DeletionTimestamp.IsZero()
 	if !inDeletion {
 		rr = r.handleCreateOrUpdate(ctx, req, ar, getShootAccess, enforceReconcile, rr)
 	} else {
@@ -318,6 +322,13 @@ func (r *AccessRequestReconciler) handleDelete(ctx context.Context, req reconcil
 		return rr
 	}
 	createCon(providerv1alpha1.AccessRequestConditionCleanup, metav1.ConditionTrue, "", "")
+
+	return r.removeFinalizer(ctx, req, ar, rr)
+}
+
+func (r *AccessRequestReconciler) removeFinalizer(ctx context.Context, req reconcile.Request, ar *clustersv1alpha1.AccessRequest, rr ReconcileResult) ReconcileResult {
+	log := logging.FromContextOrPanic(ctx)
+	createCon := ctrlutils.GenerateCreateConditionFunc(&rr)
 
 	// remove finalizer
 	if controllerutil.RemoveFinalizer(ar, providerv1alpha1.AccessRequestFinalizer) {

@@ -18,6 +18,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
@@ -65,6 +66,7 @@ func NewLandscapeReconciler(rc *shared.RuntimeConfiguration, eventRecorder event
 	}
 }
 
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 type LandscapeReconciler struct {
 	*shared.RuntimeConfiguration
 	// TmpKubeconfigDir is a path to a directory where temporary kubeconfig files can be stored.
@@ -446,18 +448,9 @@ func landscapePhaseUpdate(obj *providerv1alpha1.Landscape, rr ctrlutils.Reconcil
 func (r *LandscapeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		// watch Landscape resources on the platform cluster
-		For(&providerv1alpha1.Landscape{}).
-		WithEventFilter(predicate.And(
-			predicate.Or(
-				predicate.GenerationChangedPredicate{},
-				ctrlutils.DeletionTimestampChangedPredicate{},
-				ctrlutils.GotAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueReconcile),
-				ctrlutils.LostAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueIgnore),
-			),
-			predicate.Not(
-				ctrlutils.HasAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueIgnore),
-			),
-		)).
+		For(&providerv1alpha1.Landscape{}, builder.WithPredicates(landscapeEventPredicate())).
+		// watch referenced kubeconfig Secrets on the platform cluster
+		WatchesMetadata(&corev1.Secret{}, handler.EnqueueRequestsFromMapFunc(r.mapSecretToLandscapes), builder.WithPredicates(secretResourceVersionChangedPredicate())).
 		// listen to internally triggered reconciliation requests
 		WatchesRawSource(source.TypedChannel(r.ReconcileLandscape, handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, ls *providerv1alpha1.Landscape) []ctrl.Request {
 			if ls == nil {
@@ -472,4 +465,50 @@ func (r *LandscapeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			}
 		}))).
 		Complete(r)
+}
+
+func landscapeEventPredicate() predicate.Predicate {
+	return predicate.And(
+		predicate.Or(
+			predicate.GenerationChangedPredicate{},
+			ctrlutils.DeletionTimestampChangedPredicate{},
+			ctrlutils.GotAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueReconcile),
+			ctrlutils.LostAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueIgnore),
+		),
+		predicate.Not(
+			ctrlutils.HasAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueIgnore),
+		),
+	)
+}
+
+func secretResourceVersionChangedPredicate() predicate.Predicate {
+	return predicate.Funcs{
+		CreateFunc: func(event.CreateEvent) bool { return true },
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			return e.ObjectOld.GetResourceVersion() != e.ObjectNew.GetResourceVersion()
+		},
+		DeleteFunc:  func(event.DeleteEvent) bool { return true },
+		GenericFunc: func(event.GenericEvent) bool { return false },
+	}
+}
+
+func (r *LandscapeReconciler) mapSecretToLandscapes(ctx context.Context, obj client.Object) []ctrl.Request {
+	secret, ok := obj.(*metav1.PartialObjectMetadata)
+	if !ok {
+		return nil
+	}
+	landscapes := &providerv1alpha1.LandscapeList{}
+	if err := r.PlatformCluster.Client().List(ctx, landscapes); err != nil {
+		ctrl.LoggerFrom(ctx).Error(err, "unable to list Landscapes for Secret event", "secret", client.ObjectKeyFromObject(secret))
+		return nil
+	}
+	requests := make([]ctrl.Request, 0)
+	for i := range landscapes.Items {
+		landscape := &landscapes.Items[i]
+		ref := landscape.Spec.Access.SecretRef
+		if ref != nil && ref.Namespace == secret.Namespace && ref.Name == secret.Name {
+			requests = append(requests, ctrl.Request{NamespacedName: client.ObjectKey{Name: landscape.Name}})
+		}
+	}
+	return requests
 }

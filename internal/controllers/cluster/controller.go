@@ -280,14 +280,14 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 				createCon(providerv1alpha1.ClusterConditionShootObservability, metav1.ConditionFalse, rerr.Reason(), rerr.Error())
 				return rr
 			}
-			createCon(providerv1alpha1.ClusterConditionShootObservability, metav1.ConditionTrue, "", "")
+			createCon(providerv1alpha1.ClusterConditionShootObservability, metav1.ConditionTrue, "ObservabilityEnabled", "Shoot Prometheus ScrapeConfig and authentication Secret are synchronized.")
 		} else {
 			if rerr := r.cleanupShootPrometheusObservability(ctx, c); rerr != nil {
 				rr.ReconcileError = rerr
 				createCon(providerv1alpha1.ClusterConditionShootObservability, metav1.ConditionFalse, rerr.Reason(), rerr.Error())
 				return rr
 			}
-			createCon(providerv1alpha1.ClusterConditionShootObservability, metav1.ConditionTrue, "", "")
+			createCon(providerv1alpha1.ClusterConditionShootObservability, metav1.ConditionTrue, "ObservabilityDisabled", "Shoot Prometheus ScrapeConfig and authentication Secret are removed.")
 		}
 
 	} else {
@@ -380,23 +380,29 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 	return rr
 }
 
+func clusterEventPredicate() predicate.Predicate {
+	return predicate.And(
+		predicate.Or(
+			predicate.GenerationChangedPredicate{},
+			ctrlutils.DeletionTimestampChangedPredicate{},
+			finalizersLostWhileInDeletionPredicate{},
+			ctrlutils.GotAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueReconcile),
+			ctrlutils.LostAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueIgnore),
+			ctrlutils.GotLabelPredicate(providerv1alpha1.ObservabilityLabel, providerv1alpha1.ObservabilityLabelValueEnabled),
+			ctrlutils.LostLabelPredicate(providerv1alpha1.ObservabilityLabel, providerv1alpha1.ObservabilityLabelValueEnabled),
+		),
+		predicate.Not(
+			ctrlutils.HasAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueIgnore),
+		),
+	)
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *ClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		// watch Cluster resources
 		For(&clustersv1alpha1.Cluster{}).
-		WithEventFilter(predicate.And(
-			predicate.Or(
-				predicate.GenerationChangedPredicate{},
-				ctrlutils.DeletionTimestampChangedPredicate{},
-				finalizersLostWhileInDeletionPredicate{},
-				ctrlutils.GotAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueReconcile),
-				ctrlutils.LostAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueIgnore),
-			),
-			predicate.Not(
-				ctrlutils.HasAnnotationPredicate(openmcpconst.OperationAnnotation, openmcpconst.OperationAnnotationValueIgnore),
-			),
-		)).
+		WithEventFilter(clusterEventPredicate()).
 		// watch Shoot resources
 		WatchesRawSource(source.TypedChannel(r.ShootWatch, handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, shoot *gardenv1beta1.Shoot) []ctrl.Request {
 			if shoot == nil {

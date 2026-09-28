@@ -336,6 +336,11 @@ var _ = Describe("Cluster Controller", func() {
 		sc := &unstructured.Unstructured{}
 		sc.SetGroupVersionKind(scrapeConfigGVK)
 		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKey{Name: name, Namespace: c.Namespace}, sc)).To(Succeed())
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(Succeed())
+		enabledCondition := findCondition(c.Status.Conditions, providerv1alpha1.ClusterConditionShootObservability)
+		Expect(enabledCondition).ToNot(BeNil())
+		Expect(enabledCondition.Status).To(Equal(metav1.ConditionTrue))
+		Expect(enabledCondition.Reason).To(Equal("ObservabilityEnabled"))
 
 		// Remove the observability label
 		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(Succeed())
@@ -357,6 +362,7 @@ var _ = Describe("Cluster Controller", func() {
 		condition := findCondition(c.Status.Conditions, providerv1alpha1.ClusterConditionShootObservability)
 		Expect(condition).ToNot(BeNil())
 		Expect(condition.Status).To(Equal(metav1.ConditionTrue))
+		Expect(condition.Reason).To(Equal("ObservabilityDisabled"))
 	})
 
 	It("should set OwnerReference on observability resources so GC deletes them with the cluster", func() {

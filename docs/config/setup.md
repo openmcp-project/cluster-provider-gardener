@@ -8,19 +8,48 @@ There are a few environment variables that are evaluated on startup and can be u
 
 ## Shoot Prometheus Observability
 
-Set `open-control-plane.io/observability=enabled` on a `Cluster` to create a
-Shoot Prometheus `ScrapeConfig` and a forwarded authentication `Secret` in the
-Cluster's namespace on the platform cluster. Adding the label or changing its
-value to `enabled` triggers reconciliation. Removing the label or changing its
-value away from `enabled` triggers cleanup. Resources annotated with
-`openmcp.cloud/operation=ignore` remain excluded from reconciliation.
+The Gardener ClusterProvider supports federating selected etcd metrics from Shoot
+Prometheus instances into the platform's Prometheus. This includes WAL fsync
+duration and total database size.
 
-The `ShootObservability` condition distinguishes successful states by reason:
+### Prerequisites
 
-- `ObservabilityEnabled`: the ScrapeConfig and authentication Secret are synchronized.
-- `ObservabilityDisabled`: the ScrapeConfig and authentication Secret are removed.
+- The platform cluster has the Prometheus Operator `ScrapeConfig` CRD installed.
+- Gardener provides a `<shoot-name>.monitoring` Secret in the Shoot's project
+  namespace with monitoring credentials and a Prometheus endpoint.
+- Platform Prometheus is configured to select ScrapeConfigs labeled
+  `open-control-plane.io/observability=enabled` in the relevant Cluster namespaces
+  and can reach the Shoot Prometheus endpoints.
 
-Both successful states have status `True`; an error has status `False` with its
-failure reason and message. `ObservabilityEnabled` confirms resource synchronization,
-not successful metric ingestion. Platform Prometheus must separately be configured
-to select these ScrapeConfigs and their namespaces.
+### Enabling Observability
+
+Add `open-control-plane.io/observability=enabled` to the `Cluster` resource on the
+platform cluster:
+
+```sh
+kubectl label clusters.clusters.openmcp.cloud <cluster-name> \
+  -n <cluster-namespace> open-control-plane.io/observability=enabled --overwrite
+```
+
+The provider copies the Gardener monitoring credentials into an authentication
+Secret and creates a ScrapeConfig in the Cluster's namespace. The ScrapeConfig
+uses HTTPS with basic authentication to federate the selected metrics through
+the Shoot Prometheus `/federate` endpoint every 60 seconds.
+
+To disable observability, remove the label. The provider removes the generated
+ScrapeConfig and authentication Secret. Both resources are also owned by the
+Cluster and are garbage-collected when it is deleted.
+
+### Status
+
+The Cluster's `ShootObservability` condition reports whether the provider has
+successfully applied the desired configuration:
+
+| Status | Reason | Meaning |
+| --- | --- | --- |
+| `True` | `ObservabilityEnabled` | The ScrapeConfig and authentication Secret are synchronized. |
+| `True` | `ObservabilityDisabled` | Observability is disabled and generated resources are removed. |
+| `False` | Error-specific reason | Configuration failed; see the condition message for details. |
+
+This condition describes resource configuration, not metric ingestion. Check
+the target's health in platform Prometheus to verify that scraping succeeds.

@@ -289,6 +289,31 @@ var _ = Describe("ProviderConfig Controller", func() {
 		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(p), p)).To(MatchError(apierrors.IsNotFound, "ClusterProfile should be deleted"))
 	})
 
+	It("should remove the finalizer if the profile is already missing", func() {
+		pcr, env := defaultTestSetup("..", "cluster", "testdata", "test-02")
+		ls := &providerv1alpha1.Landscape{}
+		ls.SetName("my-landscape")
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(ls), ls)).To(Succeed())
+		Expect(pcr.SetLandscape(env.Ctx, &shared.Landscape{
+			Name:     ls.Name,
+			Cluster:  clusters.NewTestClusterFromClient(gardenCluster, env.Client(gardenCluster)),
+			Resource: ls,
+		})).To(Succeed())
+
+		pc := &providerv1alpha1.ProviderConfig{}
+		pc.SetName("my-config")
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(pc), pc)).To(Succeed())
+		env.ShouldReconcile(pcRec, testutils.RequestFromObject(pc))
+
+		profile := &clustersv1alpha1.ClusterProfile{}
+		profile.SetName(shared.ProfileK8sName(pc.Name))
+		Expect(env.Client(platformCluster).Delete(env.Ctx, profile)).To(Succeed())
+		Expect(env.Client(platformCluster).Delete(env.Ctx, pc)).To(Succeed())
+
+		env.ShouldReconcile(pcRec, testutils.RequestFromObject(pc))
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(pc), pc)).To(MatchError(apierrors.IsNotFound, "ProviderConfig should be deleted when its profile is already missing"))
+	})
+
 })
 
 var _ = Describe("isProfileUpdated", func() {

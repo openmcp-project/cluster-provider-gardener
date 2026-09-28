@@ -313,7 +313,7 @@ func (r *GardenerProviderConfigReconciler) handleDelete(ctx context.Context, req
 	cp := &clustersv1alpha1.ClusterProfile{}
 	cp.SetName(shared.ProfileK8sName(pc.Name))
 	log.Info("Deleting ClusterProfile", "profileName", cp.Name)
-	if err := r.PlatformCluster.Client().Delete(ctx, cp); err != nil {
+	if err := client.IgnoreNotFound(r.PlatformCluster.Client().Delete(ctx, cp)); err != nil {
 		rr.ReconcileError = errutils.WithReason(fmt.Errorf("error deleting profile '%s': %w", cp.Name, err), clusterconst.ReasonPlatformClusterInteractionProblem)
 		createCon(providerv1alpha1.ProviderConfigConditionClusterProfileManagement, metav1.ConditionFalse, rr.ReconcileError.Reason(), rr.ReconcileError.Error())
 		return rr

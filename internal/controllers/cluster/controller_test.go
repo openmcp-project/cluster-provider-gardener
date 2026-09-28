@@ -255,14 +255,12 @@ var _ = Describe("Cluster Controller", func() {
 		name := "shoot-prom-" + ctrlutils.NameHashSHAKE128Base32(shared.Environment(), shared.ProviderName(), c.Namespace, c.Name)
 		forwardedSecret := &corev1.Secret{}
 		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKey{Name: name + "-auth", Namespace: c.Namespace}, forwardedSecret)).To(Succeed())
-		Expect(forwardedSecret.Labels).To(HaveKeyWithValue(providerv1alpha1.ObservabilityLabel, providerv1alpha1.ObservabilityLabelValueEnabled))
 		Expect(forwardedSecret.Data).To(HaveKeyWithValue("username", []byte("admin")))
 		Expect(forwardedSecret.Data).To(HaveKeyWithValue("password", []byte("secret")))
 
 		scrapeConfig := &unstructured.Unstructured{}
 		scrapeConfig.SetGroupVersionKind(scrapeConfigGVK)
 		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKey{Name: name, Namespace: c.Namespace}, scrapeConfig)).To(Succeed())
-		Expect(scrapeConfig.GetLabels()).To(HaveKeyWithValue(providerv1alpha1.ObservabilityLabel, providerv1alpha1.ObservabilityLabelValueEnabled))
 		Expect(scrapeConfig.Object).To(HaveKey("spec"))
 		spec := scrapeConfig.Object["spec"].(map[string]any)
 		Expect(spec).To(MatchKeys(IgnoreExtras, Keys{
@@ -319,8 +317,6 @@ var _ = Describe("Cluster Controller", func() {
 		c.SetName("advanced")
 		c.SetNamespace("clusters")
 		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(c), c)).To(Succeed())
-		c.Labels = map[string]string{providerv1alpha1.ObservabilityLabel: providerv1alpha1.ObservabilityLabelValueEnabled}
-		Expect(env.Client(platformCluster).Update(env.Ctx, c)).To(Succeed())
 		name := "shoot-prom-" + ctrlutils.NameHashSHAKE128Base32(shared.Environment(), shared.ProviderName(), c.Namespace, c.Name)
 		authSecret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: name + "-auth", Namespace: c.Namespace}}
 		Expect(env.Client(platformCluster).Create(env.Ctx, authSecret)).To(Succeed())

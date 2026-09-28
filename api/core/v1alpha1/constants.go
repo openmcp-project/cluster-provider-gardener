@@ -17,11 +17,6 @@ const (
 	// This is used to detect changes in the ClusterConfig references.
 	ClusterConfigHashAnnotation = GroupName + "/clusterconfigs"
 
-	// ObservabilityLabel marks generated Prometheus resources for selection by the platform Prometheus.
-	ObservabilityLabel = "open-control-plane.io/observability"
-	// ObservabilityLabelValueEnabled is the value used by generated resources for platform Prometheus selection.
-	ObservabilityLabelValueEnabled = "enabled"
-
 	// ManagedByNameLabel is used to mark resources that are managed by the Gardener ClusterProvider.
 	ManagedByNameLabel = GroupName + "/managed-by-name"
 	// ManagedByNamespaceLabel is used to mark resources that are managed by the Gardener ClusterProvider.

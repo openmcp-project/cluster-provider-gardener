@@ -20,8 +20,7 @@ Prerequisites:
   and can reach Shoot Prometheus endpoints.
 
 Set `ENABLE_SHOOT_PROMETHEUS_OBSERVABILITY=true` on the operator to enable
-federation for all Clusters; it defaults to `false`. Generated ScrapeConfigs carry
-the platform Prometheus selector label `open-control-plane.io/observability=enabled`.
+federation for all Clusters; it defaults to `false`.
 
 The provider creates a ScrapeConfig and authentication Secret in each Cluster's
 namespace when enabled. When disabled, it removes generated resources; deleting

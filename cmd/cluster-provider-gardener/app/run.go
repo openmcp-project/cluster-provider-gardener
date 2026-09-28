@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -34,6 +35,8 @@ import (
 )
 
 var setupLog logging.Logger
+
+const shootPrometheusObservabilityEnabledEnv = "ENABLE_SHOOT_PROMETHEUS_OBSERVABILITY"
 
 var allControllers = []string{
 	strings.ToLower(cluster.ControllerName),
@@ -96,6 +99,7 @@ type RunOptions struct {
 	MetricsCertWatcher                   *certwatcher.CertWatcher
 	WebhookCertWatcher                   *certwatcher.CertWatcher
 	AccessRequestServiceAccountNamespace string
+	ShootPrometheusObservabilityEnabled  bool
 }
 
 func (o *RunOptions) AddFlags(cmd *cobra.Command) {
@@ -218,6 +222,12 @@ func (o *RunOptions) Complete(ctx context.Context) error {
 		})
 	}
 
+	enabled, err := shootPrometheusObservabilityEnabledFromEnv()
+	if err != nil {
+		return err
+	}
+	o.ShootPrometheusObservabilityEnabled = enabled
+
 	o.AccessRequestServiceAccountNamespace = os.Getenv("ACCESS_REQUEST_SERVICE_ACCOUNT_NAMESPACE")
 	if o.AccessRequestServiceAccountNamespace == "" {
 		o.AccessRequestServiceAccountNamespace = "accessrequests"
@@ -230,6 +240,7 @@ func (o *RunOptions) Complete(ctx context.Context) error {
 func (o *RunOptions) PrintCompleted(cmd *cobra.Command) {
 	raw := map[string]any{
 		"accessRequestServiceAccountNamespace": o.AccessRequestServiceAccountNamespace,
+		"shootPrometheusObservabilityEnabled":  o.ShootPrometheusObservabilityEnabled,
 	}
 	data, err := yaml.Marshal(raw)
 	if err != nil {
@@ -237,6 +248,21 @@ func (o *RunOptions) PrintCompleted(cmd *cobra.Command) {
 		return
 	}
 	cmd.Print(string(data))
+}
+
+func parseShootPrometheusObservabilityEnabled(value string) (bool, error) {
+	if value == "" {
+		return false, nil
+	}
+	enabled, err := strconv.ParseBool(value)
+	if err != nil {
+		return false, fmt.Errorf("invalid %s value %q: %w", shootPrometheusObservabilityEnabledEnv, value, err)
+	}
+	return enabled, nil
+}
+
+func shootPrometheusObservabilityEnabledFromEnv() (bool, error) {
+	return parseShootPrometheusObservabilityEnabled(os.Getenv(shootPrometheusObservabilityEnabledEnv))
 }
 
 func (o *RunOptions) PrintCompletedOptions(cmd *cobra.Command) {
@@ -290,7 +316,7 @@ func (o *RunOptions) Run(ctx context.Context) error {
 
 	// setup Cluster controllers
 	if slices.Contains(o.Controllers, strings.ToLower(cluster.ControllerName)) {
-		if _, _, _, err := controllers.SetupClusterControllersWithManager(mgr, rc, map[string]events.EventRecorder{
+		if _, _, _, err := controllers.SetupClusterControllersWithManager(mgr, rc, o.ShootPrometheusObservabilityEnabled, map[string]events.EventRecorder{
 			landscape.ControllerName: mgr.GetEventRecorder(landscape.ControllerName),
 			config.ControllerName:    mgr.GetEventRecorder(config.ControllerName),
 			cluster.ControllerName:   mgr.GetEventRecorder(cluster.ControllerName),

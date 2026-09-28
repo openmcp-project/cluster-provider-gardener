@@ -489,6 +489,24 @@ var _ = Describe("AccessRequest Controller", func() {
 
 	})
 
+	It("should remove the finalizer when the referenced Cluster is already missing", func() {
+		ar := &clustersv1alpha1.AccessRequest{}
+		ar.SetName("my-access")
+		ar.SetNamespace("foo")
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(ar), ar)).To(Succeed())
+		ar.Finalizers = append(ar.Finalizers, providerv1alpha1.AccessRequestFinalizer)
+		Expect(env.Client(platformCluster).Update(env.Ctx, ar)).To(Succeed())
+
+		cluster := &clustersv1alpha1.Cluster{}
+		cluster.SetName("advanced")
+		cluster.SetNamespace("clusters")
+		Expect(env.Client(platformCluster).Delete(env.Ctx, cluster)).To(Succeed())
+		Expect(env.Client(platformCluster).Delete(env.Ctx, ar)).To(Succeed())
+
+		env.ShouldReconcile(arRec, testutils.RequestFromObject(ar))
+		Expect(env.Client(platformCluster).Get(env.Ctx, client.ObjectKeyFromObject(ar), ar)).To(MatchError(apierrors.IsNotFound, "AccessRequest should be deleted after its Cluster is gone"))
+	})
+
 	Context("OIDC-based access", func() {
 
 		It("should grant access to a cluster", func() {

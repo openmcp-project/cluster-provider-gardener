@@ -40,10 +40,11 @@ import (
 const ControllerName = "Cluster"
 const GardenerDeletionConfirmationAnnotation = "confirmation.gardener.cloud/deletion"
 
-func NewClusterReconciler(rc *shared.RuntimeConfiguration, eventRecorder events.EventRecorder) *ClusterReconciler {
+func NewClusterReconciler(rc *shared.RuntimeConfiguration, eventRecorder events.EventRecorder, shootPrometheusObservabilityEnabled bool) *ClusterReconciler {
 	return &ClusterReconciler{
-		RuntimeConfiguration: rc,
-		eventRecorder:        eventRecorder,
+		RuntimeConfiguration:                rc,
+		eventRecorder:                       eventRecorder,
+		shootPrometheusObservabilityEnabled: shootPrometheusObservabilityEnabled,
 	}
 }
 
@@ -51,7 +52,8 @@ func NewClusterReconciler(rc *shared.RuntimeConfiguration, eventRecorder events.
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete,namespace=true
 type ClusterReconciler struct {
 	*shared.RuntimeConfiguration
-	eventRecorder events.EventRecorder
+	eventRecorder                       events.EventRecorder
+	shootPrometheusObservabilityEnabled bool
 }
 
 var _ reconcile.Reconciler = &ClusterReconciler{}
@@ -274,7 +276,7 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, req reconcile.Request
 		}
 		createCon(providerv1alpha1.ClusterConditionShootManagement, metav1.ConditionTrue, "", "")
 
-		if c.Labels[providerv1alpha1.ObservabilityLabel] == providerv1alpha1.ObservabilityLabelValueEnabled {
+		if r.shootPrometheusObservabilityEnabled {
 			if rerr := r.ensureShootPrometheusObservability(ctx, c, shoot, profile, landscape); rerr != nil {
 				rr.ReconcileError = rerr
 				createCon(providerv1alpha1.ClusterConditionShootObservability, metav1.ConditionFalse, rerr.Reason(), rerr.Error())

@@ -51,7 +51,6 @@ func shootPrometheusResourceName(c *clustersv1alpha1.Cluster) string {
 
 func shootPrometheusResourceLabels(c *clustersv1alpha1.Cluster, shoot *gardenv1beta1.Shoot, profile *shared.Profile) map[string]string {
 	return map[string]string{
-		providerv1alpha1.ObservabilityLabel:               providerv1alpha1.ObservabilityLabelValueEnabled,
 		providerv1alpha1.ManagedByNameLabel:               c.Name,
 		providerv1alpha1.ManagedByNamespaceLabel:          c.Namespace,
 		providerv1alpha1.ClusterReferenceLabelName:        c.Name,

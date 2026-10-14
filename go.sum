@@ -139,10 +139,10 @@ github.com/openmcp-project/controller-utils v0.33.2 h1:uanfYESayx6JALKor3wkIjja3
 github.com/openmcp-project/controller-utils v0.33.2/go.mod h1:hwfKYzTzYjC2vI0q7e1EE35UuPzJJ2gk4GK01x21GyI=
 github.com/openmcp-project/controller-utils/api v0.33.2 h1:y7N5aAwP/SENgdKCDzwaBw2jeTaDShgAx6jG77N1buc=
 github.com/openmcp-project/controller-utils/api v0.33.2/go.mod h1:Xu3dlK/FvQMU7zYsxU6WLUNmHq4vdZi5PL8MIVDpe64=
-github.com/openmcp-project/openmcp-operator/api v1.4.1 h1:Y8t0JDF18cmKDBHSxQlAxyIJzcftBdjNFTeU7NKpMNw=
-github.com/openmcp-project/openmcp-operator/api v1.4.1/go.mod h1:oPxKoPGTl2La8eVjm5lUOKiRIYLjTShI/peyLnGU2wU=
-github.com/openmcp-project/openmcp-operator/lib v1.4.1 h1:ncNm2ssKe4DO2Lib8+gTHejjJhH7GVPq53gZvkojBAw=
-github.com/openmcp-project/openmcp-operator/lib v1.4.1/go.mod h1:zygE2/K5KVg2QFc8EVhGwM2d6q7UbRGwxxFPuTjq/L0=
+github.com/openmcp-project/openmcp-operator/api v1.4.2 h1:hByhCMUYZm/G6bOdxv6qHlpKQvUqjUdxHIPoiU/Bsm4=
+github.com/openmcp-project/openmcp-operator/api v1.4.2/go.mod h1:6OfZhMDYjs82clPYRPlFaAU/WkGM7bMJQWr5h5856F4=
+github.com/openmcp-project/openmcp-operator/lib v1.4.2 h1:X34lPFnjJ7minJHrNNA1+LMy4PtF0LEiyVxcD+oYnE0=
+github.com/openmcp-project/openmcp-operator/lib v1.4.2/go.mod h1:8HRNUH3Y2MHha7Vh/2+woZXCUx1tTOVAmfBMbduHfPc=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=

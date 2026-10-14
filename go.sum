@@ -27,8 +27,8 @@ github.com/evanphx/json-patch/v5 v5.9.11 h1:/8HVnzMq13/3x9TPvjG08wUGqBTmZBsCWzjT
 github.com/evanphx/json-patch/v5 v5.9.11/go.mod h1:3j+LviiESTElxA4p3EMKAB9HXj3/XEtnUf6OZxqIQTM=
 github.com/felixge/httpsnoop v1.1.0 h1:3YtUj32ZZkqZtt3sZZsClsymw/QDuVfpNhoA31zeORc=
 github.com/felixge/httpsnoop v1.1.0/go.mod h1:Zqxgdd+1Rkcz8euOqdr7lqgCRJztwr5hp9vDSi5UZCE=
-github.com/fluxcd/pkg/apis/kustomize v1.20.0 h1:Aur2337TwSYGUffDQVlawOR3SJfRvxH7ikEKD6cJSxs=
-github.com/fluxcd/pkg/apis/kustomize v1.20.0/go.mod h1:9FUs77fd/Rh5/mDgZbGBUCL0UqmXiGj8rYywG3T3x+s=
+github.com/fluxcd/pkg/apis/kustomize v1.21.0 h1:dNR/mcuEdziBQKH2bG/B1X6MmASFv9ijXU7PdY8s2JU=
+github.com/fluxcd/pkg/apis/kustomize v1.21.0/go.mod h1:cN3wx9ZwzYkjYJ2ugTA7yjiW19IirZxiEwZhu4SFxyc=
 github.com/fsnotify/fsnotify v1.10.1 h1:b0/UzAf9yR5rhf3RPm9gf3ehBPpf0oZKIjtpKrx59Ho=
 github.com/fsnotify/fsnotify v1.10.1/go.mod h1:TLheqan6HD6GBK6PrDWyDPBaEV8LspOxvPSjC+bVfgo=
 github.com/fxamacker/cbor/v2 v2.9.4 h1:xwjVlxEMR3S605oUlgBjKLTTeGFciYPGYCtF/35LKGo=
@@ -135,10 +135,10 @@ github.com/onsi/ginkgo/v2 v2.33.0 h1:C8gBA6Uc2ZEubiV+SXiu5tZnMTwEmXHgkJwGozKtZf8
 github.com/onsi/ginkgo/v2 v2.33.0/go.mod h1:+aXOY+vzZ5mu2iI2HpTZUPmM//oQfsNFX6gU9kNcA44=
 github.com/onsi/gomega v1.44.0 h1:eAiGl3Pw5jz5GQdDff0BcxYpAX1JxW8xD7mFUuwNfZQ=
 github.com/onsi/gomega v1.44.0/go.mod h1:e/C2HwaZ1DhvjzXXuFhcR7hY7Sh9pl7MmoWKEjzwcdA=
-github.com/openmcp-project/controller-utils v0.33.1 h1:4bQ3dNjQF20K0++6uDp9x/dwzvfbXgmqcE/2V6KX/88=
-github.com/openmcp-project/controller-utils v0.33.1/go.mod h1:86/HACzkUsNb3P5h8TmTykLZWlHreKBfZW2SIj2QlpE=
-github.com/openmcp-project/controller-utils/api v0.33.1 h1:oFjNSxTGABxhChCbUXLt+oQZhyZbAKHFkcZABmMUIj8=
-github.com/openmcp-project/controller-utils/api v0.33.1/go.mod h1:q4d8MZ4rE8c7V9R17uFYr1V/AX4N7+bn4w8sjX5+Cfs=
+github.com/openmcp-project/controller-utils v0.33.2 h1:uanfYESayx6JALKor3wkIjja3Hq1pTq1VGB/KKPlCgY=
+github.com/openmcp-project/controller-utils v0.33.2/go.mod h1:hwfKYzTzYjC2vI0q7e1EE35UuPzJJ2gk4GK01x21GyI=
+github.com/openmcp-project/controller-utils/api v0.33.2 h1:y7N5aAwP/SENgdKCDzwaBw2jeTaDShgAx6jG77N1buc=
+github.com/openmcp-project/controller-utils/api v0.33.2/go.mod h1:Xu3dlK/FvQMU7zYsxU6WLUNmHq4vdZi5PL8MIVDpe64=
 github.com/openmcp-project/openmcp-operator/api v1.4.1 h1:Y8t0JDF18cmKDBHSxQlAxyIJzcftBdjNFTeU7NKpMNw=
 github.com/openmcp-project/openmcp-operator/api v1.4.1/go.mod h1:oPxKoPGTl2La8eVjm5lUOKiRIYLjTShI/peyLnGU2wU=
 github.com/openmcp-project/openmcp-operator/lib v1.4.1 h1:ncNm2ssKe4DO2Lib8+gTHejjJhH7GVPq53gZvkojBAw=

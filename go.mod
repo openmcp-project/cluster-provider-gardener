@@ -7,7 +7,7 @@ replace github.com/openmcp-project/cluster-provider-gardener/api => ./api
 require (
 	dario.cat/mergo v1.0.2
 	github.com/Masterminds/semver/v3 v3.5.0
-	github.com/gardener/gardener/pkg/apis v1.153.0
+	github.com/gardener/gardener/pkg/apis v1.154.0
 	github.com/gardener/oidc-webhook-authenticator v0.45.0
 	github.com/onsi/ginkgo/v2 v2.33.1
 	github.com/onsi/gomega v1.44.0
@@ -59,7 +59,7 @@ require (
 	github.com/google/cel-go v0.31.0 // indirect
 	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
-	github.com/google/pprof v0.0.0-20260802141513-ef3492d7dac3 // indirect
+	github.com/google/pprof v0.0.0-20261008003335-7bae8d8c4c9e // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.32.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

@@ -500,14 +500,6 @@ spec:
                                   Default: 1
                                 format: int32
                                 type: integer
-                              maxEmptyBulkDelete:
-                                description: |-
-                                  MaxEmptyBulkDelete specifies the maximum number of empty nodes that can be deleted at the same time (default: MaxScaleDownParallelism when that is set).
-
-                                  Deprecated: This field is deprecated. Setting this field will be forbidden starting from Kubernetes 1.33 and will be removed once gardener drops support for kubernetes v1.32.
-                                  This cluster-autoscaler field is deprecated upstream, use --max-scale-down-parallelism instead.
-                                format: int32
-                                type: integer
                               maxGracefulTerminationSeconds:
                                 description: 'MaxGracefulTerminationSeconds is the
                                   number of seconds CA waits for pod termination when
@@ -527,7 +519,7 @@ spec:
                               maxScaleDownParallelism:
                                 description: |-
                                   MaxScaleDownParallelism specifies the maximum number of nodes (both empty and needing drain) that can be deleted in parallel.
-                                  Default: 10 or MaxEmptyBulkDelete when that is set
+                                  Default: 10
                                 format: int32
                                 type: integer
                               newPodScaleUpDelay:
@@ -1057,18 +1049,6 @@ spec:
                               nodeMonitorGracePeriod:
                                 description: NodeMonitorGracePeriod defines the grace
                                   period before an unresponsive node is marked unhealthy.
-                                type: string
-                              podEvictionTimeout:
-                                description: |-
-                                  PodEvictionTimeout defines the grace period for deleting pods on failed nodes. Defaults to 2m.
-
-                                  Deprecated: The corresponding kube-controller-manager flag `--pod-eviction-timeout` is deprecated
-                                  in favor of the kube-apiserver flags `--default-not-ready-toleration-seconds` and `--default-unreachable-toleration-seconds`.
-                                  The `--pod-eviction-timeout` flag does not have effect when the taint based eviction is enabled. The taint
-                                  based eviction is beta (enabled by default) since Kubernetes 1.13 and GA since Kubernetes 1.18. Hence,
-                                  instead of setting this field, set the `spec.kubernetes.kubeAPIServer.defaultNotReadyTolerationSeconds` and
-                                  `spec.kubernetes.kubeAPIServer.defaultUnreachableTolerationSeconds`. Setting this field is forbidden starting
-                                  from Kubernetes 1.33.
                                 type: string
                             type: object
                           kubeProxy:
@@ -1895,6 +1875,46 @@ spec:
                                                 Type defines the type of the extension exposure.
                                                 Defaults to `.spec.provider.type`
                                               type: string
+                                          type: object
+                                      type: object
+                                    loadBalancerServices:
+                                      description: LoadBalancerServices controls settings
+                                        for the load balancer service of the istio
+                                        ingress gateway.
+                                      properties:
+                                        annotations:
+                                          additionalProperties:
+                                            type: string
+                                          description: Annotations is a map of annotations
+                                            that will be injected/merged into the
+                                            load balancer service object.
+                                          type: object
+                                        class:
+                                          description: |-
+                                            Class configures the Service.spec.loadBalancerClass field for the load balancer service.
+                                            Note that changing the loadBalancerClass of existing LoadBalancer services is denied by Kubernetes.
+                                          type: string
+                                        externalTrafficPolicy:
+                                          description: |-
+                                            ExternalTrafficPolicy describes how nodes distribute service traffic they
+                                            receive on one of the service's "externally-facing" addresses.
+                                            Defaults to "Cluster".
+                                          type: string
+                                        proxyProtocol:
+                                          description: |-
+                                            ProxyProtocol controls whether ProxyProtocol is (optionally) allowed for the load balancer services.
+                                            Defaults to nil, which is equivalent to not allowing ProxyProtocol.
+                                          properties:
+                                            allowed:
+                                              description: |-
+                                                Allowed controls whether the ProxyProtocol is optionally allowed for the load balancer services.
+                                                This should only be enabled if the load balancer services are already using ProxyProtocol or will be reconfigured to use it soon.
+                                                Until the load balancers are configured with ProxyProtocol, enabling this setting may allow clients to spoof their source IP addresses.
+                                                The option allows a migration from non-ProxyProtocol to ProxyProtocol without downtime (depending on the infrastructure).
+                                                Defaults to false.
+                                              type: boolean
+                                          required:
+                                          - allowed
                                           type: object
                                       type: object
                                   type: object

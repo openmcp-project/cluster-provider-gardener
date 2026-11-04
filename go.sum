@@ -33,8 +33,8 @@ github.com/fsnotify/fsnotify v1.10.1 h1:b0/UzAf9yR5rhf3RPm9gf3ehBPpf0oZKIjtpKrx5
 github.com/fsnotify/fsnotify v1.10.1/go.mod h1:TLheqan6HD6GBK6PrDWyDPBaEV8LspOxvPSjC+bVfgo=
 github.com/fxamacker/cbor/v2 v2.9.6 h1:NHZPxuUjJXQjX9itA785y/5NKSlI4HQ+S7noZsmI7hs=
 github.com/fxamacker/cbor/v2 v2.9.6/go.mod h1:4EaZp6ClVunETjQ4GHmGNzysDK91Lr+r6Yz6tJqzVCw=
-github.com/gardener/gardener/pkg/apis v1.154.0 h1:L+oiOLNa0oCTgZK2lWbp/o4re6lgNykRaepX/seTebo=
-github.com/gardener/gardener/pkg/apis v1.154.0/go.mod h1:nyhCMuYjnF14E79VG8yRJGwfUO0UeJMC0iZRSdMUhaU=
+github.com/gardener/gardener/pkg/apis v1.154.1 h1:TqjGF11KR0zlM0RIkCWebEMVDbT4RGhzqM4UgLHHWTQ=
+github.com/gardener/gardener/pkg/apis v1.154.1/go.mod h1:nyhCMuYjnF14E79VG8yRJGwfUO0UeJMC0iZRSdMUhaU=
 github.com/gardener/oidc-webhook-authenticator v0.45.0 h1:Tp61DoNfy2LK0TqLQ/1m/zqpoN1GwbOj11zh5OynoAM=
 github.com/gardener/oidc-webhook-authenticator v0.45.0/go.mod h1:MoDXK4yzKwqEAUEyaUBZlKNLgXHB2JC30ej3gwGgHXk=
 github.com/gkampitakis/ciinfo v0.3.2 h1:JcuOPk8ZU7nZQjdUhctuhQofk7BGHuIy0c9Ez8BNhXs=
